@@ -49,8 +49,6 @@ public class OpenApiConfig {
 
             **Errors.** Every 4xx and 5xx response has the body `{"error": "..."}`.
 
-            **Authentication.** None yet: restrict access at the network level (the Azure template allows only \
-            listed IP ranges). Add an API gateway or Entra ID before exposing this beyond a sandbox.
             """;
 
     @Bean

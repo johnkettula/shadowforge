@@ -31,6 +31,15 @@ VMINTENT_DB_URL=jdbc:postgresql://127.0.0.1:5432/vmintent
 VMINTENT_DB_USER=vmintent
 VMINTENT_DB_PASSWORD=$PASSWORD
 VMINTENT_DB_POOL=30
+# Sign-in: see docs/SECURITY.md. For client certificates: HTTPS on 8443 (API_PROFILES is read by
+# start-api.sh; with systemd, change SPRING_PROFILES_ACTIVE in vm-intent-api.service to api,tls instead).
+#API_PROFILES=api,tls
+#VMINTENT_SECURITY_MODE=pki
+#VMINTENT_TLS_CERT=/etc/vm-intent/pki/server.crt
+#VMINTENT_TLS_KEY=/etc/vm-intent/pki/server.key
+#VMINTENT_PKI_CA_FILE=/etc/vm-intent/pki/ca-bundle.pem
+#VMINTENT_PKI_CLIENTS_FILE=/etc/vm-intent/pki/pki-clients.yml
+#VMINTENT_PKI_CRL_FILE=/etc/vm-intent/pki/crl.pem
 EOF
 echo "Database ready. Settings written to $ENV_FILE"
 echo "If login fails, allow password logins for 127.0.0.1 in pg_hba.conf (method scram-sha-256)."

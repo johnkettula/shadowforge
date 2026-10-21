@@ -7,7 +7,7 @@
 #   docker compose up -d --scale worker=6     # more workers, no restart of anything else
 #
 # Web app      http://<host>:8088
-# API          http://<host>:8080
+# API          http://<host>:8080   (https://<host>:8443 with HTTPS on: VMINTENT_API_PROFILES=api,tls)
 # Temporal UI  http://<host>:8233
 #
 # This is a sandbox / single-host setup. For production, run Temporal with its Helm
@@ -71,7 +71,8 @@ services:
       postgres: { condition: service_healthy }
       temporal: { condition: service_started }
     environment: &backend-env
-      SPRING_PROFILES_ACTIVE: api
+      # "api,tls" serves HTTPS on 8443 and accepts client certificates (files in ./pki).
+      SPRING_PROFILES_ACTIVE: ${VMINTENT_API_PROFILES:-api}
       TEMPORAL_ADDRESS: temporal:7233
       VMINTENT_DB_EMBEDDED: "false"
       VMINTENT_DB_URL: jdbc:postgresql://postgres:5432/vmintent
@@ -79,13 +80,24 @@ services:
       VMINTENT_DB_PASSWORD: ${VMINTENT_DB_PASSWORD}
       VMINTENT_DB_POOL: 20
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      # Sign-in (see docs/SECURITY.md). none = open; entra = Entra ID tokens required.
+      # Sign-in (see docs/SECURITY.md): none, entra, pki or entra,pki.
       VMINTENT_SECURITY_MODE: ${VMINTENT_SECURITY_MODE:-none}
       VMINTENT_ENTRA_TENANT_ID: ${VMINTENT_ENTRA_TENANT_ID:-}
       VMINTENT_ENTRA_AUDIENCES: ${VMINTENT_ENTRA_AUDIENCES:-}
       VMINTENT_SWAGGER_CLIENT_ID: ${VMINTENT_SWAGGER_CLIENT_ID:-}
+      # Client certificates: files in deploy/pki, mounted below.
+      VMINTENT_TLS_CERT: /etc/vm-intent/pki/server.crt
+      VMINTENT_TLS_KEY: /etc/vm-intent/pki/server.key
+      VMINTENT_PKI_CA_FILE: /etc/vm-intent/pki/ca-bundle.pem
+      VMINTENT_PKI_CLIENTS_FILE: /etc/vm-intent/pki/pki-clients.yml
+      VMINTENT_PKI_CRL_FILE: ${VMINTENT_PKI_CRL_FILE:-}
+      VMINTENT_PKI_HEADER: ${VMINTENT_PKI_HEADER:-}
+      VMINTENT_PKI_TRUSTED_PROXIES: ${VMINTENT_PKI_TRUSTED_PROXIES:-}
+    volumes:
+      - ./pki:/etc/vm-intent/pki:ro
     ports:
       - "8080:8080"
+      - "8443:8443"
     restart: unless-stopped
 
   worker:
@@ -105,6 +117,9 @@ services:
   web:
     build: ../frontend
     depends_on: [api]
+    environment:
+      # Where nginx forwards /api and the docs. With HTTPS on the API: https://api:8443
+      API_UPSTREAM: ${VMINTENT_WEB_API_UPSTREAM:-http://api:8080}
     ports:
       - "8088:80"
     restart: unless-stopped

@@ -6,7 +6,10 @@ If the code and the document ever drift apart, this fails.
     pip install openapi-core requests
     python tests/api_contract_test.py                      # http://localhost:8080
     python tests/api_contract_test.py http://server:8080
-    VMINTENT_TOKEN=<Entra access token with VmIntent.Admin> python tests/api_contract_test.py   # sign-in on
+    VMINTENT_TOKEN=<Entra access token with VmIntent.Admin> python tests/api_contract_test.py   # Entra sign-in on
+    # Client-certificate sign-in on (a certificate listed with role ADMIN; VMINTENT_CA = the server's CA):
+    VMINTENT_CLIENT_CERT=admin.crt VMINTENT_CLIENT_KEY=admin.key VMINTENT_CA=ca-bundle.pem \
+        python tests/api_contract_test.py https://server:8443
 
 Uses the simulated clouds; builds a handful of VMs (they boot in 20-60 s by default).
 """
@@ -23,10 +26,24 @@ from openapi_core.contrib.requests import RequestsOpenAPIRequest, RequestsOpenAP
 
 BASE = (sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8080").rstrip("/")
 RUN = uuid.uuid4().hex[:6]
+
+
+class _Session(requests.Session):
+    """Sends the client certificate, and checks the server against VMINTENT_CA, on every call."""
+
+    def request(self, *args, **kwargs):
+        if os.environ.get("VMINTENT_CLIENT_CERT"):
+            kwargs.setdefault("cert", (os.environ["VMINTENT_CLIENT_CERT"], os.environ.get("VMINTENT_CLIENT_KEY")))
+        if os.environ.get("VMINTENT_CA"):
+            kwargs.setdefault("verify", os.environ["VMINTENT_CA"])   # a session-level verify loses to REQUESTS_CA_BUNDLE
+        return super().request(*args, **kwargs)
+
+
+HTTP = _Session()
 TOKEN = os.environ.get("VMINTENT_TOKEN")
 AUTH = {"Authorization": "Bearer " + TOKEN} if TOKEN else {}
 
-doc = requests.get(BASE + "/v3/api-docs", timeout=10).json()
+doc = HTTP.get(BASE + "/v3/api-docs", timeout=10).json()
 doc["servers"] = [{"url": BASE}]          # validate against the address we're actually calling
 api = OpenAPI.from_dict(doc)
 
@@ -39,7 +56,7 @@ def call(method, path, expect, body=None, raw=None, name=None):
     if body is not None or raw is not None:
         headers["Content-Type"] = "application/json"
     data = raw if raw is not None else (json.dumps(body) if body is not None else None)
-    resp = requests.request(method, BASE + path, data=data, headers=headers, timeout=30)
+    resp = HTTP.request(method, BASE + path, data=data, headers=headers, timeout=30)
     label = name or f"{method} {path}"
     problems = []
     if resp.status_code != expect:
@@ -56,7 +73,7 @@ def call(method, path, expect, body=None, raw=None, name=None):
 def wait_request(rid, states, timeout=180):
     end = time.time() + timeout
     while time.time() < end:
-        s = requests.get(f"{BASE}/api/v2/requests/{rid}", headers=AUTH, timeout=10).json()
+        s = HTTP.get(f"{BASE}/api/v2/requests/{rid}", headers=AUTH, timeout=10).json()
         if s["state"] in states:
             return s
         time.sleep(2)
@@ -105,7 +122,7 @@ b = call("POST", "/api/v2/batches", 202, {
 assert b["accepted"] == 2 and len(b["rejected"]) == 1, b
 end = time.time() + 180
 while time.time() < end:
-    st = requests.get(f"{BASE}/api/v2/batches/{b['batchId']}", headers=AUTH, timeout=10).json()
+    st = HTTP.get(f"{BASE}/api/v2/batches/{b['batchId']}", headers=AUTH, timeout=10).json()
     if st["state"] == "COMPLETED":
         break
     time.sleep(3)

@@ -91,18 +91,25 @@ Operation IDs are stable, so generated method names stay the same between versio
 
 Azure API Management, AWS API Gateway, Kong and others accept the OpenAPI 3.0 document directly. In
 Azure API Management: **APIs → Add API → OpenAPI → from URL**, `http://<host>:8080/v3/api-docs`.
-A gateway is also the simplest place to add authentication (next section).
+The API can also check sign-in itself (next section).
 
 ## Authentication
 
-With `VMINTENT_SECURITY_MODE=entra`, every `/api` call needs a Microsoft Entra ID access token:
-`Authorization: Bearer <token>`. Services use the client-credentials flow with scope
-`api://vm-intent/.default` and need an app role (`VmIntent.Batch`, `VmIntent.Read`, ...). Each operation's
-**Required role** is listed in its description, and the document lists the `entraId` (OAuth 2.0) and
-`bearerToken` security schemes. A missing or bad token gets 401; a token without the role gets 403.
-Setup steps and the role table are in `docs/SECURITY.md`.
+Sign-in is set by `VMINTENT_SECURITY_MODE` (details and setup: `docs/SECURITY.md`):
 
-With the default `VMINTENT_SECURITY_MODE=none` there is no sign-in, so keep the API on a private network.
+- **`entra`:** every `/api` call needs a Microsoft Entra ID access token: `Authorization: Bearer <token>`.
+  Services use the client-credentials flow with scope `api://vm-intent/.default` and need an app role
+  (`VmIntent.Batch`, `VmIntent.Read`, ...). The document lists the `entraId` (OAuth 2.0) and `bearerToken`
+  security schemes.
+- **`pki`:** every `/api` call needs a client certificate (mutual TLS) from a trusted CA that is on the API's
+  allowlist. The API serves HTTPS on port 8443. OpenAPI 3.0 can't declare client certificates, so the
+  document says so in its overview and in an `x-client-certificate` extension.
+  `curl --cacert ca.pem --cert my.crt --key my.key https://<host>:8443/api/v2/stats`
+- **`entra,pki`:** either one.
+- **`none`** (default): no sign-in, so keep the API on a private network.
+
+Each operation's **Required role** is in its description. A caller who isn't signed in gets 401, with the
+reason in `error` (for a refused certificate, which check it failed). A caller without the role gets 403.
 
 ## Checking the contract
 
@@ -110,6 +117,9 @@ With the default `VMINTENT_SECURITY_MODE=none` there is no sign-in, so keep the 
 pip install openapi-core requests
 python tests/api_contract_test.py http://localhost:8080
 ```
+
+With sign-in on, give it an ADMIN credential: `VMINTENT_TOKEN=<token>`, or `VMINTENT_CLIENT_CERT`,
+`VMINTENT_CLIENT_KEY` and `VMINTENT_CA` for a certificate.
 
 It runs 21 checks: every operation, the full question, confirm and cancel flows, a batch, and the 400,
 404 and 409 error cases. Each request and response is validated against the live document. Run it in CI

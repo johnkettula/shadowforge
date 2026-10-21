@@ -1,0 +1,27 @@
+# Profile "tls": the API serves HTTPS and asks callers for a client certificate.
+# Add it to the active profiles, e.g. SPRING_PROFILES_ACTIVE=api,tls. See docs/SECURITY.md.
+#
+#   VMINTENT_TLS_CERT     PEM file: the server's certificate (plus any intermediate CAs)
+#   VMINTENT_TLS_KEY      PEM file: the server's private key (unencrypted; protect it with file permissions)
+#   VMINTENT_PKI_CA_FILE  PEM file: the CAs whose client certificates are accepted (same file as
+#                         vmintent.security.pki.trusted-ca-file)
+server:
+  port: ${PORT:8443}
+  ssl:
+    enabled: true
+    bundle: vmintent
+    # "want": ask for a client certificate but don't require one, so the API docs open without
+    # one and Entra ID tokens still work. The security rules decide who may call each operation.
+    client-auth: want
+spring:
+  ssl:
+    bundle:
+      pem:
+        vmintent:
+          keystore:
+            certificate: ${VMINTENT_TLS_CERT}
+            private-key: ${VMINTENT_TLS_KEY}
+          truststore:
+            certificate: ${VMINTENT_PKI_CA_FILE}
+          options:
+            enabled-protocols: [TLSv1.3, TLSv1.2]

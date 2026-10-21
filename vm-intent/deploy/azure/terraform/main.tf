@@ -5,7 +5,7 @@
 locals {
   # *_v6 sizes only have NVMe disk controllers.
   nvme      = can(regex("_v6$", var.vm_size))
-  web_ports = ["8088", "8080", "8233"] # web app, API, Temporal UI
+  web_ports = ["8088", "8080", "8443", "8233"] # web app, API (HTTP; HTTPS with client certificates), Temporal UI
 }
 
 resource "azurerm_resource_group" "rg" {

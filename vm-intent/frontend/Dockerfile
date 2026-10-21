@@ -7,6 +7,8 @@ COPY . .
 RUN npm run build
 
 FROM nginx:1.27-alpine
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# The image turns templates/*.template into conf.d/*.conf, filling in environment variables.
+COPY nginx.conf /etc/nginx/templates/default.conf.template
+ENV API_UPSTREAM=http://api:8080
 COPY --from=build /src/dist /usr/share/nginx/html
 EXPOSE 80

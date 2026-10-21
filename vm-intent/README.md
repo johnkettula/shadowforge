@@ -69,6 +69,7 @@ backend/src/main/java/com/example/vmintent/
               and the VM inventory (VmRegistry)
   workflow/   also BatchProvisionWorkflow -> BatchShardWorkflow -> one VmReconcileWorkflow per VM
   config/     WorkerTuning: per-queue concurrency and cloud rate limits
+  security/   Sign-in (Entra ID tokens, client certificates) and who may call what (ApiAccessRules)
   legacy/     The old JSON format -> the same spec (no AI)
   api/        REST endpoints used by the React app
 frontend/src/ App.tsx (the whole UI), api.ts (typed REST calls)
@@ -111,8 +112,9 @@ The backend publishes an OpenAPI 3.0 document generated from its code:
 `docs/API.md` covers the operations, conventions (errors, idempotency, polling), client generation and
 gateway import.
 
-**Sign-in:** set `VMINTENT_SECURITY_MODE=entra` to require Microsoft Entra ID access tokens, with four
-roles (ADMIN, BATCH, REQUESTER, READER) taken from Entra app roles. Setup steps: `docs/SECURITY.md`.
+**Sign-in:** set `VMINTENT_SECURITY_MODE` to `entra` (Microsoft Entra ID access tokens, roles from Entra
+app roles), `pki` (client certificates from your CAs, on an allowlist that gives each one a role) or
+`entra,pki`. Both use the same four roles: ADMIN, BATCH, REQUESTER, READER. Setup steps: `docs/SECURITY.md`.
 Off by default, in which case keep the API on a private network. `python tests/api_contract_test.py` checks every endpoint against the live document.
 
 ## Building thousands of VMs at once

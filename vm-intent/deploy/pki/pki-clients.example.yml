@@ -1,0 +1,36 @@
+# Client-certificate allowlist for vm-intent (vmintent.security.mode=pki).
+# Copy to pki-clients.yml and list every certificate that may call the API.
+# The API re-reads this file within a few seconds of a change: no restart needed.
+#
+# Each entry:
+#   name     shown in the audit trail as "pki:<name>"; two entries may share a name
+#            (for example the old and new certificate while one is being replaced)
+#   role     ADMIN, BATCH, REQUESTER or READER (each includes the ones after it; see docs/SECURITY.md)
+#   and ONE way to recognise the certificate:
+#     subject  the certificate's subject name. Add "issuer" too, so another CA can't issue a
+#              certificate with the same name. Matches renewed certificates with the same name.
+#     sha256   the certificate's SHA-256 fingerprint. Matches only that one certificate.
+#
+# Names are compared the way X.500 does: case and spaces don't matter, and either order works,
+# so you can paste what openssl prints:
+#   openssl x509 -in client.crt -noout -subject -issuer -nameopt RFC2253
+#   openssl x509 -in client.crt -noout -fingerprint -sha256
+# A refused certificate's 401 response (and the API log) also shows its subject, issuer and fingerprint.
+#
+# Every certificate must also be issued by a CA in the trusted CA file (VMINTENT_PKI_CA_FILE),
+# be within its dates, and (if VMINTENT_PKI_CRL_FILE is set) not be revoked.
+
+clients:
+  - name: ci-pipeline
+    role: BATCH
+    subject: "CN=ci-pipeline,OU=Build Services,O=Example Corp,C=US"
+    issuer: "CN=Example Issuing CA 1,O=Example Corp,C=US"
+
+  - name: reporting
+    role: READER
+    sha256: "00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF"
+
+  - name: jane.doe
+    role: REQUESTER
+    subject: "CN=DOE.JANE.1234567890,OU=People,O=Example Corp,C=US"
+    issuer: "CN=Example Issuing CA 1,O=Example Corp,C=US"

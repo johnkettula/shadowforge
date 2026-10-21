@@ -79,7 +79,7 @@ vmintent:
 
   # Sign-in for the REST API. See docs/SECURITY.md.
   security:
-    mode: ${VMINTENT_SECURITY_MODE:none}          # none | entra
+    mode: ${VMINTENT_SECURITY_MODE:none}          # none | entra | pki | entra,pki
     entra:
       tenant-id: ${VMINTENT_ENTRA_TENANT_ID:}
       # The API's application (client) ID and/or Application ID URI, comma-separated.
@@ -89,6 +89,18 @@ vmintent:
       jwk-set-uri: ${VMINTENT_ENTRA_JWKS_URI:}
       # Entra app role / scope value -> vm-intent role. Empty = VmIntent.Admin/Batch/Request/Read.
       role-map: {}
+    # Client certificates (mode pki). See docs/SECURITY.md and deploy/pki/.
+    pki:
+      # Allowlist: which certificates may call and the role each gets. Re-read when it changes.
+      clients-file: ${VMINTENT_PKI_CLIENTS_FILE:}
+      # PEM file of the CAs (root and/or issuing) allowed to issue client certificates.
+      trusted-ca-file: ${VMINTENT_PKI_CA_FILE:}
+      # Optional PEM/DER file of CRLs; a revoked certificate is refused. Re-read when it changes.
+      crl-file: ${VMINTENT_PKI_CRL_FILE:}
+      # Optional: a TLS proxy in front of the API forwards the certificate in this header
+      # (nginx: $ssl_client_escaped_cert). Accepted only from trusted-proxies (comma-separated).
+      header: ${VMINTENT_PKI_HEADER:}
+      trusted-proxies: ${VMINTENT_PKI_TRUSTED_PROXIES:}
 
   api:
     # Addresses other services should call, listed in the OpenAPI document (comma-separated).

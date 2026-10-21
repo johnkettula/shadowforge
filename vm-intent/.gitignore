@@ -18,3 +18,9 @@ loadtest/report-*.json
 # Stand-in Entra signing key made by tests/security_test.py
 tests/.security-test-key.pem
 __pycache__/
+
+# Certificates, keys and the allowlist for client-certificate sign-in, and the test PKI
+deploy/pki/*
+!deploy/pki/README.md
+!deploy/pki/pki-clients.example.yml
+tests/.pki/
