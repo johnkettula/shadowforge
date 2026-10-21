@@ -82,13 +82,31 @@ The Linux sandbox uses Temporal's Java **test server**, which can't find Tempora
 binary there. When a worker was killed in the middle of a 2,000-VM run, the test server lost the
 tasks it had just handed to that worker. In a real Temporal server, those tasks time out and go to
 another worker. A new batch run afterwards completed normally. So the crash test was repeated against
-a real Temporal server, on basement (see below).
+a real Temporal server, on basement.
+
+**Crash test on basement (Windows, real Temporal server):**
+- Setup: Temporal's single-binary dev server (SQLite), the all-in-one backend, and one extra worker
+  started with `5-start-worker.cmd`. Load test: `6-run-loadtest.cmd`, 2,000 VMs with 20 set to fail.
+- At about 70 s, with roughly 140 builds in progress, the extra worker's window was closed.
+- **Result:** 1,980 VMs running and 20 of 20 rolled back, exactly as expected. No duplicates, and no
+  build lost or stuck. The surviving process picked up every in-progress build.
+- Speed: the dev server's single SQLite file handled about 1 VM per second, so the batch took 33
+  minutes and at most 152 VMs were in flight at once. That is the dev server's limit, not the app's.
+  For thousands at once, use the Postgres-backed Temporal in `deploy/docker-compose.yml`.
 
 Two genuine bugs came out of the sandbox crash tests, and both are fixed:
 1. The batch status page queried workflows, which hangs if the worker holding them has died. It now
    reads Postgres. The single-request status query also has a 5-second timeout.
 2. On shutdown, the database pool closed before running tasks finished. `GracefulWorkerShutdown` now
    lets the workers drain first.
+
+## Automated tests
+
+`BatchWorkflowTest` (run with `mvn test`) runs the real batch, shard and VM workflows in Temporal's
+in-memory test server, with timers skipped and a fake cloud. It checks:
+- a 12-VM batch in 3 shards gives 10 running and 2 rolled back, with no shard over its in-flight limit;
+- an identical spec in one batch is built once and counted as a duplicate;
+- throttled create calls are retried until they succeed.
 
 ## Sizing guide for 2,000 at once
 
