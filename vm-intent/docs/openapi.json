@@ -39,7 +39,7 @@
           "Requests"
         ],
         "summary": "Start a request",
-        "description": "Starts a request workflow for one VM. Poll GET /api/v2/requests/{id}: when state is AWAITING_CLARIFICATION, answer the question; when AWAITING_CONFIRMATION, confirm or cancel. Both waits time out after 24 hours.",
+        "description": "Starts a request workflow for one VM. Poll GET /api/v2/requests/{id}: when state is AWAITING_CLARIFICATION, answer the question; when AWAITING_CONFIRMATION, confirm or cancel. Both waits time out after 24 hours.\n\n**Required role:** REQUESTER (when sign-in is on; it is currently off)",
         "operationId": "createRequest",
         "requestBody": {
           "content": {
@@ -91,7 +91,7 @@
           "Requests"
         ],
         "summary": "Confirm and build",
-        "description": "Use when state is AWAITING_CONFIRMATION, after the requester has checked the spec.",
+        "description": "Use when state is AWAITING_CONFIRMATION, after the requester has checked the spec.\n\n**Required role:** REQUESTER (when sign-in is on; it is currently off)",
         "operationId": "confirmRequest",
         "parameters": [
           {
@@ -109,6 +109,16 @@
           },
           "404": {
             "description": "No such request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not your request (sign-in on, not an admin)",
             "content": {
               "application/json": {
                 "schema": {
@@ -136,7 +146,7 @@
           "Requests"
         ],
         "summary": "Answer the request's question",
-        "description": "Use when state is AWAITING_CLARIFICATION.",
+        "description": "Use when state is AWAITING_CLARIFICATION.\n\n**Required role:** REQUESTER (when sign-in is on; it is currently off)",
         "operationId": "clarifyRequest",
         "parameters": [
           {
@@ -164,6 +174,16 @@
           },
           "404": {
             "description": "No such request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not your request (sign-in on, not an admin)",
             "content": {
               "application/json": {
                 "schema": {
@@ -201,7 +221,7 @@
           "Requests"
         ],
         "summary": "Cancel a waiting request",
-        "description": "Has no effect once the build has started.",
+        "description": "Has no effect once the build has started.\n\n**Required role:** REQUESTER (when sign-in is on; it is currently off)",
         "operationId": "cancelRequest",
         "parameters": [
           {
@@ -219,6 +239,16 @@
           },
           "404": {
             "description": "No such request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not your request (sign-in on, not an admin)",
             "content": {
               "application/json": {
                 "schema": {
@@ -246,7 +276,7 @@
           "Requests"
         ],
         "summary": "Preview how a request is understood",
-        "description": "Turns plain English into the canonical spec and its hash, or returns the question it would ask. Starts nothing and builds nothing. Many wordings of the same VM give the same specHash.",
+        "description": "Turns plain English into the canonical spec and its hash, or returns the question it would ask. Starts nothing and builds nothing. Many wordings of the same VM give the same specHash.\n\n**Required role:** REQUESTER (when sign-in is on; it is currently off)",
         "operationId": "interpretRequest",
         "requestBody": {
           "content": {
@@ -298,7 +328,7 @@
           "Batches"
         ],
         "summary": "Build many VMs at once",
-        "description": "Every item is checked before anything starts. Items that need a clarifying answer, or break policy, are returned in `rejected`; the rest are built with no confirmation step. An item identical to another (same spec hash) is built once. Poll GET /api/v2/batches/{id}.",
+        "description": "Every item is checked before anything starts. Items that need a clarifying answer, or break policy, are returned in `rejected`; the rest are built with no confirmation step. An item identical to another (same spec hash) is built once. Poll GET /api/v2/batches/{id}.\n\n**Required role:** BATCH (when sign-in is on; it is currently off)",
         "operationId": "createBatch",
         "requestBody": {
           "content": {
@@ -350,7 +380,7 @@
           "Legacy"
         ],
         "summary": "Create a VM from the legacy JSON format",
-        "description": "The old universal JSON definition. Skips interpretation and confirmation and goes straight to the build. Kept for existing callers; new callers should use /api/v2.",
+        "description": "The old universal JSON definition. Skips interpretation and confirmation and goes straight to the build. Kept for existing callers; new callers should use /api/v2.\n\n**Required role:** BATCH (when sign-in is on; it is currently off)",
         "operationId": "createLegacyVm",
         "requestBody": {
           "content": {
@@ -412,7 +442,7 @@
           "Inventory"
         ],
         "summary": "List VMs",
-        "description": "The 200 most recently changed VMs, newest first.",
+        "description": "The 200 most recently changed VMs, newest first.\n\n**Required role:** READER (when sign-in is on; it is currently off)",
         "operationId": "listVms",
         "responses": {
           "200": {
@@ -447,6 +477,7 @@
           "Inventory"
         ],
         "summary": "Count VMs by state",
+        "description": "Count VMs by state\n\n**Required role:** READER (when sign-in is on; it is currently off)",
         "operationId": "getStats",
         "responses": {
           "200": {
@@ -478,7 +509,7 @@
           "Requests"
         ],
         "summary": "Get a request's status",
-        "description": "state is one of STARTING, INTERPRETING, AWAITING_CLARIFICATION, AWAITING_CONFIRMATION, PROVISIONING, COMPLETED, FAILED, CANCELLED, DUPLICATE, or BUSY (workers didn't answer within 5 seconds; try again). The last four of the first list are final.",
+        "description": "state is one of STARTING, INTERPRETING, AWAITING_CLARIFICATION, AWAITING_CONFIRMATION, PROVISIONING, COMPLETED, FAILED, CANCELLED, DUPLICATE, or BUSY (workers didn't answer within 5 seconds; try again). The last four of the first list are final.\n\n**Required role:** READER (when sign-in is on; it is currently off)",
         "operationId": "getRequest",
         "parameters": [
           {
@@ -531,7 +562,7 @@
           "Batches"
         ],
         "summary": "Get a batch's progress",
-        "description": "Counted from the audit trail, so it answers immediately even while workers restart.",
+        "description": "Counted from the audit trail, so it answers immediately even while workers restart.\n\n**Required role:** READER (when sign-in is on; it is currently off)",
         "operationId": "getBatch",
         "parameters": [
           {
@@ -584,7 +615,7 @@
           "Inventory"
         ],
         "summary": "Read the audit trail",
-        "description": "Events for one request, batch or VM (spec hash or its first characters), oldest first. With no filter, the latest events overall.",
+        "description": "Events for one request, batch or VM (spec hash or its first characters), oldest first. With no filter, the latest events overall.\n\n**Required role:** READER (when sign-in is on; it is currently off)",
         "operationId": "getAuditTrail",
         "parameters": [
           {
@@ -1169,6 +1200,11 @@
               "type": "string",
               "description": "Timestamped steps so far."
             }
+          },
+          "requestedBy": {
+            "type": "string",
+            "description": "Who made the request.",
+            "example": "jdoe@example.com"
           }
         },
         "description": "Where a request is, and what it understood."

@@ -79,6 +79,11 @@ services:
       VMINTENT_DB_PASSWORD: ${VMINTENT_DB_PASSWORD}
       VMINTENT_DB_POOL: 20
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Sign-in (see docs/SECURITY.md). none = open; entra = Entra ID tokens required.
+      VMINTENT_SECURITY_MODE: ${VMINTENT_SECURITY_MODE:-none}
+      VMINTENT_ENTRA_TENANT_ID: ${VMINTENT_ENTRA_TENANT_ID:-}
+      VMINTENT_ENTRA_AUDIENCES: ${VMINTENT_ENTRA_AUDIENCES:-}
+      VMINTENT_SWAGGER_CLIENT_ID: ${VMINTENT_SWAGGER_CLIENT_ID:-}
     ports:
       - "8080:8080"
     restart: unless-stopped

@@ -14,3 +14,6 @@ loadtest/report-*.json
 *.tfvars
 !*.tfvars.example
 .terraform.lock.hcl
+
+# Stand-in Entra signing key made by tests/security_test.py
+tests/.security-test-key.pem

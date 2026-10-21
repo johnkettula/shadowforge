@@ -22,6 +22,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const API_BASE = (process.env.VMINTENT_API_BASE ?? "http://localhost:8080").replace(/\/$/, "");
+// When the API has sign-in on (vmintent.security.mode=entra): an Entra ID access token for it.
+const API_TOKEN = process.env.VMINTENT_API_TOKEN ?? "";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOME = process.env.VMINTENT_HOME ?? path.resolve(HERE, "..", "..");
 const TESTS_DIR = path.join(HOME, "tests");
@@ -35,7 +37,10 @@ async function api(method: "GET" | "POST", route: string, body?: unknown): Promi
   try {
     res = await fetch(API_BASE + route, {
       method,
-      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      headers: {
+        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+        ...(API_TOKEN ? { Authorization: `Bearer ${API_TOKEN}` } : {}),
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {

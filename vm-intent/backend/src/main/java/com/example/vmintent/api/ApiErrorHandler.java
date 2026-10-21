@@ -12,6 +12,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.server.ResponseStatusException;
 
 /** Every error from /api comes back as the same JSON shape: {"error": "..."}. */
 @RestControllerAdvice(basePackages = "com.example.vmintent.api")
@@ -38,6 +39,11 @@ public class ApiErrorHandler {
     public ResponseEntity<ApiError> mediaType(HttpMediaTypeNotSupportedException e) {
         return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
                 .body(ApiError.of("Send Content-Type: application/json"));
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiError> status(ResponseStatusException e) {
+        return ResponseEntity.status(e.getStatusCode()).body(ApiError.of(e.getReason()));
     }
 
     @ExceptionHandler(Exception.class)

@@ -38,7 +38,8 @@ public final class Models {
             @Schema(description = "Human-readable status, or the question being asked.") String message,
             Interpretation interpretation,
             @Schema(description = "Set once the VM is running.") VmResult vm,
-            @Schema(description = "Timestamped steps so far.") List<String> history) {}
+            @Schema(description = "Timestamped steps so far.") List<String> history,
+            @Schema(description = "Who made the request.", example = "jdoe@example.com") String requestedBy) {}
 
     @Schema(description = "One VM in the inventory.")
     public record VmRecord(String specHash, VmSpec spec,

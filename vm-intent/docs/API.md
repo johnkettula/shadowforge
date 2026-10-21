@@ -95,10 +95,14 @@ A gateway is also the simplest place to add authentication (next section).
 
 ## Authentication
 
-**There is none yet.** Anyone who can reach port 8080 can build VMs, so keep the API on a private network
-or behind the Azure template's IP allow-list. Before other teams' services use it, put it behind an API
-gateway with subscription keys or Entra ID (OAuth 2.0 client credentials), and record the caller's
-identity as `requestedBy`/`userId`.
+With `VMINTENT_SECURITY_MODE=entra`, every `/api` call needs a Microsoft Entra ID access token:
+`Authorization: Bearer <token>`. Services use the client-credentials flow with scope
+`api://vm-intent/.default` and need an app role (`VmIntent.Batch`, `VmIntent.Read`, ...). Each operation's
+**Required role** is listed in its description, and the document lists the `entraId` (OAuth 2.0) and
+`bearerToken` security schemes. A missing or bad token gets 401; a token without the role gets 403.
+Setup steps and the role table are in `docs/SECURITY.md`.
+
+With the default `VMINTENT_SECURITY_MODE=none` there is no sign-in, so keep the API on a private network.
 
 ## Checking the contract
 

@@ -132,7 +132,7 @@ public class IntentWorkflowImpl implements IntentWorkflow {
 
     @Override
     public RequestStatus status() {
-        return new RequestStatus(requestId, state, message, interpretation, vm, List.copyOf(history));
+        return new RequestStatus(requestId, state, message, interpretation, vm, List.copyOf(history), actor);
     }
 
     private void setState(String newState, String newMessage) {

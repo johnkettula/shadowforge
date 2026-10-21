@@ -1,4 +1,4 @@
-# Snapshot of the vm-intent OpenAPI document. The running server's /v3/api-docs is the source of truth.
+# Snapshot of the vm-intent OpenAPI document (sign-in off). The running server's /v3/api-docs is the source of truth.
 openapi: 3.0.1
 info:
   title: vm-intent API
@@ -55,7 +55,10 @@ paths:
       - Requests
       summary: Start a request
       description: 'Starts a request workflow for one VM. Poll GET /api/v2/requests/{id}: when state is AWAITING_CLARIFICATION,
-        answer the question; when AWAITING_CONFIRMATION, confirm or cancel. Both waits time out after 24 hours.'
+        answer the question; when AWAITING_CONFIRMATION, confirm or cancel. Both waits time out after 24 hours.
+
+
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)'
       operationId: createRequest
       requestBody:
         content:
@@ -87,7 +90,10 @@ paths:
       tags:
       - Requests
       summary: Confirm and build
-      description: Use when state is AWAITING_CONFIRMATION, after the requester has checked the spec.
+      description: 'Use when state is AWAITING_CONFIRMATION, after the requester has checked the spec.
+
+
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)'
       operationId: confirmRequest
       parameters:
       - name: id
@@ -104,6 +110,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+        '403':
+          description: Not your request (sign-in on, not an admin)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '500':
           description: Unexpected server error
           content:
@@ -115,7 +127,10 @@ paths:
       tags:
       - Requests
       summary: Answer the request's question
-      description: Use when state is AWAITING_CLARIFICATION.
+      description: 'Use when state is AWAITING_CLARIFICATION.
+
+
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)'
       operationId: clarifyRequest
       parameters:
       - name: id
@@ -138,6 +153,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+        '403':
+          description: Not your request (sign-in on, not an admin)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '400':
           description: Invalid request body
           content:
@@ -155,7 +176,10 @@ paths:
       tags:
       - Requests
       summary: Cancel a waiting request
-      description: Has no effect once the build has started.
+      description: 'Has no effect once the build has started.
+
+
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)'
       operationId: cancelRequest
       parameters:
       - name: id
@@ -172,6 +196,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+        '403':
+          description: Not your request (sign-in on, not an admin)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '500':
           description: Unexpected server error
           content:
@@ -183,8 +213,11 @@ paths:
       tags:
       - Requests
       summary: Preview how a request is understood
-      description: Turns plain English into the canonical spec and its hash, or returns the question it would ask.
+      description: 'Turns plain English into the canonical spec and its hash, or returns the question it would ask.
         Starts nothing and builds nothing. Many wordings of the same VM give the same specHash.
+
+
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)'
       operationId: interpretRequest
       requestBody:
         content:
@@ -216,9 +249,12 @@ paths:
       tags:
       - Batches
       summary: Build many VMs at once
-      description: Every item is checked before anything starts. Items that need a clarifying answer, or break policy,
-        are returned in `rejected`; the rest are built with no confirmation step. An item identical to another (same
-        spec hash) is built once. Poll GET /api/v2/batches/{id}.
+      description: 'Every item is checked before anything starts. Items that need a clarifying answer, or break
+        policy, are returned in `rejected`; the rest are built with no confirmation step. An item identical to another
+        (same spec hash) is built once. Poll GET /api/v2/batches/{id}.
+
+
+        **Required role:** BATCH (when sign-in is on; it is currently off)'
       operationId: createBatch
       requestBody:
         content:
@@ -250,8 +286,11 @@ paths:
       tags:
       - Legacy
       summary: Create a VM from the legacy JSON format
-      description: The old universal JSON definition. Skips interpretation and confirmation and goes straight to
+      description: 'The old universal JSON definition. Skips interpretation and confirmation and goes straight to
         the build. Kept for existing callers; new callers should use /api/v2.
+
+
+        **Required role:** BATCH (when sign-in is on; it is currently off)'
       operationId: createLegacyVm
       requestBody:
         content:
@@ -289,7 +328,10 @@ paths:
       tags:
       - Inventory
       summary: List VMs
-      description: The 200 most recently changed VMs, newest first.
+      description: 'The 200 most recently changed VMs, newest first.
+
+
+        **Required role:** READER (when sign-in is on; it is currently off)'
       operationId: listVms
       responses:
         '200':
@@ -311,6 +353,10 @@ paths:
       tags:
       - Inventory
       summary: Count VMs by state
+      description: 'Count VMs by state
+
+
+        **Required role:** READER (when sign-in is on; it is currently off)'
       operationId: getStats
       responses:
         '200':
@@ -330,9 +376,12 @@ paths:
       tags:
       - Requests
       summary: Get a request's status
-      description: state is one of STARTING, INTERPRETING, AWAITING_CLARIFICATION, AWAITING_CONFIRMATION, PROVISIONING,
-        COMPLETED, FAILED, CANCELLED, DUPLICATE, or BUSY (workers didn't answer within 5 seconds; try again). The
+      description: 'state is one of STARTING, INTERPRETING, AWAITING_CLARIFICATION, AWAITING_CONFIRMATION, PROVISIONING,
+        COMPLETED, FAILED, CANCELLED, DUPLICATE, or BUSY (workers didn''t answer within 5 seconds; try again). The
         last four of the first list are final.
+
+
+        **Required role:** READER (when sign-in is on; it is currently off)'
       operationId: getRequest
       parameters:
       - name: id
@@ -365,7 +414,10 @@ paths:
       tags:
       - Batches
       summary: Get a batch's progress
-      description: Counted from the audit trail, so it answers immediately even while workers restart.
+      description: 'Counted from the audit trail, so it answers immediately even while workers restart.
+
+
+        **Required role:** READER (when sign-in is on; it is currently off)'
       operationId: getBatch
       parameters:
       - name: id
@@ -398,8 +450,11 @@ paths:
       tags:
       - Inventory
       summary: Read the audit trail
-      description: Events for one request, batch or VM (spec hash or its first characters), oldest first. With no
-        filter, the latest events overall.
+      description: 'Events for one request, batch or VM (spec hash or its first characters), oldest first. With
+        no filter, the latest events overall.
+
+
+        **Required role:** READER (when sign-in is on; it is currently off)'
       operationId: getAuditTrail
       parameters:
       - name: requestId
@@ -836,6 +891,10 @@ components:
           items:
             type: string
             description: Timestamped steps so far.
+        requestedBy:
+          type: string
+          description: Who made the request.
+          example: jdoe@example.com
       description: Where a request is, and what it understood.
     BatchStatus:
       type: object

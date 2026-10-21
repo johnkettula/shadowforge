@@ -11,6 +11,8 @@ import com.example.vmintent.intent.Interpretation;
 import com.example.vmintent.legacy.LegacySpecTranslator;
 import com.example.vmintent.legacy.LegacyVmDefinition;
 import com.example.vmintent.provider.VmRegistry;
+import com.example.vmintent.security.ApiAccessRules;
+import com.example.vmintent.security.Caller;
 import com.example.vmintent.workflow.IntentWorkflow;
 import com.example.vmintent.workflow.Models.IntentRequest;
 import com.example.vmintent.workflow.Models.ReconcileRequest;
@@ -39,6 +41,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.UUID;
@@ -91,7 +94,8 @@ public class RequestController {
         String id = "intent-" + UUID.randomUUID();
         IntentWorkflow wf = client.newWorkflowStub(IntentWorkflow.class,
                 WorkflowOptions.newBuilder().setTaskQueue(TaskQueues.INTENT).setWorkflowId(id).build());
-        String user = body.userId() == null ? "demo-user" : body.userId();
+        // Signed-in callers are recorded as themselves, whatever userId says.
+        String user = Caller.nameOr(body.userId(), "demo-user");
         WorkflowClient.start(wf::run, new IntentRequest(body.text(), user, "api"));
         return new SubmitResponse(id);
     }
@@ -113,14 +117,14 @@ public class RequestController {
                     .get(QUERY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             return ResponseEntity.ok(s);
         } catch (TimeoutException e) {
-            return ResponseEntity.ok(new RequestStatus(id, "BUSY", "Workers are busy; trying again...", null, null, List.of()));
+            return ResponseEntity.ok(new RequestStatus(id, "BUSY", "Workers are busy; trying again...", null, null, List.of(), null));
         } catch (ExecutionException e) {
             if (e.getCause() instanceof WorkflowNotFoundException nf) throw nf;
             // The workflow exists but hasn't run its first step yet.
-            return ResponseEntity.ok(new RequestStatus(id, "STARTING", "Starting...", null, null, List.of()));
+            return ResponseEntity.ok(new RequestStatus(id, "STARTING", "Starting...", null, null, List.of(), null));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return ResponseEntity.ok(new RequestStatus(id, "BUSY", "Interrupted; try again.", null, null, List.of()));
+            return ResponseEntity.ok(new RequestStatus(id, "BUSY", "Interrupted; try again.", null, null, List.of(), null));
         }
     }
 
@@ -129,9 +133,12 @@ public class RequestController {
     @ApiResponse(responseCode = "204", description = "Answer delivered")
     @ApiResponse(responseCode = "404", description = "No such request",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "403", description = "Not your request (sign-in on, not an admin)",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PostMapping("/v2/requests/{id}/clarify")
     public void clarify(@PathVariable String id, @RequestBody AnswerBody body) {
+        requireOwner(id);
         stub(id).clarify(body.answer());
     }
 
@@ -141,9 +148,12 @@ public class RequestController {
     @ApiResponse(responseCode = "204", description = "Confirmed; the build starts")
     @ApiResponse(responseCode = "404", description = "No such request",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "403", description = "Not your request (sign-in on, not an admin)",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PostMapping("/v2/requests/{id}/confirm")
     public void confirm(@PathVariable String id) {
+        requireOwner(id);
         stub(id).confirm();
     }
 
@@ -152,9 +162,12 @@ public class RequestController {
     @ApiResponse(responseCode = "204", description = "Cancelled")
     @ApiResponse(responseCode = "404", description = "No such request",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "403", description = "Not your request (sign-in on, not an admin)",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PostMapping("/v2/requests/{id}/cancel")
     public void cancel(@PathVariable String id) {
+        requireOwner(id);
         stub(id).cancel();
     }
 
@@ -201,13 +214,39 @@ public class RequestController {
         VmReconcileWorkflow wf = client.newWorkflowStub(VmReconcileWorkflow.class,
                 WorkflowOptions.newBuilder().setTaskQueue(TaskQueues.INTENT).setWorkflowId(workflowId).build());
         try {
-            audit.record(null, it.specHash(), "REQUESTED", "legacy-api", "legacy JSON for " + it.summary());
-            WorkflowClient.start(wf::reconcile, new ReconcileRequest(it.spec(), it.specHash(), "legacy-api", null));
+            String by = Caller.nameOr(null, "legacy-api");
+            audit.record(null, it.specHash(), "REQUESTED", by, "legacy JSON for " + it.summary());
+            WorkflowClient.start(wf::reconcile, new ReconcileRequest(it.spec(), it.specHash(), by, null));
         } catch (WorkflowExecutionAlreadyStarted e) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(new ApiError("An identical VM is already being built", workflowId, null));
         }
         return ResponseEntity.accepted().body(new LegacyAccepted(workflowId, it.specHash(), it.spec(), it.summary()));
+    }
+
+    /**
+     * With sign-in on, only the person who made a request (or an ADMIN) may answer, confirm or
+     * cancel it. Anyone with READER can still see it.
+     */
+    private void requireOwner(String id) {
+        String me = Caller.signedIn();
+        if (me == null || Caller.hasRole(ApiAccessRules.Role.ADMIN)) return;
+        RequestStatus s;
+        try {
+            s = CompletableFuture.supplyAsync(() -> stub(id).status()).get(QUERY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof WorkflowNotFoundException nf) throw nf;
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "The request isn't ready yet; try again.");
+        } catch (TimeoutException e) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Workers are busy; try again.");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Interrupted; try again.");
+        }
+        if (s.requestedBy() != null && !s.requestedBy().equals(me)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Only the person who made this request, or an admin, can change it.");
+        }
     }
 
     private IntentWorkflow stub(String id) {

@@ -6,6 +6,7 @@ If the code and the document ever drift apart, this fails.
     pip install openapi-core requests
     python tests/api_contract_test.py                      # http://localhost:8080
     python tests/api_contract_test.py http://server:8080
+    VMINTENT_TOKEN=<Entra access token with VmIntent.Admin> python tests/api_contract_test.py   # sign-in on
 
 Uses the simulated clouds; builds a handful of VMs (they boot in 20-60 s by default).
 """
@@ -14,12 +15,16 @@ import sys
 import time
 import uuid
 
+import os
+
 import requests
 from openapi_core import OpenAPI
 from openapi_core.contrib.requests import RequestsOpenAPIRequest, RequestsOpenAPIResponse
 
 BASE = (sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8080").rstrip("/")
 RUN = uuid.uuid4().hex[:6]
+TOKEN = os.environ.get("VMINTENT_TOKEN")
+AUTH = {"Authorization": "Bearer " + TOKEN} if TOKEN else {}
 
 doc = requests.get(BASE + "/v3/api-docs", timeout=10).json()
 doc["servers"] = [{"url": BASE}]          # validate against the address we're actually calling
@@ -30,7 +35,9 @@ results = []
 
 def call(method, path, expect, body=None, raw=None, name=None):
     """Make the call, check the status code, and validate request + response against the document."""
-    headers = {"Content-Type": "application/json"} if (body is not None or raw is not None) else {}
+    headers = dict(AUTH)
+    if body is not None or raw is not None:
+        headers["Content-Type"] = "application/json"
     data = raw if raw is not None else (json.dumps(body) if body is not None else None)
     resp = requests.request(method, BASE + path, data=data, headers=headers, timeout=30)
     label = name or f"{method} {path}"
@@ -49,7 +56,7 @@ def call(method, path, expect, body=None, raw=None, name=None):
 def wait_request(rid, states, timeout=180):
     end = time.time() + timeout
     while time.time() < end:
-        s = requests.get(f"{BASE}/api/v2/requests/{rid}", timeout=10).json()
+        s = requests.get(f"{BASE}/api/v2/requests/{rid}", headers=AUTH, timeout=10).json()
         if s["state"] in states:
             return s
         time.sleep(2)
@@ -98,7 +105,7 @@ b = call("POST", "/api/v2/batches", 202, {
 assert b["accepted"] == 2 and len(b["rejected"]) == 1, b
 end = time.time() + 180
 while time.time() < end:
-    st = requests.get(f"{BASE}/api/v2/batches/{b['batchId']}", timeout=10).json()
+    st = requests.get(f"{BASE}/api/v2/batches/{b['batchId']}", headers=AUTH, timeout=10).json()
     if st["state"] == "COMPLETED":
         break
     time.sleep(3)

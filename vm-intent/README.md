@@ -109,7 +109,11 @@ The backend publishes an OpenAPI 3.0 document generated from its code:
 - OpenAPI JSON: http://localhost:8080/v3/api-docs (YAML: `/v3/api-docs.yaml`; snapshot in `docs/openapi.yaml`)
 
 `docs/API.md` covers the operations, conventions (errors, idempotency, polling), client generation and
-gateway import. `python tests/api_contract_test.py` checks every endpoint against the live document.
+gateway import.
+
+**Sign-in:** set `VMINTENT_SECURITY_MODE=entra` to require Microsoft Entra ID access tokens, with four
+roles (ADMIN, BATCH, REQUESTER, READER) taken from Entra app roles. Setup steps: `docs/SECURITY.md`.
+Off by default, in which case keep the API on a private network. `python tests/api_contract_test.py` checks every endpoint against the live document.
 
 ## Building thousands of VMs at once
 

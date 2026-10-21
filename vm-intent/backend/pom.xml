@@ -53,6 +53,17 @@
       <version>${springdoc.version}</version>
     </dependency>
 
+    <!-- Security: Entra ID (OAuth 2.0) access tokens, checked on every API call.
+         Off unless vmintent.security.mode=entra. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-security</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+    </dependency>
+
     <!-- Temporal: auto-creates the WorkflowClient and the workers -->
     <dependency>
       <groupId>io.temporal</groupId>

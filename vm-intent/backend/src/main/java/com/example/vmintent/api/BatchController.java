@@ -11,6 +11,7 @@ import com.example.vmintent.db.BatchStore;
 import com.example.vmintent.intent.IntentInterpreter;
 import com.example.vmintent.intent.Interpretation;
 import com.example.vmintent.provider.VmRegistry;
+import com.example.vmintent.security.Caller;
 import com.example.vmintent.spec.SpecCanonicalizer;
 import com.example.vmintent.spec.SpecValidator;
 import com.example.vmintent.workflow.BatchProvisionWorkflow;
@@ -110,7 +111,7 @@ public class BatchController {
         int shardSize = clamp(body.shardSize(), 500, 1, 1000);
         int inFlight = clamp(body.maxInFlightPerShard(), shardSize, 1, shardSize);
         String batchId = "batch-" + UUID.randomUUID();
-        String by = body.requestedBy() == null ? "batch-api" : body.requestedBy();
+        String by = Caller.nameOr(body.requestedBy(), "batch-api");   // signed-in caller wins
         batches.create(batchId, accepted.size(), shardSize, by);
         BatchProvisionWorkflow wf = client.newWorkflowStub(BatchProvisionWorkflow.class,
                 WorkflowOptions.newBuilder().setTaskQueue(TaskQueues.INTENT).setWorkflowId(batchId).build());
