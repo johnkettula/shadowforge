@@ -59,7 +59,8 @@ vmintent:
     # Calls per second to each cloud, across ALL worker processes together.
     rate:
       aws:     { create-per-second: 25, read-per-second: 100 }
-      azure:   { create-per-second: 25, read-per-second: 100 }
+      # Azure allows about 500 VM creates a minute per subscription and region (after a 1,500 burst).
+      azure:   { create-per-second: 8, read-per-second: 100 }
       gcp:     { create-per-second: 25, read-per-second: 100 }
       vsphere: { create-per-second: 15, read-per-second: 60 }
 

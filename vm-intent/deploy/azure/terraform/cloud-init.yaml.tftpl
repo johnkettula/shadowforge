@@ -1,0 +1,70 @@
+#cloud-config
+# First-boot setup for the vm-intent sandbox. Log: /var/log/vm-intent-setup.log
+# Re-run any time (it's safe to repeat): sudo /usr/local/bin/vm-intent-setup.sh
+package_update: true
+packages:
+  - docker.io
+  - docker-compose-v2
+  - git
+  - nodejs
+  - openssl
+
+write_files:
+  - path: /usr/local/bin/vm-intent-setup.sh
+    permissions: "0755"
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      exec >>/var/log/vm-intent-setup.log 2>&1
+      echo "==== vm-intent setup $(date -Is)"
+
+      # 1. Data disk -> /var/lib/docker (Postgres, Temporal and images live there).
+      if ! blkid -L vmintentdata >/dev/null 2>&1; then
+        WANT=$(( ${data_disk_size_gb} * 1024 * 1024 * 1024 ))
+        DISK=""
+        for i in $(seq 1 60); do   # the disk is attached just after the VM starts
+          DISK=$(lsblk -dnbo NAME,SIZE,TYPE | awk -v s="$WANT" '$3=="disk" && $2==s {print "/dev/"$1; exit}')
+          [ -n "$DISK" ] && break
+          sleep 5
+        done
+        if [ -z "$DISK" ]; then echo "Data disk not found; using the OS disk."; else
+          echo "Formatting $DISK"
+          mkfs.ext4 -q -L vmintentdata "$DISK"
+        fi
+      fi
+      if blkid -L vmintentdata >/dev/null 2>&1 && ! mountpoint -q /var/lib/docker; then
+        systemctl stop docker docker.socket || true
+        mkdir -p /var/lib/docker
+        grep -q vmintentdata /etc/fstab || echo "LABEL=vmintentdata /var/lib/docker ext4 defaults,nofail 0 2" >> /etc/fstab
+        mount /var/lib/docker
+      fi
+      systemctl enable --now docker
+      usermod -aG docker ${admin_username}
+
+      # 2. Code.
+      SRC=/opt/vm-intent-src
+      if [ ! -d "$SRC/${repo_subdir}" ]; then
+        if ! git clone --depth 1 "${repo_url}" "$SRC"; then
+          echo "Could not clone ${repo_url} (private repo?). Copy the code to $SRC yourself, then re-run this script."
+          exit 0
+        fi
+      fi
+      PROJECT="$SRC/${repo_subdir}"
+      cd "$PROJECT/deploy"
+
+      # 3. Settings and passwords: made here on the VM, never in Terraform state.
+      if [ ! -f .env ]; then
+        cp .env.example .env
+        sed -i "s/^TEMPORAL_DB_PASSWORD=.*/TEMPORAL_DB_PASSWORD=$(openssl rand -hex 16)/" .env
+        sed -i "s/^VMINTENT_DB_PASSWORD=.*/VMINTENT_DB_PASSWORD=$(openssl rand -hex 16)/" .env
+        sed -i "s/^WORKERS=.*/WORKERS=${workers}/" .env
+        chmod 600 .env
+      fi
+
+      # 4. Build and start everything. Containers restart by themselves after a reboot.
+      docker compose up -d --build
+      docker compose ps
+      echo "==== done $(date -Is): web app :8088, API :8080, Temporal UI :8233"
+
+runcmd:
+  - [ /usr/local/bin/vm-intent-setup.sh ]

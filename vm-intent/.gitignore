@@ -6,3 +6,11 @@ frontend/dist/
 .vscode/
 frontend/public/test-data/
 loadtest/report-*.json
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform.lock.hcl

@@ -1,0 +1,12 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is git-ignored.
+
+# subscription_id = "00000000-0000-0000-0000-000000000000"   # or use `az account set`
+location       = "eastus"
+vm_size        = "Standard_D8s_v6"
+ssh_public_key = "ssh-ed25519 AAAA... you@laptop"
+
+# Your own public IP (find it at https://ifconfig.me), as /32. Add your VPN range if you have one.
+allowed_cidrs = ["203.0.113.7/32"]
+
+workers            = 3
+auto_shutdown_time = "1900"   # 7 pm Eastern; null = never stop
