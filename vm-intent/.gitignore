@@ -24,3 +24,4 @@ deploy/pki/*
 !deploy/pki/README.md
 !deploy/pki/pki-clients.example.yml
 tests/.pki/
+addresses.txt

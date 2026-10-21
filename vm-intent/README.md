@@ -52,6 +52,11 @@ Double-click each script, or run it from a terminal in this folder:
 
 The first backend start downloads dependencies, which can take a few minutes.
 
+**From your phone or another computer** on the same network, use this PC's IP address instead of
+`localhost`. Double-click `7-show-addresses.cmd` to print the exact addresses. The first time, Windows may
+ask to let Node.js, Java or Temporal through the firewall: allow it on private networks. Sign-in is off by
+default, so only do this on a network you trust.
+
 Run the tests: `cd backend` then `mvn test`. `GoldenPhrasingTest` fails the build if
 any listed phrasing stops producing the expected spec.
 
