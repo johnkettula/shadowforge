@@ -17,3 +17,4 @@ loadtest/report-*.json
 
 # Stand-in Entra signing key made by tests/security_test.py
 tests/.security-test-key.pem
+__pycache__/
