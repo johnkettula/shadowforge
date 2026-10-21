@@ -1,5 +1,7 @@
 package com.example.vmintent.db;
 
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,8 +47,14 @@ public class DatabaseConfig {
                 .start();
     }
 
-    @Bean
-    public DataSource dataSource(EmbeddedPostgres postgres) {
-        return postgres.getPostgresDatabase();
+    /** A connection pool in front of the embedded database, sized for many workflows at once. */
+    @Bean(destroyMethod = "close")
+    public DataSource dataSource(EmbeddedPostgres postgres,
+                                 @Value("${spring.datasource.hikari.maximum-pool-size:30}") int poolSize) {
+        HikariConfig cfg = new HikariConfig();
+        cfg.setJdbcUrl(postgres.getJdbcUrl("postgres", "postgres"));
+        cfg.setMaximumPoolSize(poolSize);
+        cfg.setPoolName("vmintent-embedded");
+        return new HikariDataSource(cfg);
     }
 }

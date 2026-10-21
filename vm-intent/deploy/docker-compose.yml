@@ -1,0 +1,108 @@
+# vm-intent on Linux with Docker: Postgres, a Temporal server backed by Postgres,
+# the Temporal UI, the API, N workers and the web app.
+#
+#   cd deploy
+#   cp .env.example .env          # then change the passwords
+#   docker compose up -d --build
+#   docker compose up -d --scale worker=6     # more workers, no restart of anything else
+#
+# Web app      http://<host>:8088
+# API          http://<host>:8080
+# Temporal UI  http://<host>:8233
+#
+# This is a sandbox / single-host setup. For production, run Temporal with its Helm
+# chart (or Temporal Cloud) and a managed Postgres; the api and worker images stay the same.
+
+name: vm-intent
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: ${TEMPORAL_DB_PASSWORD:?set TEMPORAL_DB_PASSWORD in .env}
+      VMINTENT_DB_PASSWORD: ${VMINTENT_DB_PASSWORD:?set VMINTENT_DB_PASSWORD in .env}
+    # Temporal opens many connections; so do the workers.
+    command: ["postgres", "-c", "max_connections=500", "-c", "shared_buffers=512MB"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init-vmintent.sh:/docker-entrypoint-initdb.d/init-vmintent.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal"]
+      interval: 5s
+      retries: 20
+    restart: unless-stopped
+
+  temporal:
+    # auto-setup creates Temporal's tables on first start. Fine for a sandbox; for
+    # production use temporalio/server and run the schema tool yourself.
+    image: temporalio/auto-setup:${TEMPORAL_VERSION:-1.30.2}
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: temporal
+      POSTGRES_PWD: ${TEMPORAL_DB_PASSWORD}
+      POSTGRES_SEEDS: postgres
+      # Shards are fixed when the cluster is first created. 512 leaves plenty of room
+      # for thousands of workflows running at once.
+      NUM_HISTORY_SHARDS: 512
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/dynamicconfig.yaml
+    volumes:
+      - ./temporal/dynamicconfig:/etc/temporal/config/dynamicconfig:ro
+    ports:
+      - "7233:7233"
+    restart: unless-stopped   # the api and workers also restart until Temporal is reachable
+
+  temporal-ui:
+    image: temporalio/ui:${TEMPORAL_UI_VERSION:-2.40.0}
+    depends_on: [temporal]
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+    ports:
+      - "8233:8080"
+    restart: unless-stopped
+
+  api:
+    build: ../backend
+    image: vm-intent-backend:latest
+    depends_on:
+      postgres: { condition: service_healthy }
+      temporal: { condition: service_started }
+    environment: &backend-env
+      SPRING_PROFILES_ACTIVE: api
+      TEMPORAL_ADDRESS: temporal:7233
+      VMINTENT_DB_EMBEDDED: "false"
+      VMINTENT_DB_URL: jdbc:postgresql://postgres:5432/vmintent
+      VMINTENT_DB_USER: vmintent
+      VMINTENT_DB_PASSWORD: ${VMINTENT_DB_PASSWORD}
+      VMINTENT_DB_POOL: 20
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  worker:
+    image: vm-intent-backend:latest
+    depends_on:
+      api: { condition: service_started }   # the api runs the database migrations first
+    environment:
+      <<: *backend-env
+      SPRING_PROFILES_ACTIVE: worker
+      VMINTENT_DB_POOL: 30
+    deploy:
+      replicas: ${WORKERS:-3}
+      resources:
+        limits: { memory: 2g }
+    restart: unless-stopped
+
+  web:
+    build: ../frontend
+    depends_on: [api]
+    ports:
+      - "8088:80"
+    restart: unless-stopped
+
+volumes:
+  pgdata:

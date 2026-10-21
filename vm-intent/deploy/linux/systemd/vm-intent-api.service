@@ -1,0 +1,18 @@
+# Install:  sudo cp deploy/linux/systemd/*.service /etc/systemd/system/
+#           sudo systemctl daemon-reload
+#           sudo systemctl enable --now vm-intent-api vm-intent-worker@1 vm-intent-worker@2 vm-intent-worker@3
+# Edit the paths below if you put the code somewhere other than /opt/vm-intent.
+[Unit]
+Description=vm-intent API
+After=network-online.target postgresql.service temporal-dev.service
+
+[Service]
+User=vmintent
+EnvironmentFile=/opt/vm-intent/deploy/linux/vm-intent.env
+Environment=SPRING_PROFILES_ACTIVE=api
+ExecStart=/usr/bin/java -XX:MaxRAMPercentage=25 -jar /opt/vm-intent/backend/target/vm-intent-0.1.0.jar
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

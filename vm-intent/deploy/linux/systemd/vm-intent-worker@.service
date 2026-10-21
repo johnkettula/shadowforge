@@ -1,0 +1,15 @@
+# One unit per worker process: vm-intent-worker@1, vm-intent-worker@2, ...
+[Unit]
+Description=vm-intent worker %i
+After=network-online.target postgresql.service temporal-dev.service vm-intent-api.service
+
+[Service]
+User=vmintent
+EnvironmentFile=/opt/vm-intent/deploy/linux/vm-intent.env
+Environment=SPRING_PROFILES_ACTIVE=worker
+ExecStart=/usr/bin/java -Xmx2g -XX:+UseG1GC -jar /opt/vm-intent/backend/target/vm-intent-0.1.0.jar
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

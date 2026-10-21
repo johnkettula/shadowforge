@@ -252,6 +252,41 @@ server.registerTool(
 );
 
 server.registerTool(
+  "vm_batch_submit",
+  {
+    title: "Build many VMs at once",
+    description:
+      "Starts a batch: each item is a plain-English request. There is no confirm step per VM, so show the user the list " +
+      "(or run vm_interpret on a sample) and get a yes before calling this. Items that need a clarifying answer are " +
+      "rejected up front and listed in the result. Returns a batchId for vm_batch_status.",
+    inputSchema: {
+      texts: z.array(z.string()).min(1).max(10000),
+      shardSize: z.number().int().min(1).max(1000).optional().describe("VMs per shard workflow (default 500)"),
+    },
+    annotations: { destructiveHint: false, idempotentHint: false },
+  },
+  safe(async ({ texts, shardSize }: { texts: string[]; shardSize?: number }) =>
+    api("POST", "/api/v2/batches", {
+      items: texts.map((text) => ({ text })),
+      shardSize,
+      requestedBy: "claude-mcp",
+    }),
+  ),
+);
+
+server.registerTool(
+  "vm_batch_status",
+  {
+    title: "Check a batch",
+    description:
+      "Live counts for a batch: started, in flight, running, failed, duplicates, plus p50/p95 build time in seconds.",
+    inputSchema: { batchId: z.string() },
+    annotations: { readOnlyHint: true },
+  },
+  safe(async ({ batchId }: { batchId: string }) => api("GET", `/api/v2/batches/${encodeURIComponent(batchId)}`)),
+);
+
+server.registerTool(
   "vm_list_test_sets",
   {
     title: "List test sets",

@@ -5,6 +5,4 @@ frontend/dist/
 .idea/
 .vscode/
 frontend/public/test-data/
-mcp-server/node_modules/
-mcp-server/dist/
-gitlab-url.txt
+loadtest/report-*.json

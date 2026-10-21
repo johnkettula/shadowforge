@@ -1,0 +1,8 @@
+# Profile "api": the REST API only. It starts workflows but runs none of them.
+# Run it with SPRING_PROFILES_ACTIVE=api. Scale it separately from the workers.
+spring:
+  temporal:
+    start-workers: false
+vmintent:
+  db:
+    embedded: ${VMINTENT_DB_EMBEDDED:false}

@@ -2,74 +2,50 @@ package com.example.vmintent.provider;
 
 import com.example.vmintent.spec.VmSpec;
 import com.example.vmintent.workflow.Models.ProviderPlan;
-import io.temporal.activity.Activity;
-import io.temporal.failure.ApplicationFailure;
+import com.example.vmintent.workflow.Models.VmStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-
 /**
- * A pretend cloud, so the whole flow runs on your PC with no cloud account.
- * Replace a subclass's methods with real SDK calls to go live, e.g.
- * AWS SDK for Java v2 Ec2Client.runInstances(...) with a clientToken.
- *
- * Tip: name a VM with "fail" in it ("called fail-test") to watch the saga
- * roll back a half-built VM.
+ * Shared code for the four simulated clouds (see SimCloud).
+ * To go live, replace a subclass's methods with real SDK calls, e.g. for AWS:
+ *   createVm   -> Ec2Client.runInstances(...) with clientToken = idempotencyKey
+ *   describeVm -> Ec2Client.describeInstances(...) and map the instance state
+ *   deleteVm   -> Ec2Client.terminateInstances(...)
  */
 public abstract class SimulatedProvider implements ProviderActivities {
 
     private final Logger log = LoggerFactory.getLogger(getClass());
+    private final SimCloud cloud;
 
-    /** idempotencyKey -> vmId, so a retried create never makes two VMs. */
-    private final Map<String, String> createdByKey = new ConcurrentHashMap<>();
+    protected SimulatedProvider(SimCloud cloud) {
+        this.cloud = cloud;
+    }
+
+    protected abstract String providerName();
 
     protected abstract String idPrefix();
 
     @Override
     public ProviderPlan plan(VmSpec spec) {
-        ProviderPlan plan = ProviderCatalog.plan(spec);
-        log.info("[{}] plan: {}", spec.provider(), plan.summary());
-        return plan;
+        return ProviderCatalog.plan(spec);
     }
 
     @Override
     public String createVm(VmSpec spec, ProviderPlan plan, String idempotencyKey) {
-        String vmId = createdByKey.computeIfAbsent(idempotencyKey,
-                k -> idPrefix() + UUID.randomUUID().toString().substring(0, 8));
-        log.info("[{}] create {} -> {}", spec.provider(), spec.name(), vmId);
-        sleep(1500);
+        String vmId = cloud.create(providerName(), idPrefix(), spec.name(), idempotencyKey);
+        log.debug("[{}] create {} -> {}", providerName(), spec.name(), vmId);
         return vmId;
     }
 
     @Override
-    public String waitUntilReady(String vmId, String vmName) {
-        for (int i = 1; i <= 3; i++) {
-            sleep(1000);
-            Activity.getExecutionContext().heartbeat(i);   // "still alive" ping to Temporal
-        }
-        if (vmName != null && vmName.contains("fail")) {
-            throw ApplicationFailure.newNonRetryableFailure(
-                    "Simulated boot failure for " + vmId, "SimulatedBootFailure");
-        }
-        int last = Math.abs(vmId.hashCode() % 250) + 2;
-        return "10.20.0." + last;
+    public VmStatus describeVm(String vmId) {
+        return cloud.describe(vmId);
     }
 
     @Override
     public void deleteVm(String vmId) {
-        log.info("[{}] delete {} (compensation)", idPrefix(), vmId);
-        createdByKey.values().remove(vmId);
-        sleep(500);
-    }
-
-    private static void sleep(long ms) {
-        try {
-            Thread.sleep(ms);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        log.info("[{}] delete {} (compensation)", providerName(), vmId);
+        cloud.delete(vmId);
     }
 }

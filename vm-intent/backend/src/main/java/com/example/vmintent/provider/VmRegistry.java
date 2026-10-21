@@ -11,7 +11,9 @@ import org.springframework.stereotype.Component;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 
 /**
  * VM inventory, keyed by spec hash, stored in Postgres (table vm_record).
@@ -61,8 +63,17 @@ public class VmRegistry {
         return row.orElse(null);
     }
 
+    /** The most recently changed VMs (capped, so the UI stays fast with thousands of VMs). */
     public List<VmRecord> all() {
-        return jdbc.sql(SELECT + " ORDER BY updated_at DESC").query(this::map).list();
+        return jdbc.sql(SELECT + " ORDER BY updated_at DESC LIMIT 200").query(this::map).list();
+    }
+
+    public Map<String, Long> countByState() {
+        Map<String, Long> out = new TreeMap<>();
+        jdbc.sql("SELECT state, count(*) AS n FROM vm_record GROUP BY state")
+                .query((rs, i) -> out.put(rs.getString("state"), rs.getLong("n")))
+                .list();
+        return out;
     }
 
     private static final String SELECT = """

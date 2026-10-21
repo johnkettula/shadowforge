@@ -14,6 +14,8 @@ Lets Claude (or any MCP client) drive the vm-intent app running on this PC.
 | `vm_audit` | Audit trail for a request or spec hash, or the latest events |
 | `vm_list_test_sets` | The phrasing test files in `tests/` |
 | `vm_run_tests` | Run a test set against the backend; pass / silent-wrong counts and failures |
+| `vm_batch_submit` | Build many VMs from a list of plain-English requests (no per-VM confirm; get the user's yes first) |
+| `vm_batch_status` | Live counts for a batch: in flight, running, failed, duplicates, p50/p95 build time |
 
 ## Setup
 

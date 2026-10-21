@@ -1,0 +1,22 @@
+# Temporal server settings that can change without a restart.
+
+# More partitions on the busy orchestration queue, so many workers can poll it at once.
+matching.numTaskqueueReadPartitions:
+  - value: 8
+    constraints:
+      taskQueueName: intent-q
+matching.numTaskqueueWritePartitions:
+  - value: 8
+    constraints:
+      taskQueueName: intent-q
+
+# Requests per second the frontend accepts (per namespace and per frontend instance).
+frontend.namespaceRPS:
+  - value: 4800
+frontend.rps:
+  - value: 4800
+
+# A workflow may have at most this many child workflows open at once. The batch
+# workflow splits work into shards of up to 1,000, so the default of 2,000 is enough.
+limit.numPendingChildExecutions.error:
+  - value: 2000

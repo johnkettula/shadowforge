@@ -1,0 +1,13 @@
+# Temporal's single-binary server as a service (sandbox use).
+[Unit]
+Description=Temporal dev server
+After=network-online.target
+
+[Service]
+User=vmintent
+ExecStart=/opt/vm-intent/deploy/linux/start-temporal.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

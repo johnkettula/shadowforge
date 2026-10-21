@@ -1,0 +1,8 @@
+# Profile "worker": runs workflows and activities, no web server.
+# Run as many of these as you need: they share the work through Temporal's task queues.
+spring:
+  main:
+    web-application-type: none
+vmintent:
+  db:
+    embedded: ${VMINTENT_DB_EMBEDDED:false}

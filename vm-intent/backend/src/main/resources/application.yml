@@ -1,31 +1,40 @@
 server:
-  port: 8080
+  port: ${PORT:8080}
 
 spring:
   application:
     name: vm-intent
   temporal:
     connection:
-      # The local Temporal dev server started by "temporal server start-dev"
-      target: 127.0.0.1:7233
-    namespace: default
+      # Local: the dev server from "temporal server start-dev". Linux/Docker: set TEMPORAL_ADDRESS.
+      target: ${TEMPORAL_ADDRESS:127.0.0.1:7233}
+    namespace: ${TEMPORAL_NAMESPACE:default}
     # Finds every @WorkflowImpl / @ActivityImpl class in this package and
     # starts a worker for each task queue they name.
     workers-auto-discovery:
       packages: com.example.vmintent
+    # Workflows waiting on a timer stay in memory so they don't have to be replayed
+    # when they wake up. Sized for a few thousand builds per worker process.
+    workflow-cache:
+      max-instances: ${VMINTENT_WORKFLOW_CACHE:4000}
+      max-threads: ${VMINTENT_WORKFLOW_THREADS:4000}
+      using-virtual-workflow-threads: true
 
-  # Used only when vmintent.db.embedded is false (a normal Postgres server).
+  # Used only when vmintent.db.embedded is false (a normal Postgres server, e.g. on Linux).
   datasource:
-    url: jdbc:postgresql://localhost:5432/vmintent
-    username: vmintent
+    url: ${VMINTENT_DB_URL:jdbc:postgresql://localhost:5432/vmintent}
+    username: ${VMINTENT_DB_USER:vmintent}
     password: ${VMINTENT_DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: ${VMINTENT_DB_POOL:30}
   flyway:
     enabled: true          # creates and upgrades the tables from db/migration
 
 vmintent:
   db:
-    # true = the app runs its own Postgres (no install needed). Data survives restarts.
-    embedded: true
+    # true = the app runs its own Postgres (no install needed). Good for one PC.
+    # false = use spring.datasource above. Needed when several processes share one database.
+    embedded: ${VMINTENT_DB_EMBEDDED:true}
     embedded-port: 54329
     embedded-data-dir: ${user.home}/.vm-intent/pgdata
   llm:
@@ -35,3 +44,35 @@ vmintent:
     api-key: ${ANTHROPIC_API_KEY:}
     model: claude-sonnet-5-5
     url: https://api.anthropic.com/v1/messages
+
+  # How much work each worker process takes on. See config/WorkerTuning.java.
+  workers:
+    virtual-threads: true
+    intent:
+      max-workflow-tasks: 200     # workflow steps run at once, per process
+      workflow-pollers: 16
+      max-activities: 200         # database writes (inventory, audit) at once, per process
+      activity-pollers: 8
+    provider:
+      max-activities: 100         # cloud calls at once, per process, per queue
+      activity-pollers: 4
+    # Calls per second to each cloud, across ALL worker processes together.
+    rate:
+      aws:     { create-per-second: 25, read-per-second: 100 }
+      azure:   { create-per-second: 25, read-per-second: 100 }
+      gcp:     { create-per-second: 25, read-per-second: 100 }
+      vsphere: { create-per-second: 15, read-per-second: 60 }
+
+  # The simulated clouds (see provider/SimCloud.java).
+  sim:
+    boot-min-seconds: ${VMINTENT_SIM_BOOT_MIN:20}
+    boot-max-seconds: ${VMINTENT_SIM_BOOT_MAX:60}
+    api-latency-ms: ${VMINTENT_SIM_LATENCY_MS:250}
+    throttle-rate: ${VMINTENT_SIM_THROTTLE:0.02}   # share of cloud calls refused as "throttled"
+
+logging:
+  level:
+    io.temporal.internal.worker.Poller: WARN
+    # Each retried cloud call (e.g. "throttled") would otherwise print a full stack trace.
+    # Retries and final failures are still visible in the Temporal UI and the audit trail.
+    io.temporal.internal.activity.ActivityTaskExecutors: ERROR

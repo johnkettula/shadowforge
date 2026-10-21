@@ -30,6 +30,9 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @RestController
 @RequestMapping("/api")
@@ -39,6 +42,8 @@ public class RequestController {
     public record TextBody(String text, String userId) {}
 
     public record AnswerBody(String answer) {}
+
+    private static final int QUERY_TIMEOUT_SECONDS = 5;
 
     private final WorkflowClient client;
     private final IntentInterpreter interpreter;
@@ -75,7 +80,12 @@ public class RequestController {
     @GetMapping("/v2/requests/{id}")
     public ResponseEntity<RequestStatus> status(@PathVariable String id) {
         try {
-            return ResponseEntity.ok(stub(id).status());
+            // A query is answered by a worker. Don't let a busy or restarting worker hold this request.
+            RequestStatus s = CompletableFuture.supplyAsync(() -> stub(id).status())
+                    .get(QUERY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            return ResponseEntity.ok(s);
+        } catch (TimeoutException e) {
+            return ResponseEntity.ok(new RequestStatus(id, "BUSY", "Workers are busy; trying again...", null, null, List.of()));
         } catch (Exception e) {
             // The workflow may not have run its first step yet.
             return ResponseEntity.ok(new RequestStatus(id, "STARTING", "Starting...", null, null, List.of()));
