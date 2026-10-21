@@ -1,6 +1,7 @@
 package com.example.vmintent.intent;
 
 import com.example.vmintent.spec.VmSpec;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
 
@@ -11,12 +12,16 @@ import java.util.List;
  *                   before we can build a spec (spec is then null)
  * @param assumptions every default we filled in, shown to the user
  */
+@Schema(description = "What a request was understood to mean. Either spec/specHash are set, or question is.")
 public record Interpretation(
-        String text,
-        String extractor,
+        @Schema(description = "The text that was interpreted.") String text,
+        @Schema(description = "Which interpreter was used.", example = "rules") String extractor,
         VmSpec spec,
-        String specHash,
-        String summary,
-        List<String> assumptions,
+        @Schema(description = "SHA-256 of the canonical spec.",
+                example = "3af19a4e8492dc7edd60f92413fe0567546acd258f9c214eaebca7c4dd0d5d72") String specHash,
+        @Schema(description = "One-line summary.") String summary,
+        @Schema(description = "Defaults that were filled in.") List<String> assumptions,
+        @Schema(description = "Set when something must be answered before a spec can be built.",
+                example = "Which platform should this run on: vSphere (on-prem), AWS, Azure or Google Cloud?")
         String question
 ) {}

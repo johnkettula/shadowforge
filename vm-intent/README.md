@@ -101,6 +101,16 @@ and audit trail, and run the phrasing tests. Double-click `4-setup-mcp.cmd` to b
 it with the Claude desktop app, then restart the app. Add your GitLab address to `gitlab-host.txt`
 first to register GitLab's own MCP server too. See `mcp-server/README.md`.
 
+## REST API and Swagger (for other services)
+
+The backend publishes an OpenAPI 3.0 document generated from its code:
+
+- Swagger UI: http://localhost:8080/swagger-ui.html
+- OpenAPI JSON: http://localhost:8080/v3/api-docs (YAML: `/v3/api-docs.yaml`; snapshot in `docs/openapi.yaml`)
+
+`docs/API.md` covers the operations, conventions (errors, idempotency, polling), client generation and
+gateway import. `python tests/api_contract_test.py` checks every endpoint against the live document.
+
 ## Building thousands of VMs at once
 
 The app is built to run 2,000+ VM builds at the same time. See `docs/SCALING.md` for the design

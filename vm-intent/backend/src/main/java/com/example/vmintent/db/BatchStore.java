@@ -1,9 +1,9 @@
 package com.example.vmintent.db;
 
+import com.example.vmintent.api.ApiModels.BatchStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,7 +29,7 @@ public class BatchStore {
     }
 
     /** Counts and timings for one batch, or empty if there's no such batch. */
-    public Optional<Map<String, Object>> progress(String batchId) {
+    public Optional<BatchStatus> progress(String batchId) {
         // DISTINCT spec_hash: a retried audit write can't make a VM count twice.
         // Times are seconds from when the batch was submitted until each VM was running.
         List<Map<String, Object>> rows = jdbc.sql("""
@@ -59,25 +59,19 @@ public class BatchStore {
         long started = num(r.get("started"));
         long running = num(r.get("running"));
         long failed = num(r.get("failed"));
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("batchId", batchId);
-        out.put("state", num(r.get("done")) > 0 ? "COMPLETED" : "RUNNING");
-        out.put("total", num(r.get("total")));
-        out.put("shardSize", num(r.get("shard_size")));
-        out.put("started", started);
-        out.put("inFlight", Math.max(0, started - running - failed));
-        out.put("running", running);
-        out.put("failed", failed);
-        out.put("duplicate", num(r.get("duplicate")));
-        out.put("p50Seconds", round(r.get("p50")));
-        out.put("p95Seconds", round(r.get("p95")));
-        out.put("maxSeconds", round(r.get("max_s")));
-        out.put("startedAtMs", r.get("created_ms"));
-        out.put("finishedAtMs", r.get("finished_ms"));
-        out.put("failures", jdbc.sql("""
+        Object created = r.get("created_ms");
+        Object finished = r.get("finished_ms");
+        List<String> failures = jdbc.sql("""
                 SELECT detail FROM audit_event
                 WHERE request_id = :id AND event = 'ROLLED_BACK' ORDER BY id LIMIT 20
-                """).param("id", batchId).query(String.class).list());
+                """).param("id", batchId).query(String.class).list();
+        BatchStatus out = new BatchStatus(batchId,
+                num(r.get("done")) > 0 ? "COMPLETED" : "RUNNING",
+                num(r.get("total")), num(r.get("shard_size")),
+                started, Math.max(0, started - running - failed), running, failed, num(r.get("duplicate")),
+                round(r.get("p50")), round(r.get("p95")), round(r.get("max_s")),
+                created == null ? null : num(created), finished == null ? null : num(finished),
+                failures);
         return Optional.of(out);
     }
 

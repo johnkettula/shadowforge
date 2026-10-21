@@ -1,5 +1,7 @@
 package com.example.vmintent.legacy;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 /**
  * The OLD universal JSON format the existing API accepts.
  *
@@ -13,19 +15,20 @@ package com.example.vmintent.legacy;
  *   "environment": "dev", "publicIp": false
  * }
  */
+@Schema(description = "The legacy universal VM definition (v1). Provider-native names are accepted.")
 public record LegacyVmDefinition(
-        String name,
-        String cloud,
-        String location,
-        Integer cpu,
-        Integer ramGb,
+        @Schema(example = "legacy-web-01") String name,
+        @Schema(description = "AWS, Azure, GCP or vSphere.", example = "GCP") String cloud,
+        @Schema(description = "Provider region name or datacenter.", example = "us-central1") String location,
+        @Schema(example = "2") Integer cpu,
+        @Schema(example = "8") Integer ramGb,
         Image image,
         Disk disk,
-        String environment,
-        Integer ttlDays,
-        Boolean publicIp
+        @Schema(example = "test") String environment,
+        @Schema(example = "14") Integer ttlDays,
+        @Schema(example = "false") Boolean publicIp
 ) {
-    public record Image(String os, String version) {}
+    public record Image(@Schema(example = "Debian") String os, @Schema(example = "12") String version) {}
 
-    public record Disk(Integer sizeGb, String type) {}
+    public record Disk(@Schema(example = "80") Integer sizeGb, @Schema(example = "SSD") String type) {}
 }

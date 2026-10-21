@@ -1,0 +1,1295 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "vm-intent API",
+    "description": "Request virtual machines on vSphere, AWS, Azure or Google Cloud, in plain English or as an exact spec.\n\n**How it works.** Every request becomes one canonical, cloud-neutral spec with a SHA-256 hash. The same spec can't be built twice at once: the hash is the build's identity. A Temporal workflow builds each VM and rolls it back (deletes it) if anything fails.\n\n**Typical flows**\n- *One VM, with a human in the loop:* `POST /api/v2/requests`, poll `GET /api/v2/requests/{id}`, then `/clarify` if it asks a question and `/confirm` to build.\n- *Many VMs from a service:* `POST /api/v2/batches` with specs or text, then poll `GET /api/v2/batches/{id}`. No confirmation step per VM.\n- *Check first:* `POST /api/v2/interpret` shows what a text would become, without building anything.\n\n**Optional fields.** Fields with no value are left out of responses rather than sent as null.\n\n**Errors.** Every 4xx and 5xx response has the body `{\"error\": \"...\"}`.\n\n**Authentication.** None yet: restrict access at the network level (the Azure template allows only listed IP ranges). Add an API gateway or Entra ID before exposing this beyond a sandbox.\n",
+    "license": {
+      "name": "Internal use"
+    },
+    "version": "2.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local development. Replace with your deployment's address, or fetch /v3/api-docs from the running server."
+    }
+  ],
+  "tags": [
+    {
+      "name": "Requests",
+      "description": "One VM at a time: interpret, clarify, confirm, build"
+    },
+    {
+      "name": "Batches",
+      "description": "Many VMs at once, no confirmation per VM"
+    },
+    {
+      "name": "Inventory",
+      "description": "VMs, counts and the audit trail"
+    },
+    {
+      "name": "Legacy",
+      "description": "The old universal JSON format (v1)"
+    }
+  ],
+  "paths": {
+    "/api/v2/requests": {
+      "post": {
+        "tags": [
+          "Requests"
+        ],
+        "summary": "Start a request",
+        "description": "Starts a request workflow for one VM. Poll GET /api/v2/requests/{id}: when state is AWAITING_CLARIFICATION, answer the question; when AWAITING_CONFIRMATION, confirm or cancel. Both waits time out after 24 hours.",
+        "operationId": "createRequest",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TextBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmitResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/requests/{id}/confirm": {
+      "post": {
+        "tags": [
+          "Requests"
+        ],
+        "summary": "Confirm and build",
+        "description": "Use when state is AWAITING_CONFIRMATION, after the requester has checked the spec.",
+        "operationId": "confirmRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Confirmed; the build starts"
+          },
+          "404": {
+            "description": "No such request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/requests/{id}/clarify": {
+      "post": {
+        "tags": [
+          "Requests"
+        ],
+        "summary": "Answer the request's question",
+        "description": "Use when state is AWAITING_CLARIFICATION.",
+        "operationId": "clarifyRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Answer delivered"
+          },
+          "404": {
+            "description": "No such request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/requests/{id}/cancel": {
+      "post": {
+        "tags": [
+          "Requests"
+        ],
+        "summary": "Cancel a waiting request",
+        "description": "Has no effect once the build has started.",
+        "operationId": "cancelRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Cancelled"
+          },
+          "404": {
+            "description": "No such request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/interpret": {
+      "post": {
+        "tags": [
+          "Requests"
+        ],
+        "summary": "Preview how a request is understood",
+        "description": "Turns plain English into the canonical spec and its hash, or returns the question it would ask. Starts nothing and builds nothing. Many wordings of the same VM give the same specHash.",
+        "operationId": "interpretRequest",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TextBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interpretation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/batches": {
+      "post": {
+        "tags": [
+          "Batches"
+        ],
+        "summary": "Build many VMs at once",
+        "description": "Every item is checked before anything starts. Items that need a clarifying answer, or break policy, are returned in `rejected`; the rest are built with no confirmation step. An item identical to another (same spec hash) is built once. Poll GET /api/v2/batches/{id}.",
+        "operationId": "createBatch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted; the batch has started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchSubmitResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty, too large, or no item could be built",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/vms": {
+      "post": {
+        "tags": [
+          "Legacy"
+        ],
+        "summary": "Create a VM from the legacy JSON format",
+        "description": "The old universal JSON definition. Skips interpretation and confirmation and goes straight to the build. Kept for existing callers; new callers should use /api/v2.",
+        "operationId": "createLegacyVm",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LegacyVmDefinition"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted; the build has started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyAccepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or invalid fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "An identical VM is already being built",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/vms": {
+      "get": {
+        "tags": [
+          "Inventory"
+        ],
+        "summary": "List VMs",
+        "description": "The 200 most recently changed VMs, newest first.",
+        "operationId": "listVms",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/VmRecord"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/stats": {
+      "get": {
+        "tags": [
+          "Inventory"
+        ],
+        "summary": "Count VMs by state",
+        "operationId": "getStats",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/requests/{id}": {
+      "get": {
+        "tags": [
+          "Requests"
+        ],
+        "summary": "Get a request's status",
+        "description": "state is one of STARTING, INTERPRETING, AWAITING_CLARIFICATION, AWAITING_CONFIRMATION, PROVISIONING, COMPLETED, FAILED, CANCELLED, DUPLICATE, or BUSY (workers didn't answer within 5 seconds; try again). The last four of the first list are final.",
+        "operationId": "getRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Request ID from POST /api/v2/requests",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestStatus"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/batches/{id}": {
+      "get": {
+        "tags": [
+          "Batches"
+        ],
+        "summary": "Get a batch's progress",
+        "description": "Counted from the audit trail, so it answers immediately even while workers restart.",
+        "operationId": "getBatch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Batch ID from POST /api/v2/batches",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current progress",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchStatus"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/audit": {
+      "get": {
+        "tags": [
+          "Inventory"
+        ],
+        "summary": "Read the audit trail",
+        "description": "Events for one request, batch or VM (spec hash or its first characters), oldest first. With no filter, the latest events overall.",
+        "operationId": "getAuditTrail",
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "query",
+            "description": "Request or batch ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "specHash",
+            "in": "query",
+            "description": "Spec hash, or its first 8+ characters",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Most events to return (1-500)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditEvent"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "TextBody": {
+        "required": [
+          "text"
+        ],
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "What you want, in your own words.",
+            "example": "Ubuntu box, 4 cores, 16 gigs, us-east on AWS"
+          },
+          "userId": {
+            "type": "string",
+            "description": "Who is asking. Recorded in the audit trail.",
+            "example": "jdoe"
+          }
+        },
+        "description": "A VM request in plain English."
+      },
+      "SubmitResponse": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "description": "ID to use with the other /requests endpoints.",
+            "example": "intent-3f2c9a1e-5b7d-4c1a-9e0f-2a6b8c4d1e7f"
+          }
+        },
+        "description": "A request was started."
+      },
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "What went wrong, in plain words.",
+            "example": "No batch batch-123"
+          },
+          "workflowId": {
+            "type": "string",
+            "description": "The workflow involved, when there is one."
+          },
+          "rejected": {
+            "type": "array",
+            "description": "Rejected batch items, when a whole batch was refused.",
+            "items": {
+              "$ref": "#/components/schemas/Rejected"
+            }
+          }
+        },
+        "description": "Error body returned with every 4xx and 5xx response."
+      },
+      "Rejected": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "description": "Position in the submitted items list (0-based).",
+            "format": "int32",
+            "example": 2
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why, or the question that would need answering.",
+            "example": "Needs an answer: Which platform should this run on: vSphere (on-prem), AWS, Azure or Google Cloud?"
+          }
+        },
+        "description": "A batch item that was not accepted."
+      },
+      "AnswerBody": {
+        "required": [
+          "answer"
+        ],
+        "type": "object",
+        "properties": {
+          "answer": {
+            "type": "string",
+            "description": "The answer, in plain words.",
+            "example": "azure"
+          }
+        },
+        "description": "An answer to the question a request is waiting on."
+      },
+      "Interpretation": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The text that was interpreted."
+          },
+          "extractor": {
+            "type": "string",
+            "description": "Which interpreter was used.",
+            "example": "rules"
+          },
+          "spec": {
+            "$ref": "#/components/schemas/VmSpec"
+          },
+          "specHash": {
+            "type": "string",
+            "description": "SHA-256 of the canonical spec.",
+            "example": "3af19a4e8492dc7edd60f92413fe0567546acd258f9c214eaebca7c4dd0d5d72"
+          },
+          "summary": {
+            "type": "string",
+            "description": "One-line summary."
+          },
+          "assumptions": {
+            "type": "array",
+            "description": "Defaults that were filled in.",
+            "items": {
+              "type": "string",
+              "description": "Defaults that were filled in."
+            }
+          },
+          "question": {
+            "type": "string",
+            "description": "Set when something must be answered before a spec can be built.",
+            "example": "Which platform should this run on: vSphere (on-prem), AWS, Azure or Google Cloud?"
+          }
+        },
+        "description": "What a request was understood to mean. Either spec/specHash are set, or question is."
+      },
+      "VmSpec": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "VM name. Generated from the hash if left empty.",
+            "example": "app-db-01"
+          },
+          "provider": {
+            "type": "string",
+            "example": "aws",
+            "enum": [
+              "vsphere",
+              "aws",
+              "azure",
+              "gcp"
+            ]
+          },
+          "region": {
+            "type": "string",
+            "description": "Cloud regions: us-east, us-west, us-central, eu-west. vSphere datacenters: dc1, dc2.",
+            "example": "us-east",
+            "enum": [
+              "us-east",
+              "us-west",
+              "us-central",
+              "eu-west",
+              "dc1",
+              "dc2"
+            ]
+          },
+          "vcpu": {
+            "maximum": 64,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "example": 4
+          },
+          "memoryGiB": {
+            "maximum": 512,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "example": 16
+          },
+          "os": {
+            "type": "string",
+            "example": "ubuntu",
+            "enum": [
+              "ubuntu",
+              "rhel",
+              "windows",
+              "debian",
+              "rocky"
+            ]
+          },
+          "osVersion": {
+            "type": "string",
+            "example": "24.04"
+          },
+          "diskGiB": {
+            "maximum": 4096,
+            "minimum": 10,
+            "type": "integer",
+            "description": "Windows needs at least 64.",
+            "format": "int32",
+            "example": 100
+          },
+          "diskTier": {
+            "type": "string",
+            "example": "ssd",
+            "enum": [
+              "ssd",
+              "standard"
+            ]
+          },
+          "env": {
+            "type": "string",
+            "example": "dev",
+            "enum": [
+              "dev",
+              "test",
+              "staging",
+              "prod"
+            ]
+          },
+          "ttlDays": {
+            "maximum": 365,
+            "minimum": 0,
+            "type": "integer",
+            "description": "Lifetime in days; 0 = never expires.",
+            "format": "int32",
+            "example": 14
+          },
+          "publicIp": {
+            "type": "boolean",
+            "example": false
+          }
+        },
+        "description": "The canonical, cloud-neutral VM spec. Its SHA-256 (specHash) is the VM's identity."
+      },
+      "BatchBody": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "description": "1 to 10,000 items.",
+            "items": {
+              "$ref": "#/components/schemas/BatchItemBody"
+            }
+          },
+          "shardSize": {
+            "type": "integer",
+            "description": "VMs per shard workflow (1-1000).",
+            "format": "int32",
+            "example": 500,
+            "default": 500
+          },
+          "maxInFlightPerShard": {
+            "type": "integer",
+            "description": "VMs one shard builds at the same time (1 to shardSize).",
+            "format": "int32"
+          },
+          "requestedBy": {
+            "type": "string",
+            "description": "Who is asking. Recorded in the audit trail.",
+            "example": "provisioning-service"
+          }
+        },
+        "description": "Many VMs in one request. No confirmation step per VM."
+      },
+      "BatchItemBody": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Plain-English request. Rejected if it would need a clarifying question.",
+            "example": "small rhel 9 box on prem in dc1 for 2 weeks"
+          },
+          "spec": {
+            "$ref": "#/components/schemas/VmSpec"
+          }
+        },
+        "description": "One VM in a batch: either plain text or an exact spec (give one of the two)."
+      },
+      "BatchSubmitResponse": {
+        "type": "object",
+        "properties": {
+          "batchId": {
+            "type": "string",
+            "example": "batch-7d1e0c2a-9b4f-4e6a-8c3d-1f2e3a4b5c6d"
+          },
+          "accepted": {
+            "type": "integer",
+            "description": "Items that will be built.",
+            "format": "int32",
+            "example": 1998
+          },
+          "sameInBatch": {
+            "type": "integer",
+            "description": "Items identical to an earlier item in the same batch (built once).",
+            "format": "int32",
+            "example": 0
+          },
+          "rejected": {
+            "type": "array",
+            "description": "Items not accepted, with the reason.",
+            "items": {
+              "$ref": "#/components/schemas/Rejected"
+            }
+          },
+          "shards": {
+            "type": "integer",
+            "description": "Shard workflows the batch was split into.",
+            "format": "int32",
+            "example": 4
+          }
+        },
+        "description": "A batch was accepted and started."
+      },
+      "Disk": {
+        "type": "object",
+        "properties": {
+          "sizeGb": {
+            "type": "integer",
+            "format": "int32",
+            "example": 80
+          },
+          "type": {
+            "type": "string",
+            "example": "SSD"
+          }
+        }
+      },
+      "Image": {
+        "type": "object",
+        "properties": {
+          "os": {
+            "type": "string",
+            "example": "Debian"
+          },
+          "version": {
+            "type": "string",
+            "example": "12"
+          }
+        }
+      },
+      "LegacyVmDefinition": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "legacy-web-01"
+          },
+          "cloud": {
+            "type": "string",
+            "description": "AWS, Azure, GCP or vSphere.",
+            "example": "GCP"
+          },
+          "location": {
+            "type": "string",
+            "description": "Provider region name or datacenter.",
+            "example": "us-central1"
+          },
+          "cpu": {
+            "type": "integer",
+            "format": "int32",
+            "example": 2
+          },
+          "ramGb": {
+            "type": "integer",
+            "format": "int32",
+            "example": 8
+          },
+          "image": {
+            "$ref": "#/components/schemas/Image"
+          },
+          "disk": {
+            "$ref": "#/components/schemas/Disk"
+          },
+          "environment": {
+            "type": "string",
+            "example": "test"
+          },
+          "ttlDays": {
+            "type": "integer",
+            "format": "int32",
+            "example": 14
+          },
+          "publicIp": {
+            "type": "boolean",
+            "example": false
+          }
+        },
+        "description": "The legacy universal VM definition (v1). Provider-native names are accepted."
+      },
+      "LegacyAccepted": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "description": "Temporal workflow ID: vm- plus the spec hash."
+          },
+          "specHash": {
+            "type": "string",
+            "description": "SHA-256 of the canonical spec."
+          },
+          "spec": {
+            "$ref": "#/components/schemas/VmSpec"
+          },
+          "summary": {
+            "type": "string",
+            "description": "One-line summary of the spec."
+          }
+        },
+        "description": "A legacy JSON definition was accepted and its build started."
+      },
+      "VmRecord": {
+        "type": "object",
+        "properties": {
+          "specHash": {
+            "type": "string"
+          },
+          "spec": {
+            "$ref": "#/components/schemas/VmSpec"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "PROVISIONING",
+              "RUNNING",
+              "FAILED",
+              "DELETED"
+            ]
+          },
+          "detail": {
+            "type": "string",
+            "description": "Provider plan, or why it failed."
+          },
+          "result": {
+            "$ref": "#/components/schemas/VmResult"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO-8601 time of the last change."
+          }
+        },
+        "description": "One VM in the inventory."
+      },
+      "VmResult": {
+        "type": "object",
+        "properties": {
+          "vmId": {
+            "type": "string",
+            "example": "i-0b755f1ffc4e"
+          },
+          "ipAddress": {
+            "type": "string",
+            "example": "10.20.0.17"
+          },
+          "provider": {
+            "type": "string",
+            "example": "aws"
+          },
+          "nativeRegion": {
+            "type": "string",
+            "example": "us-east-1"
+          },
+          "nativeSize": {
+            "type": "string",
+            "example": "m6i.xlarge"
+          },
+          "nativeImage": {
+            "type": "string",
+            "example": "AMI lookup: ubuntu 24.04"
+          }
+        },
+        "description": "The built VM, in the provider's own terms."
+      },
+      "StatsResponse": {
+        "type": "object",
+        "properties": {
+          "vmsByState": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "description": "Number of VMs in each state.",
+              "format": "int64"
+            },
+            "description": "Number of VMs in each state.",
+            "example": {
+              "RUNNING": 1980,
+              "FAILED": 20
+            }
+          }
+        },
+        "description": "Inventory counts."
+      },
+      "RequestStatus": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "STARTING",
+              "INTERPRETING",
+              "AWAITING_CLARIFICATION",
+              "AWAITING_CONFIRMATION",
+              "PROVISIONING",
+              "COMPLETED",
+              "FAILED",
+              "CANCELLED",
+              "DUPLICATE",
+              "BUSY"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable status, or the question being asked."
+          },
+          "interpretation": {
+            "$ref": "#/components/schemas/Interpretation"
+          },
+          "vm": {
+            "$ref": "#/components/schemas/VmResult"
+          },
+          "history": {
+            "type": "array",
+            "description": "Timestamped steps so far.",
+            "items": {
+              "type": "string",
+              "description": "Timestamped steps so far."
+            }
+          }
+        },
+        "description": "Where a request is, and what it understood."
+      },
+      "BatchStatus": {
+        "type": "object",
+        "properties": {
+          "batchId": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "RUNNING",
+              "COMPLETED"
+            ]
+          },
+          "total": {
+            "type": "integer",
+            "description": "VMs accepted into the batch.",
+            "format": "int64"
+          },
+          "shardSize": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "started": {
+            "type": "integer",
+            "description": "VMs whose build has started.",
+            "format": "int64"
+          },
+          "inFlight": {
+            "type": "integer",
+            "description": "Started but not finished.",
+            "format": "int64"
+          },
+          "running": {
+            "type": "integer",
+            "description": "Built and running.",
+            "format": "int64"
+          },
+          "failed": {
+            "type": "integer",
+            "description": "Failed and rolled back (deleted).",
+            "format": "int64"
+          },
+          "duplicate": {
+            "type": "integer",
+            "description": "Not built because an identical VM already exists or is being built.",
+            "format": "int64"
+          },
+          "p50Seconds": {
+            "type": "number",
+            "description": "Median seconds from submit to running.",
+            "format": "double"
+          },
+          "p95Seconds": {
+            "type": "number",
+            "description": "95th percentile seconds from submit to running.",
+            "format": "double"
+          },
+          "maxSeconds": {
+            "type": "number",
+            "description": "Slowest VM, seconds from submit to running.",
+            "format": "double"
+          },
+          "startedAtMs": {
+            "type": "integer",
+            "description": "When the batch was submitted (epoch milliseconds).",
+            "format": "int64"
+          },
+          "finishedAtMs": {
+            "type": "integer",
+            "description": "When the batch finished (epoch milliseconds), or null.",
+            "format": "int64"
+          },
+          "failures": {
+            "type": "array",
+            "description": "Up to 20 failure reasons.",
+            "items": {
+              "type": "string",
+              "description": "Up to 20 failure reasons."
+            }
+          }
+        },
+        "description": "Live progress of a batch, counted from the audit trail."
+      },
+      "AuditEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "at": {
+            "type": "string",
+            "description": "ISO-8601 time."
+          },
+          "requestId": {
+            "type": "string",
+            "description": "Request or batch ID."
+          },
+          "specHash": {
+            "type": "string"
+          },
+          "event": {
+            "type": "string",
+            "description": "REQUESTED, QUESTION_ASKED, ANSWERED, INTERPRETED, CONFIRMED, PROVISIONING, VM_CREATED, RUNNING, ROLLED_BACK, DUPLICATE, COMPLETED, FAILED, CANCELLED, BATCH_STARTED, BATCH_COMPLETED",
+            "example": "RUNNING"
+          },
+          "actor": {
+            "type": "string",
+            "description": "A user ID, system, or legacy-api.",
+            "example": "system"
+          },
+          "detail": {
+            "type": "string"
+          }
+        },
+        "description": "One thing that happened, in order."
+      }
+    }
+  }
+}

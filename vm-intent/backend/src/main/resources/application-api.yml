@@ -6,3 +6,6 @@ spring:
 vmintent:
   db:
     embedded: ${VMINTENT_DB_EMBEDDED:false}
+server:
+  # Behind nginx or a gateway: trust X-Forwarded-* so links in the API docs use the public address.
+  forward-headers-strategy: framework

@@ -1,5 +1,6 @@
 package com.example.vmintent.db;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 
@@ -9,8 +10,17 @@ import java.util.List;
 @Component
 public class AuditLog {
 
-    public record AuditEvent(long id, String at, String requestId, String specHash,
-                             String event, String actor, String detail) {}
+    @Schema(description = "One thing that happened, in order.")
+    public record AuditEvent(long id,
+                             @Schema(description = "ISO-8601 time.") String at,
+                             @Schema(description = "Request or batch ID.") String requestId,
+                             String specHash,
+                             @Schema(description = "REQUESTED, QUESTION_ASKED, ANSWERED, INTERPRETED, CONFIRMED, "
+                                     + "PROVISIONING, VM_CREATED, RUNNING, ROLLED_BACK, DUPLICATE, COMPLETED, FAILED, "
+                                     + "CANCELLED, BATCH_STARTED, BATCH_COMPLETED", example = "RUNNING")
+                             String event,
+                             @Schema(description = "A user ID, system, or legacy-api.", example = "system") String actor,
+                             String detail) {}
 
     private final JdbcClient jdbc;
 

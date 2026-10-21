@@ -1,16 +1,28 @@
 package com.example.vmintent.api;
 
+import com.example.vmintent.api.ApiModels.ApiError;
+import com.example.vmintent.api.ApiModels.BatchBody;
+import com.example.vmintent.api.ApiModels.BatchItemBody;
+import com.example.vmintent.api.ApiModels.BatchStatus;
+import com.example.vmintent.api.ApiModels.BatchSubmitResponse;
+import com.example.vmintent.api.ApiModels.Rejected;
+import com.example.vmintent.api.ApiModels.StatsResponse;
 import com.example.vmintent.db.BatchStore;
 import com.example.vmintent.intent.IntentInterpreter;
 import com.example.vmintent.intent.Interpretation;
 import com.example.vmintent.provider.VmRegistry;
 import com.example.vmintent.spec.SpecCanonicalizer;
 import com.example.vmintent.spec.SpecValidator;
-import com.example.vmintent.spec.VmSpec;
 import com.example.vmintent.workflow.BatchProvisionWorkflow;
 import com.example.vmintent.workflow.Models.BatchItem;
 import com.example.vmintent.workflow.Models.BatchRequest;
 import com.example.vmintent.workflow.TaskQueues;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
 import org.springframework.http.HttpStatus;
@@ -25,9 +37,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -43,12 +54,6 @@ public class BatchController {
 
     public static final int MAX_ITEMS = 10_000;
 
-    public record ItemBody(String text, VmSpec spec) {}
-
-    public record BatchBody(List<ItemBody> items, Integer shardSize, Integer maxInFlightPerShard, String requestedBy) {}
-
-    public record Rejected(int index, String reason) {}
-
     private final WorkflowClient client;
     private final IntentInterpreter interpreter;
     private final VmRegistry registry;
@@ -62,13 +67,22 @@ public class BatchController {
         this.batches = batches;
     }
 
+    @Tag(name = "Batches")
+    @Operation(operationId = "createBatch", summary = "Build many VMs at once",
+            description = "Every item is checked before anything starts. Items that need a clarifying answer, or "
+                    + "break policy, are returned in `rejected`; the rest are built with no confirmation step. "
+                    + "An item identical to another (same spec hash) is built once. Poll GET /api/v2/batches/{id}.")
+    @ApiResponse(responseCode = "202", description = "Accepted; the batch has started",
+            content = @Content(schema = @Schema(implementation = BatchSubmitResponse.class)))
+    @ApiResponse(responseCode = "400", description = "Empty, too large, or no item could be built",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
     @PostMapping("/batches")
-    public ResponseEntity<Map<String, Object>> submit(@RequestBody BatchBody body) {
+    public ResponseEntity<?> submit(@RequestBody BatchBody body) {
         if (body.items() == null || body.items().isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "items is empty"));
+            return ResponseEntity.badRequest().body(ApiError.of("items is empty"));
         }
         if (body.items().size() > MAX_ITEMS) {
-            return ResponseEntity.badRequest().body(Map.of("error", "At most " + MAX_ITEMS + " items per batch"));
+            return ResponseEntity.badRequest().body(ApiError.of("At most " + MAX_ITEMS + " items per batch"));
         }
 
         List<BatchItem> accepted = new ArrayList<>();
@@ -76,10 +90,9 @@ public class BatchController {
         Set<String> seen = new HashSet<>();
         int sameInBatch = 0;
         for (int i = 0; i < body.items().size(); i++) {
-            ItemBody item = body.items().get(i);
             BatchItem ok;
             try {
-                ok = toItem(item);
+                ok = toItem(body.items().get(i));
             } catch (IllegalArgumentException e) {
                 rejected.add(new Rejected(i, e.getMessage()));
                 continue;
@@ -91,7 +104,7 @@ public class BatchController {
             accepted.add(ok);
         }
         if (accepted.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "No item could be built", "rejected", rejected));
+            return ResponseEntity.badRequest().body(new ApiError("No item could be built", null, rejected));
         }
 
         int shardSize = clamp(body.shardSize(), 500, 1, 1000);
@@ -103,33 +116,33 @@ public class BatchController {
                 WorkflowOptions.newBuilder().setTaskQueue(TaskQueues.INTENT).setWorkflowId(batchId).build());
         WorkflowClient.start(wf::run, new BatchRequest(batchId, accepted, shardSize, inFlight, by));
 
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("batchId", batchId);
-        out.put("accepted", accepted.size());
-        out.put("sameInBatch", sameInBatch);
-        out.put("rejected", rejected);
-        out.put("shards", (accepted.size() + shardSize - 1) / shardSize);
-        return ResponseEntity.accepted().body(out);
+        return ResponseEntity.accepted().body(new BatchSubmitResponse(
+                batchId, accepted.size(), sameInBatch, rejected, (accepted.size() + shardSize - 1) / shardSize));
     }
 
-    /**
-     * Live progress, counted from the audit trail in Postgres. It doesn't ask the workflows,
-     * so it answers straight away even while workers are restarting.
-     */
+    @Tag(name = "Batches")
+    @Operation(operationId = "getBatch", summary = "Get a batch's progress",
+            description = "Counted from the audit trail, so it answers immediately even while workers restart.")
+    @ApiResponse(responseCode = "200", description = "Current progress",
+            content = @Content(schema = @Schema(implementation = BatchStatus.class)))
+    @ApiResponse(responseCode = "404", description = "No such batch",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
     @GetMapping("/batches/{id}")
-    public ResponseEntity<Map<String, Object>> status(@PathVariable String id) {
-        return batches.progress(id)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "No batch " + id)));
+    public ResponseEntity<?> status(@Parameter(description = "Batch ID from POST /api/v2/batches")
+                                    @PathVariable String id) {
+        Optional<BatchStatus> progress = batches.progress(id);
+        if (progress.isPresent()) return ResponseEntity.ok(progress.get());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiError.of("No batch " + id));
     }
 
-    /** VM counts by state across the whole inventory. */
+    @Tag(name = "Inventory")
+    @Operation(operationId = "getStats", summary = "Count VMs by state")
     @GetMapping("/stats")
-    public Map<String, Object> stats() {
-        return Map.of("vmsByState", registry.countByState());
+    public StatsResponse stats() {
+        return new StatsResponse(registry.countByState());
     }
 
-    private BatchItem toItem(ItemBody item) {
+    private BatchItem toItem(BatchItemBody item) {
         if (item == null || (item.text() == null && item.spec() == null)) {
             throw new IllegalArgumentException("Give either text or spec");
         }

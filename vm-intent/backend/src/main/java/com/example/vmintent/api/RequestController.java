@@ -1,5 +1,10 @@
 package com.example.vmintent.api;
 
+import com.example.vmintent.api.ApiModels.AnswerBody;
+import com.example.vmintent.api.ApiModels.ApiError;
+import com.example.vmintent.api.ApiModels.LegacyAccepted;
+import com.example.vmintent.api.ApiModels.SubmitResponse;
+import com.example.vmintent.api.ApiModels.TextBody;
 import com.example.vmintent.db.AuditLog;
 import com.example.vmintent.intent.IntentInterpreter;
 import com.example.vmintent.intent.Interpretation;
@@ -13,8 +18,15 @@ import com.example.vmintent.workflow.Models.RequestStatus;
 import com.example.vmintent.workflow.Models.VmRecord;
 import com.example.vmintent.workflow.TaskQueues;
 import com.example.vmintent.workflow.VmReconcileWorkflow;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowExecutionAlreadyStarted;
+import io.temporal.client.WorkflowNotFoundException;
 import io.temporal.client.WorkflowOptions;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,12 +37,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -38,10 +51,6 @@ import java.util.concurrent.TimeoutException;
 @RequestMapping("/api")
 @CrossOrigin(origins = "http://localhost:5173")
 public class RequestController {
-
-    public record TextBody(String text, String userId) {}
-
-    public record AnswerBody(String answer) {}
 
     private static final int QUERY_TIMEOUT_SECONDS = 5;
 
@@ -60,25 +69,44 @@ public class RequestController {
         this.audit = audit;
     }
 
-    /** Preview only: what would this text become? No workflow, nothing built. */
+    // ------------------------------------------------------------------ requests
+
+    @Tag(name = "Requests")
+    @Operation(operationId = "interpretRequest", summary = "Preview how a request is understood",
+            description = "Turns plain English into the canonical spec and its hash, or returns the question it "
+                    + "would ask. Starts nothing and builds nothing. Many wordings of the same VM give the same specHash.")
     @PostMapping("/v2/interpret")
     public Interpretation preview(@RequestBody TextBody body) {
         return interpreter.interpret(body.text());
     }
 
-    /** Start a natural-language request. Returns the request (workflow) ID. */
+    @Tag(name = "Requests")
+    @Operation(operationId = "createRequest", summary = "Start a request",
+            description = "Starts a request workflow for one VM. Poll GET /api/v2/requests/{id}: when state is "
+                    + "AWAITING_CLARIFICATION, answer the question; when AWAITING_CONFIRMATION, confirm or cancel. "
+                    + "Both waits time out after 24 hours.")
+    @ApiResponse(responseCode = "200", description = "Started")
     @PostMapping("/v2/requests")
-    public Map<String, String> submit(@RequestBody TextBody body) {
+    public SubmitResponse submit(@RequestBody TextBody body) {
         String id = "intent-" + UUID.randomUUID();
         IntentWorkflow wf = client.newWorkflowStub(IntentWorkflow.class,
                 WorkflowOptions.newBuilder().setTaskQueue(TaskQueues.INTENT).setWorkflowId(id).build());
         String user = body.userId() == null ? "demo-user" : body.userId();
-        WorkflowClient.start(wf::run, new IntentRequest(body.text(), user, "web"));
-        return Map.of("requestId", id);
+        WorkflowClient.start(wf::run, new IntentRequest(body.text(), user, "api"));
+        return new SubmitResponse(id);
     }
 
+    @Tag(name = "Requests")
+    @Operation(operationId = "getRequest", summary = "Get a request's status",
+            description = "state is one of STARTING, INTERPRETING, AWAITING_CLARIFICATION, AWAITING_CONFIRMATION, "
+                    + "PROVISIONING, COMPLETED, FAILED, CANCELLED, DUPLICATE, or BUSY (workers didn't answer "
+                    + "within 5 seconds; try again). The last four of the first list are final.")
+    @ApiResponse(responseCode = "200", description = "Current status")
+    @ApiResponse(responseCode = "404", description = "No such request",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
     @GetMapping("/v2/requests/{id}")
-    public ResponseEntity<RequestStatus> status(@PathVariable String id) {
+    public ResponseEntity<RequestStatus> status(@Parameter(description = "Request ID from POST /api/v2/requests")
+                                                @PathVariable String id) {
         try {
             // A query is answered by a worker. Don't let a busy or restarting worker hold this request.
             RequestStatus s = CompletableFuture.supplyAsync(() -> stub(id).status())
@@ -86,46 +114,88 @@ public class RequestController {
             return ResponseEntity.ok(s);
         } catch (TimeoutException e) {
             return ResponseEntity.ok(new RequestStatus(id, "BUSY", "Workers are busy; trying again...", null, null, List.of()));
-        } catch (Exception e) {
-            // The workflow may not have run its first step yet.
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof WorkflowNotFoundException nf) throw nf;
+            // The workflow exists but hasn't run its first step yet.
             return ResponseEntity.ok(new RequestStatus(id, "STARTING", "Starting...", null, null, List.of()));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return ResponseEntity.ok(new RequestStatus(id, "BUSY", "Interrupted; try again.", null, null, List.of()));
         }
     }
 
+    @Tag(name = "Requests")
+    @Operation(operationId = "clarifyRequest", summary = "Answer the request's question", description = "Use when state is AWAITING_CLARIFICATION.")
+    @ApiResponse(responseCode = "204", description = "Answer delivered")
+    @ApiResponse(responseCode = "404", description = "No such request",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     @PostMapping("/v2/requests/{id}/clarify")
     public void clarify(@PathVariable String id, @RequestBody AnswerBody body) {
         stub(id).clarify(body.answer());
     }
 
+    @Tag(name = "Requests")
+    @Operation(operationId = "confirmRequest", summary = "Confirm and build",
+            description = "Use when state is AWAITING_CONFIRMATION, after the requester has checked the spec.")
+    @ApiResponse(responseCode = "204", description = "Confirmed; the build starts")
+    @ApiResponse(responseCode = "404", description = "No such request",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     @PostMapping("/v2/requests/{id}/confirm")
     public void confirm(@PathVariable String id) {
         stub(id).confirm();
     }
 
+    @Tag(name = "Requests")
+    @Operation(operationId = "cancelRequest", summary = "Cancel a waiting request", description = "Has no effect once the build has started.")
+    @ApiResponse(responseCode = "204", description = "Cancelled")
+    @ApiResponse(responseCode = "404", description = "No such request",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     @PostMapping("/v2/requests/{id}/cancel")
     public void cancel(@PathVariable String id) {
         stub(id).cancel();
     }
 
+    // ------------------------------------------------------------------ inventory and audit
+
+    @Tag(name = "Inventory")
+    @Operation(operationId = "listVms", summary = "List VMs", description = "The 200 most recently changed VMs, newest first.")
     @GetMapping("/v2/vms")
     public List<VmRecord> vms() {
         return registry.all();
     }
 
-    /** Audit trail: filter by request ID or spec hash (prefix), newest events last. */
+    @Tag(name = "Inventory")
+    @Operation(operationId = "getAuditTrail", summary = "Read the audit trail",
+            description = "Events for one request, batch or VM (spec hash or its first characters), oldest first. "
+                    + "With no filter, the latest events overall.")
     @GetMapping("/v2/audit")
-    public List<AuditLog.AuditEvent> auditTrail(@RequestParam(required = false) String requestId,
-                                                @RequestParam(required = false) String specHash,
-                                                @RequestParam(defaultValue = "50") int limit) {
+    public List<AuditLog.AuditEvent> auditTrail(
+            @Parameter(description = "Request or batch ID") @RequestParam(required = false) String requestId,
+            @Parameter(description = "Spec hash, or its first 8+ characters") @RequestParam(required = false) String specHash,
+            @Parameter(description = "Most events to return (1-500)") @RequestParam(defaultValue = "50") int limit) {
         return audit.find(requestId, specHash, Math.max(1, Math.min(limit, 500)));
     }
 
-    /** The OLD endpoint: legacy JSON in, straight to reconcile (no AI step). */
+    // ------------------------------------------------------------------ legacy
+
+    @Tag(name = "Legacy")
+    @Operation(operationId = "createLegacyVm", summary = "Create a VM from the legacy JSON format",
+            description = "The old universal JSON definition. Skips interpretation and confirmation and goes "
+                    + "straight to the build. Kept for existing callers; new callers should use /api/v2.")
+    @ApiResponse(responseCode = "202", description = "Accepted; the build has started",
+            content = @Content(schema = @Schema(implementation = LegacyAccepted.class)))
+    @ApiResponse(responseCode = "400", description = "Missing or invalid fields",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "409", description = "An identical VM is already being built",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
     @PostMapping("/v1/vms")
-    public ResponseEntity<Map<String, Object>> legacyCreate(@RequestBody LegacyVmDefinition def) {
+    public ResponseEntity<?> legacyCreate(@RequestBody LegacyVmDefinition def) {
         Interpretation it = legacy.translate(def);
         if (it.question() != null) {
-            return ResponseEntity.badRequest().body(Map.of("error", it.question()));
+            return ResponseEntity.badRequest().body(ApiError.of(it.question()));
         }
         String workflowId = "vm-" + it.specHash();
         VmReconcileWorkflow wf = client.newWorkflowStub(VmReconcileWorkflow.class,
@@ -135,10 +205,9 @@ public class RequestController {
             WorkflowClient.start(wf::reconcile, new ReconcileRequest(it.spec(), it.specHash(), "legacy-api", null));
         } catch (WorkflowExecutionAlreadyStarted e) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("error", "An identical VM is already being built", "workflowId", workflowId));
+                    .body(new ApiError("An identical VM is already being built", workflowId, null));
         }
-        return ResponseEntity.accepted().body(Map.of(
-                "workflowId", workflowId, "specHash", it.specHash(), "spec", it.spec(), "summary", it.summary()));
+        return ResponseEntity.accepted().body(new LegacyAccepted(workflowId, it.specHash(), it.spec(), it.summary()));
     }
 
     private IntentWorkflow stub(String id) {

@@ -4,6 +4,9 @@ server:
 spring:
   application:
     name: vm-intent
+  jackson:
+    # API responses leave out fields that have no value, instead of sending null.
+    default-property-inclusion: non_null
   temporal:
     connection:
       # Local: the dev server from "temporal server start-dev". Linux/Docker: set TEMPORAL_ADDRESS.
@@ -70,6 +73,26 @@ vmintent:
     boot-max-seconds: ${VMINTENT_SIM_BOOT_MAX:60}
     api-latency-ms: ${VMINTENT_SIM_LATENCY_MS:250}
     throttle-rate: ${VMINTENT_SIM_THROTTLE:0.02}   # share of cloud calls refused as "throttled"
+
+  api:
+    # Addresses other services should call, listed in the OpenAPI document (comma-separated).
+    # Empty = the address the document was fetched from.
+    server-urls: ${VMINTENT_API_SERVER_URLS:}
+    version: 2.0.0
+
+# OpenAPI (Swagger): /v3/api-docs (JSON), /v3/api-docs.yaml, /swagger-ui.html
+springdoc:
+  paths-to-match: /api/**
+  api-docs:
+    path: /v3/api-docs
+    version: openapi_3_0   # 3.0 is accepted by more client generators and API gateways than 3.1
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+    try-it-out-enabled: true
+    display-request-duration: true
+  default-produces-media-type: application/json
 
 logging:
   level:

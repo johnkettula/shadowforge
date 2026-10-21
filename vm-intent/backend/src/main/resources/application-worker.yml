@@ -6,3 +6,8 @@ spring:
 vmintent:
   db:
     embedded: ${VMINTENT_DB_EMBEDDED:false}
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

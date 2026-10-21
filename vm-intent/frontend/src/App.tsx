@@ -108,6 +108,10 @@ export default function App() {
           Describe it any way you like. One spec comes out, then a Temporal workflow builds it on vSphere, AWS,
           Azure or Google Cloud (simulated).
         </p>
+        <p className="sub">
+          For services: <a href="/swagger-ui.html" target="_blank">API documentation (Swagger)</a> ·{" "}
+          <a href="/v3/api-docs.yaml" target="_blank">OpenAPI YAML</a>
+        </p>
       </header>
 
       <div className="tabs">
