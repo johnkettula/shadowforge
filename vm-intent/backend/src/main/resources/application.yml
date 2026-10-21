@@ -1,0 +1,37 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: vm-intent
+  temporal:
+    connection:
+      # The local Temporal dev server started by "temporal server start-dev"
+      target: 127.0.0.1:7233
+    namespace: default
+    # Finds every @WorkflowImpl / @ActivityImpl class in this package and
+    # starts a worker for each task queue they name.
+    workers-auto-discovery:
+      packages: com.example.vmintent
+
+  # Used only when vmintent.db.embedded is false (a normal Postgres server).
+  datasource:
+    url: jdbc:postgresql://localhost:5432/vmintent
+    username: vmintent
+    password: ${VMINTENT_DB_PASSWORD:}
+  flyway:
+    enabled: true          # creates and upgrades the tables from db/migration
+
+vmintent:
+  db:
+    # true = the app runs its own Postgres (no install needed). Data survives restarts.
+    embedded: true
+    embedded-port: 54329
+    embedded-data-dir: ${user.home}/.vm-intent/pgdata
+  llm:
+    # false = the built-in rule-based interpreter (works offline, no API key).
+    # true  = ask an LLM first and fall back to the rules if the call fails.
+    enabled: false
+    api-key: ${ANTHROPIC_API_KEY:}
+    model: claude-sonnet-5-5
+    url: https://api.anthropic.com/v1/messages

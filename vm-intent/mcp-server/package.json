@@ -1,0 +1,19 @@
+{
+  "name": "vm-intent-mcp",
+  "version": "0.1.0",
+  "description": "MCP server that lets Claude drive the vm-intent app: interpret requests, run workflows, check status and audit trail, run the phrasing tests.",
+  "type": "module",
+  "bin": { "vm-intent-mcp": "dist/index.js" },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.31.0",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.3",
+    "typescript": "5.8.3"
+  }
+}

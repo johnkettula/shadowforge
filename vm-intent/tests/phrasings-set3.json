@@ -1,0 +1,165 @@
+{
+  "note": "Third set, written after round 3. Run once with no code changes; its score is the unseen-wording measure.",
+  "groups": [
+    {
+      "id": "T1", "label": "AWS us-east, 8 / 32, Ubuntu 24.04, prod, 200 GiB",
+      "expect": {"provider":"aws","region":"us-east","vcpu":8,"memoryGiB":32,"os":"ubuntu","osVersion":"24.04","diskGiB":200,"diskTier":"ssd","env":"prod","ttlDays":0,"publicIp":false},
+      "phrasings": [
+        "Production Ubuntu 24.04 on AWS us-east-1: 8 vCPU, 32 GB RAM, 200 GB disk",
+        "prod ec2 in n. virginia, ubuntu 24.04, 8 cores 32 gigs, 200gb ebs volume",
+        "We need a big Ubuntu 24.04 production server in AWS East with a 200 GB root disk",
+        "m6i.2xlarge ubuntu 24.04 us-east-1 prod, 200 GB",
+        "Can you set up an Ubuntu LTS 24.04 instance for prod on Amazon in Virginia? 8 CPUs, 32GB memory, 200GB storage",
+        "aws | us-east-1 | ubuntu 24.04 | 8 vCPU | 32768 MB RAM | 200 GB | prod",
+        "Need a production-ready Ubuntu box on EC2 (east coast) with eight processors, 32 GiB of memory and two hundred GB of disk",
+        "ubuntu 24.04, prod, aws virginia, 8c32g, 200g disk",
+        "Pls create prod ubuntu vm on aws us east w/ 8 vcpus + 32gb ram + 200gb ssd",
+        "For our production API: AWS, us-east-1, Ubuntu 24.04, 8 vCPU / 32 GiB, 200 GiB SSD"
+      ]
+    },
+    {
+      "id": "T2", "label": "Azure eu-west, 2 / 4, Debian 12, test",
+      "expect": {"provider":"azure","region":"eu-west","vcpu":2,"memoryGiB":4,"os":"debian","osVersion":"12","diskGiB":50,"diskTier":"ssd","env":"test","ttlDays":14,"publicIp":false},
+      "phrasings": [
+        "Small Debian 12 test VM on Azure West Europe",
+        "azure westeurope debian 12 2 vcpu 4gb for testing",
+        "I need a QA Debian box in Azure's Netherlands region, 2 cores and 4 GB RAM",
+        "Standard_B2s debian 12 westeurope test",
+        "test env on microsoft azure in europe: debian bookworm, 2 cpu, 4 gigs",
+        "Could I have a small Debian 12 machine on Azure (West Europe) to test some scripts?",
+        "Azure | West Europe | Debian 12 | 2 vCPU | 4096 MB | test",
+        "debian12 azure eu-west 2c/4g qa",
+        "Please spin up a Debian 12 testing server in Azure Amsterdam with 2 vCPUs and 4 GiB memory",
+        "need a little debian 12 vm on azure in europe for testing, 2 cores 4 gb"
+      ]
+    },
+    {
+      "id": "T3", "label": "GCP us-central, 16 / 64, RHEL 9, staging, public IP",
+      "expect": {"provider":"gcp","region":"us-central","vcpu":16,"memoryGiB":64,"os":"rhel","osVersion":"9","diskGiB":50,"diskTier":"ssd","env":"staging","ttlDays":30,"publicIp":true},
+      "phrasings": [
+        "Staging RHEL 9 VM on GCP us-central1 with 16 vCPU, 64 GB RAM and a public IP",
+        "gcp iowa rhel 9 xlarge staging, internet facing",
+        "I need an extra large Red Hat 9 server on Google Cloud in Iowa for staging, publicly reachable",
+        "e2-standard-16 rhel 9 us-central1 staging with external ip",
+        "stage: google cloud central us, red hat enterprise linux 9, 16 cores, 64 gigs ram, public",
+        "Can we get a 16 vCPU / 64 GiB RHEL 9 box on GCE in us-central1 for staging? It needs a public address.",
+        "GCP | us-central1 | RHEL 9 | 16 vCPU | 64 GB | staging | public IP",
+        "rhel9 gcp central 16x64 staging public ip",
+        "Please provision a staging Red Hat 9 instance on Google Compute Engine (Iowa) with sixteen CPUs and sixty-four gigabytes of memory, accessible from the internet",
+        "staging rhel 9 on gcp, us central, 16 cpu 64gb, needs public ip"
+      ]
+    },
+    {
+      "id": "T4", "label": "vSphere dc1, 4 / 16, Ubuntu 22.04, 250 GiB standard disk",
+      "expect": {"provider":"vsphere","region":"dc1","vcpu":4,"memoryGiB":16,"os":"ubuntu","osVersion":"22.04","diskGiB":250,"diskTier":"standard","env":"dev","ttlDays":30,"publicIp":false},
+      "phrasings": [
+        "Medium Ubuntu 22.04 VM on vSphere DC1 with a 250 GB standard disk",
+        "on-prem dc1 ubuntu 22.04, 4 cores 16gb, 250gb hdd",
+        "I need an Ubuntu 22.04 server in our VMware DC1 cluster: 4 vCPU, 16 GB, 250 GB of cheap storage",
+        "vmware dc1 ubuntu jammy 4 cpu 16 gb ram 250 gb spinning disk",
+        "Can I get a mid-sized Ubuntu 22.04 box on premises in DC1? 250 GB HDD please",
+        "vsphere / dc1 / ubuntu 22.04 / 4 vcpu / 16384 MB / 250 GB standard",
+        "ubuntu22 on vmware dc1, 4c16g, 250gb hdd",
+        "Please create an Ubuntu 22.04 virtual machine in the primary datacenter with 4 processors, 16 GiB RAM and a 250 GiB standard disk",
+        "dc1 ubuntu 22.04 medium, 250g hdd",
+        "Need a dev Ubuntu 22.04 VM on-prem (DC1), four cores, sixteen gigs, 250 GB magnetic disk"
+      ]
+    },
+    {
+      "id": "T5", "label": "AWS us-west, 4 / 8, Windows 2022",
+      "expect": {"provider":"aws","region":"us-west","vcpu":4,"memoryGiB":8,"os":"windows","osVersion":"2022","diskGiB":128,"diskTier":"ssd","env":"dev","ttlDays":30,"publicIp":false},
+      "phrasings": [
+        "Windows Server 2022 on AWS us-west-2 with 4 vCPU and 8 GB RAM",
+        "aws oregon win 2022, 4 cores, 8 gigs",
+        "c6i.xlarge windows server 2022 us-west-2",
+        "I need a Windows 2022 dev box on Amazon in Oregon, 4 CPUs and 8 GB of memory",
+        "Can you launch a Windows Server 2022 EC2 instance in us-west-2? 4 vCPU / 8 GiB",
+        "AWS | us-west-2 | Windows 2022 | 4 vCPU | 8192 MB",
+        "win2022 aws west coast 4c8g",
+        "dev windows server 2022 on aws west, quad core, 8gb ram",
+        "Please build a Windows 2022 VM on AWS in Oregon with four vCPUs and eight GB of memory",
+        "windows 2022 ec2 usw2 4 cpu 8 gb"
+      ]
+    },
+    {
+      "id": "T6", "label": "GCP eu-west, 1 / 2, Debian 12, temporary (7 days)",
+      "expect": {"provider":"gcp","region":"eu-west","vcpu":1,"memoryGiB":2,"os":"debian","osVersion":"12","diskGiB":50,"diskTier":"ssd","env":"dev","ttlDays":7,"publicIp":false},
+      "phrasings": [
+        "Tiny temporary Debian 12 VM on GCP in Belgium",
+        "gcp europe-west1 debian 12, 1 vcpu 2gb, for a week",
+        "I need a throwaway Debian box on Google Cloud in Europe for 7 days, 1 CPU 2 GB",
+        "temp debian 12 on gce eu-west, micro size",
+        "Could I get a short-lived Debian 12 machine on GCP (Belgium) with 1 vCPU and 2 GiB? Delete it after a week",
+        "GCP | europe-west1 | Debian 12 | 1 vCPU | 2048 MB | 7 days",
+        "debian bookworm gcp belgium single core 2 gigs temporary",
+        "Please create a minimal Debian 12 VM on Google Cloud in Europe that expires in 7 days",
+        "smallest debian 12 on gcp eu for one week",
+        "1c/2g debian12 gcp europe-west1 temp"
+      ]
+    },
+    {
+      "id": "T7", "label": "Azure us-east, 8 / 64, Rocky 9, prod",
+      "expect": {"provider":"azure","region":"us-east","vcpu":8,"memoryGiB":64,"os":"rocky","osVersion":"9","diskGiB":50,"diskTier":"ssd","env":"prod","ttlDays":0,"publicIp":false},
+      "phrasings": [
+        "Production Rocky Linux 9 VM on Azure East US with 8 vCPU and 64 GB RAM",
+        "azure eastus rocky 9 prod 8 cores 64gb",
+        "Standard_E8s_v5 rocky linux 9 eastus production",
+        "I need a memory-heavy Rocky 9 server on Azure in Virginia for prod: 8 CPUs, 64 GB",
+        "prod: microsoft azure, east us, rocky linux 9, eight vcpu, sixty-four gigs ram",
+        "Can you provision a Rocky 9 production machine on Azure (East US)? 8 vCPU / 64 GiB",
+        "Azure | East US | Rocky 9 | 8 vCPU | 65536 MB | prod",
+        "rocky9 azure east 8x64 prod",
+        "Please deploy a Rocky Linux 9 production VM to Azure in the eastern US with 8 cores and 64 GB of memory",
+        "prod rocky 9 on azure east coast, 8c 64g"
+      ]
+    },
+    {
+      "id": "T8", "label": "vSphere dc2, 16 / 64, RHEL 8, 2 TiB SSD",
+      "expect": {"provider":"vsphere","region":"dc2","vcpu":16,"memoryGiB":64,"os":"rhel","osVersion":"8","diskGiB":2048,"diskTier":"ssd","env":"dev","ttlDays":30,"publicIp":false},
+      "phrasings": [
+        "RHEL 8 VM on vSphere DC2 with 16 vCPU, 64 GB RAM and a 2 TB SSD",
+        "on-prem dc2 red hat 8, 16 cores, 64 gigs, 2tb ssd",
+        "I need an extra large RHEL 8 server in our second datacenter on VMware with 2 TB of fast storage",
+        "vmware dc2 rhel8 16x64 2tb nvme",
+        "Can you build a RHEL 8 box in DC2? 16 CPUs, 64 GB memory, two terabytes SSD",
+        "vSphere | DC2 | RHEL 8 | 16 vCPU | 64 GiB | 2 TiB SSD",
+        "Please create a Red Hat Enterprise Linux 8 VM in the secondary datacenter: sixteen vCPUs, 64 GB RAM, 2048 GB SSD",
+        "rhel 8 on prem dc2 xl with 2 tb ssd",
+        "Need a big RHEL 8 machine on-premises (DC2), 16c/64g, 2TB premium SSD",
+        "dc2 / red hat 8 / 16 cpu / 64 gb / 2 tb ssd"
+      ]
+    },
+    {
+      "id": "T9", "label": "AWS us-central, 2 / 4, Ubuntu 24.04, 14-day lifetime",
+      "expect": {"provider":"aws","region":"us-central","vcpu":2,"memoryGiB":4,"os":"ubuntu","osVersion":"24.04","diskGiB":50,"diskTier":"ssd","env":"dev","ttlDays":14,"publicIp":false},
+      "phrasings": [
+        "Small Ubuntu 24.04 instance on AWS in Ohio for 2 weeks",
+        "aws us-east-2 ubuntu 24.04, 2 vcpu 4gb, delete after 14 days",
+        "I need an Ubuntu box on Amazon in Ohio for two weeks, 2 cores and 4 GB",
+        "t3.medium ubuntu 24.04 us-east-2, 14 day lifetime",
+        "Could you spin up a small Ubuntu 24.04 VM on AWS (Ohio) that expires in 14 days?",
+        "AWS | us-east-2 | Ubuntu 24.04 | 2 vCPU | 4096 MB | 14 days",
+        "ubuntu noble on aws ohio, 2c/4g, for a fortnight",
+        "Please create a small Ubuntu 24.04 EC2 instance in Ohio that is removed after two weeks",
+        "small ubuntu 24.04 aws ohio, keep it for 14 days",
+        "Need an Ubuntu 24.04 server on EC2 (us-east-2) with 2 CPUs and 4 GB RAM, just for 2 weeks"
+      ]
+    },
+    {
+      "id": "T10", "label": "Must ask: no platform, or a request that breaks policy",
+      "expectQuestion": true,
+      "phrasings": [
+        "I need a server for our new data science project",
+        "Ubuntu 24.04, 16 cores, 64 GB, production please",
+        "Can you give me a Windows box in Ohio?",
+        "large rhel 9 for staging with a public IP",
+        "I need a VM, same as the last one but bigger",
+        "Azure VM with 256 vCPUs",
+        "GCP instance with 2 GB of disk",
+        "Debian test machine for 2 weeks",
+        "A database server, the fastest you have",
+        "Set up a Windows 2022 machine with 32 GB RAM for the finance team"
+      ]
+    }
+  ]
+}
