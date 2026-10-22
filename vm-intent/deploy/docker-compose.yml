@@ -79,6 +79,11 @@ services:
       VMINTENT_DB_USER: vmintent
       VMINTENT_DB_PASSWORD: ${VMINTENT_DB_PASSWORD}
       VMINTENT_DB_POOL: 20
+      # AI interpreter (README "Using an AI"): none, anthropic, openai, azure-openai or ollama.
+      VMINTENT_LLM_PROVIDER: ${VMINTENT_LLM_PROVIDER:-none}
+      VMINTENT_LLM_MODEL: ${VMINTENT_LLM_MODEL:-}
+      VMINTENT_LLM_URL: ${VMINTENT_LLM_URL:-}
+      VMINTENT_LLM_API_KEY: ${VMINTENT_LLM_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       # Sign-in (see docs/SECURITY.md): none, entra, pki or entra,pki.
       VMINTENT_SECURITY_MODE: ${VMINTENT_SECURITY_MODE:-none}
@@ -124,5 +129,17 @@ services:
       - "8088:80"
     restart: unless-stopped
 
+  # Optional local AI: docker compose --profile ollama up -d, then
+  #   docker compose exec ollama ollama pull llama3.2
+  # and set VMINTENT_LLM_PROVIDER=ollama, VMINTENT_LLM_URL=http://ollama:11434 in .env.
+  # On a CPU-only machine small models (llama3.2, 3B) answer in seconds; larger ones are slow.
+  ollama:
+    image: ollama/ollama:${OLLAMA_VERSION:-latest}
+    profiles: [ollama]
+    volumes:
+      - ollama:/root/.ollama
+    restart: unless-stopped
+
 volumes:
   pgdata:
+  ollama:

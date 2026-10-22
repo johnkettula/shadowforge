@@ -2,6 +2,8 @@
 REM Starts ONE extra worker process (no web server). Start 2-start-backend.cmd first:
 REM it runs the database this worker shares. Double-click again for more workers.
 REM Close this window to stop the worker; its work is picked up by the others.
+REM Workers interpret requests too, so they use the same AI settings as the backend.
+if exist "%~dp0ai-settings.cmd" call "%~dp0ai-settings.cmd"
 cd /d "%~dp0backend"
 set SPRING_PROFILES_ACTIVE=worker
 set VMINTENT_DB_EMBEDDED=false

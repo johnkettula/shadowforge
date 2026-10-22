@@ -77,6 +77,12 @@ If vm-intent doesn't recognise a size or a place, it asks rather than guessing.
 - *"I need a big linux machine"*: it asks which platform. Answer `azure`.
 - *"small rhel 9 box on prem for 2 weeks, called fail-demo"*: any VM with "fail" in its name fails on purpose, so you can watch the rollback.
 
+### Using an AI to understand requests
+
+By default, built-in rules turn your words into a spec. An administrator can have an AI model do that step instead: Claude, OpenAI, Azure OpenAI, or **Ollama**, which runs free on basement itself. The AI only fills in the fields. You still see the spec and confirm it, and the rules answer whenever the AI is unavailable.
+
+The line under the spec says which one answered: *interpreted by ai:ollama/llama3.2*, *rules*, or *rules (AI unavailable)*. To turn it on, copy `ai-settings.example.cmd` to `ai-settings.cmd`, follow the steps inside, and restart the backend. Details are in `README.md` under *Using an AI*.
+
 ## Following a request
 
 The badge on the request card shows where the request is. It updates by itself every couple of seconds.

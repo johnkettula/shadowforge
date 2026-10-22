@@ -25,3 +25,6 @@ deploy/pki/*
 !deploy/pki/pki-clients.example.yml
 tests/.pki/
 addresses.txt
+
+# AI settings with API keys (start from ai-settings.example.cmd)
+ai-settings.cmd

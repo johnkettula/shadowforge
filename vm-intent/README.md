@@ -169,17 +169,35 @@ sudo ./deploy/linux/install-prereqs.sh    # Java 21, Maven, Node, Postgres, Temp
 
 `deploy/linux/systemd/` has service files to run these at boot instead.
 
-## Turning on the LLM (optional)
+## Using an AI (optional)
 
-The rule-based interpreter works offline. To use an LLM instead:
+By default the built-in rules turn words into a spec: offline, free and predictable. You can have an AI
+model do that step instead. It only fills in the fields: defaults, policy checks and hashing stay in
+plain code, you still confirm the spec, and the rules answer whenever the AI is down, slow or gives a
+bad reply. Each result says which one answered (*interpreted by ai:ollama/llama3.2*, or *rules*).
 
-```
-set ANTHROPIC_API_KEY=your-key
-```
+| `VMINTENT_LLM_PROVIDER` | What it uses | Needs |
+|---|---|---|
+| `none` (default) | The built-in rules | Nothing |
+| `ollama` | A model running on this PC (or one on your network) with [Ollama](https://ollama.com): free, nothing leaves your network | Ollama installed and a model pulled: `ollama pull llama3.2` |
+| `anthropic` | Claude | `VMINTENT_LLM_API_KEY` (or `ANTHROPIC_API_KEY`) |
+| `openai` | OpenAI, or any OpenAI-compatible service (set `VMINTENT_LLM_URL` to its `.../v1` address) | `VMINTENT_LLM_API_KEY`, `VMINTENT_LLM_MODEL` |
+| `azure-openai` | Azure OpenAI | `VMINTENT_LLM_URL` (`https://<resource>.openai.azure.com`), `VMINTENT_LLM_API_KEY`, `VMINTENT_LLM_MODEL` (your deployment name) |
 
-Then set `vmintent.llm.enabled: true` in `backend/src/main/resources/application.yml`
-and restart the backend. If the LLM call fails, the app falls back to the rules. Each
-result shows which interpreter was used.
+Optional: `VMINTENT_LLM_MODEL` (defaults: Claude `claude-sonnet-5-5`, Ollama `llama3.2`), `VMINTENT_LLM_URL`
+(e.g. Ollama on another machine, `http://gpu-box:11434`), `VMINTENT_LLM_TIMEOUT_SECONDS` (30, or 120 for Ollama).
+If a provider is missing its key or model, the backend stops at startup and says which setting to add.
+
+**On Windows:** copy `ai-settings.example.cmd` to `ai-settings.cmd`, un-comment one provider's lines, and
+restart the backend. `2-start-backend.cmd` and `5-start-worker.cmd` read it; it's git-ignored, so keys stay on
+your PC. The backend log shows `Interpreter: AI via ollama (model llama3.2, ...)` when it's on.
+
+**With Docker:** set the same variables in `deploy/.env`. For a local model in Docker, use
+`VMINTENT_LLM_PROVIDER=ollama` and `VMINTENT_LLM_URL=http://ollama:11434`, then
+`docker compose --profile ollama up -d` and `docker compose exec ollama ollama pull llama3.2`.
+
+Small local models (3B, like `llama3.2`) answer in a few seconds on an ordinary PC; larger ones need a GPU to
+be quick. Try the example phrasings with **Preview** to compare a model with the rules.
 
 ## Next steps toward production
 

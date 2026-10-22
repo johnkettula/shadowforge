@@ -31,6 +31,10 @@ VMINTENT_DB_URL=jdbc:postgresql://127.0.0.1:5432/vmintent
 VMINTENT_DB_USER=vmintent
 VMINTENT_DB_PASSWORD=$PASSWORD
 VMINTENT_DB_POOL=30
+# AI interpreter (optional): none, anthropic, openai, azure-openai or ollama. See README "Using an AI".
+#VMINTENT_LLM_PROVIDER=ollama
+#VMINTENT_LLM_MODEL=llama3.2
+#VMINTENT_LLM_API_KEY=
 # Sign-in: see docs/SECURITY.md. For client certificates: HTTPS on 8443 (API_PROFILES is read by
 # start-api.sh; with systemd, change SPRING_PROFILES_ACTIVE in vm-intent-api.service to api,tls instead).
 #API_PROFILES=api,tls

@@ -43,13 +43,21 @@ vmintent:
     embedded: ${VMINTENT_DB_EMBEDDED:true}
     embedded-port: 54329
     embedded-data-dir: ${user.home}/.vm-intent/pgdata
+  # The interpreter that turns words into a spec. With an AI provider, the built-in rules still
+  # answer whenever the AI can't (down, slow, bad reply), and each result names which one answered.
   llm:
-    # false = the built-in rule-based interpreter (works offline, no API key).
-    # true  = ask an LLM first and fall back to the rules if the call fails.
-    enabled: false
-    api-key: ${ANTHROPIC_API_KEY:}
-    model: claude-sonnet-5-5
-    url: https://api.anthropic.com/v1/messages
+    # none (built-in rules, offline) | anthropic | openai | azure-openai | ollama (free, local)
+    provider: ${VMINTENT_LLM_PROVIDER:none}
+    # Empty = the provider's default: anthropic claude-sonnet-5-5, ollama llama3.2.
+    # openai: a model name; azure-openai: your deployment name.
+    model: ${VMINTENT_LLM_MODEL:}
+    # Empty = the provider's default address. Needed for azure-openai (https://<resource>.openai.azure.com),
+    # Ollama on another machine (http://gpu-box:11434) or any other OpenAI-compatible service (.../v1).
+    url: ${VMINTENT_LLM_URL:}
+    # Empty = ANTHROPIC_API_KEY, OPENAI_API_KEY or AZURE_OPENAI_API_KEY. Ollama needs none.
+    api-key: ${VMINTENT_LLM_API_KEY:}
+    # 0 = 30 s, or 120 s for Ollama (local models are slow to load the first time).
+    timeout-seconds: ${VMINTENT_LLM_TIMEOUT_SECONDS:0}
 
   # How much work each worker process takes on. See config/WorkerTuning.java.
   workers:
