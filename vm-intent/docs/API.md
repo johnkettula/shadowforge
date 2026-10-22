@@ -49,6 +49,9 @@ addresses instead, set `VMINTENT_API_SERVER_URLS` (comma-separated).
 - **Long-running work is asynchronous.** Create calls return at once with an ID; poll the matching
   `GET` every 2–5 seconds. Final request states are `COMPLETED`, `FAILED`, `CANCELLED` and `DUPLICATE`; a
   batch is done when `state` is `COMPLETED`.
+- **Browser pages on other sites (CORS).** A web page served from another address that calls the API from
+  the browser must be listed in `VMINTENT_CORS_ORIGINS` (comma-separated; patterns like
+  `https://*.example.com` work). Services calling from their own code don't need this.
 - **Versioning.** Paths carry the major version (`/api/v2`). New optional fields may be added without
   notice; renames and removals only come with a new version.
 

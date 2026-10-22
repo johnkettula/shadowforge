@@ -69,7 +69,13 @@ async function call<T>(method: string, url: string, body?: unknown): Promise<T> 
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
-  const data = text ? JSON.parse(text) : undefined;
+  let data: any;
+  try {
+    data = text ? JSON.parse(text) : undefined;
+  } catch {
+    // Not JSON (a proxy or server error page): show what the server said instead of a parse error.
+    throw new Error(`The server answered ${res.status}${res.ok ? "" : " (error)"}: ${text.slice(0, 200)}`);
+  }
   if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
   return data as T;
 }
