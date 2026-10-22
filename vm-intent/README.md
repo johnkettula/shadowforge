@@ -7,6 +7,8 @@ with no cloud accounts.
 
 Stack: **React + TypeScript (Vite)** front end, **Spring Boot 3 + Temporal Java SDK** back end.
 
+**New here?** Open the web app and choose **Help → User guide** (the same guide is in `docs/USER-GUIDE.md`).
+
 ## What to try
 
 1. Click the first four example chips and press **Preview** on each. They are
@@ -80,7 +82,8 @@ backend/src/main/java/com/example/vmintent/
 frontend/src/ App.tsx (the whole UI), api.ts (typed REST calls)
 deploy/       docker-compose.yml for Linux, deploy/linux/ scripts and systemd units
 loadtest/     run-loadtest.mjs: the 2,000-VM load test
-docs/         SCALING.md: how it scales, and load-test results
+docs/         USER-GUIDE.md (the Help menu's guide; rebuild with docs/build-user-guide.py),
+              SCALING.md: how it scales, and load-test results
 ```
 
 **Main rule:** the AI only turns words into fields. Defaults, validation and

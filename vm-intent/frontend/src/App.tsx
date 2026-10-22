@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, AuditEvent, Interpretation, RequestStatus, VmRecord } from "./api";
 
 // Five different ways of asking for the SAME VM. Click "Preview" on each:
@@ -103,14 +103,13 @@ export default function App() {
   return (
     <div className="page">
       <header>
-        <h1>Request a virtual machine</h1>
+        <div className="row between top">
+          <h1>Request a virtual machine</h1>
+          <HelpMenu />
+        </div>
         <p className="sub">
           Describe it any way you like. One spec comes out, then a Temporal workflow builds it on vSphere, AWS,
           Azure or Google Cloud (simulated).
-        </p>
-        <p className="sub">
-          For services: <a href="/swagger-ui.html" target="_blank">API documentation (Swagger)</a> ·{" "}
-          <a href="/v3/api-docs.yaml" target="_blank">OpenAPI YAML</a>
         </p>
       </header>
 
@@ -256,7 +255,7 @@ export default function App() {
             </ul>
             <p className="sub">
               See every step in the Temporal UI:{" "}
-              <a href={`http://localhost:8233/namespaces/default/workflows/${status.requestId}`} target="_blank">
+              <a href={`${temporalUi()}/namespaces/default/workflows/${status.requestId}`} target="_blank">
                 open workflow
               </a>
             </p>
@@ -330,6 +329,56 @@ function InterpretationView({ it, title }: { it: Interpretation; title: string }
             <pre>{JSON.stringify(it.spec, null, 2)}</pre>
           </details>
         </>
+      )}
+    </div>
+  );
+}
+
+/** The Temporal UI on the same machine as this page, so its links work from other devices too. */
+function temporalUi() {
+  return `${window.location.protocol}//${window.location.hostname}:8233`;
+}
+
+/** Help menu: the user guide, the API documentation and the Temporal UI. */
+function HelpMenu() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+
+  const items = [
+    { href: "/user-guide.html", label: "User guide", note: "How to request and follow VMs" },
+    { href: "/swagger-ui.html", label: "API documentation (Swagger)", note: "For other services" },
+    { href: "/v3/api-docs.yaml", label: "OpenAPI YAML", note: "For client generators and gateways" },
+    { href: temporalUi(), label: "Temporal UI", note: "Every workflow, step by step" },
+  ];
+
+  return (
+    <div className="menu" ref={ref}>
+      <button aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+        Help ▾
+      </button>
+      {open && (
+        <div className="menu-list" role="menu">
+          {items.map((it) => (
+            <a key={it.label} role="menuitem" href={it.href} target="_blank" rel="noreferrer" onClick={() => setOpen(false)}>
+              <span>{it.label}</span>
+              <small>{it.note}</small>
+            </a>
+          ))}
+        </div>
       )}
     </div>
   );

@@ -50,6 +50,16 @@ button:disabled { opacity: .5; cursor: default; }
 .row { display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
 .row input { flex: 1; min-width: 180px; }
 .between { justify-content: space-between; margin-top: 0; }
+.top { align-items: flex-start; flex-wrap: nowrap; }
+.menu { position: relative; flex: none; }
+.menu-list {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 10; min-width: 260px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 6px;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 12%);
+}
+.menu-list a { display: block; padding: 8px 10px; border-radius: 6px; color: var(--ink); text-decoration: none; }
+.menu-list a:hover, .menu-list a:focus-visible { background: var(--bg); outline: none; }
+.menu-list small { display: block; color: var(--quiet); font-size: 12.5px; }
 .examples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .chip { font-size: 12.5px; padding: 4px 10px; border-radius: 999px; color: var(--quiet); }
 .tabs { display: flex; gap: 6px; margin-top: 20px; }

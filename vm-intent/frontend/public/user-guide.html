@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>vm-intent User Guide</title>
+<style>
+:root { --bg:#f6f5f1; --card:#fff; --ink:#1d1d1b; --quiet:#6b6a64; --line:#e2e0d8; --accent:#2f5bd3;
+        --tint:#ecebe6; color-scheme: light dark; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#161615; --card:#20201e; --ink:#ecebe6; --quiet:#a09f98; --line:#34332f; --accent:#7c9cf0; --tint:#2b2a27; }
+}
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif; }
+.page { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+.top { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+.top a { font-size: 14px; }
+h1 { font-size: 28px; margin: 12px 0 4px; }
+h2 { font-size: 20px; margin: 40px 0 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+h3 { font-size: 16px; margin: 24px 0 6px; }
+p.updated { color: var(--quiet); margin-top: 0; }
+nav.toc { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 18px; margin: 20px 0; }
+nav.toc ol { margin: 6px 0 0; padding-left: 20px; columns: 2; column-gap: 32px; }
+nav.toc strong { font-size: 13px; color: var(--quiet); text-transform: uppercase; letter-spacing: .04em; }
+@media (max-width: 600px) { nav.toc ol { columns: 1; } }
+a { color: var(--accent); }
+code, pre { font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+code { background: var(--tint); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--card); border: 1px solid var(--line); padding: 12px; border-radius: 8px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; margin: 10px 0 16px; background: var(--card); }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 13px; color: var(--quiet); font-weight: 600; }
+figure.diagram { margin: 16px 0; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 8px; }
+figure.diagram svg { width: 100%; height: auto; display: block; font: 13px system-ui,-apple-system,"Segoe UI",sans-serif; }
+svg text { fill: var(--ink); } svg text.q { fill: var(--quiet); font-size: 11.5px; }
+svg text.title { font-size: 15px; font-weight: 600; } svg text.strong { font-weight: 600; }
+svg .b { fill: none; stroke: var(--quiet); stroke-width: 1.25; }
+svg .b.final { fill: var(--tint); } svg .b.done { fill: color-mix(in srgb, var(--accent) 14%, transparent); stroke: var(--accent); stroke-width: 2; }
+svg .lines path { fill: none; stroke: var(--quiet); stroke-width: 1.25; } svg .head { fill: var(--quiet); }
+</style>
+</head>
+<body>
+<!-- Generated from docs/USER-GUIDE.md by docs/build-user-guide.py. Edit the Markdown, then rebuild. -->
+<div class="page">
+<div class="top"><a href="/">&larr; Back to the app</a><a href="/swagger-ui.html">API documentation (Swagger)</a></div>
+<h1>vm-intent User Guide</h1>
+
+<p class="updated">Last updated 21 October 2026.</p>
+<nav class="toc" aria-label="Contents"><strong>Contents</strong><ol><li><a href='#what-vm-intent-does'>What vm-intent does</a></li><li><a href='#opening-the-app'>Opening the app</a></li><li><a href='#requesting-one-vm'>Requesting one VM</a></li><li><a href='#following-a-request'>Following a request</a></li><li><a href='#building-many-vms-at-once'>Building many VMs at once</a></li><li><a href='#legacy-json-and-the-inventory'>Legacy JSON and the inventory</a></li><li><a href='#sign-in-and-roles'>Sign-in and roles</a></li><li><a href='#for-other-services-the-rest-api'>For other services: the REST API</a></li><li><a href='#starting-and-stopping-the-app-on-windows'>Starting and stopping the app on Windows</a></li><li><a href='#troubleshooting'>Troubleshooting</a></li></ol></nav>
+
+<h2 id='what-vm-intent-does'>What vm-intent does</h2>
+<p>You ask for a virtual machine in plain English, and vm-intent builds it on vSphere, AWS, Azure or Google Cloud. The clouds are <strong>simulated</strong> in this version, so nothing real is created and no cloud accounts are needed.</p>
+<p>How a request becomes a VM:</p>
+<ol>
+<li>You type what you need, for example <em>"small rhel 9 box on prem for 2 weeks"</em>.</li>
+<li>vm-intent turns the words into one exact, cloud-neutral <strong>spec</strong>: size, OS, disk, region, how long it lives. Defaults fill anything you left out, and you see them before anything is built.</li>
+<li>If something important is missing, such as which cloud, it <strong>asks you a question</strong>.</li>
+<li>You <strong>confirm</strong>, and a Temporal workflow builds the VM step by step.</li>
+<li>If a step fails, the workflow <strong>rolls back</strong>: it deletes the half-built VM so nothing is left behind.</li>
+</ol>
+<p>Each spec gets a fingerprint (a SHA-256 hash). Two requests worded differently but meaning the same thing get the same fingerprint, so the same VM is never built twice at once.</p>
+<p>People use the web app. Other systems use the REST API, described in Swagger. Both reach the same workflows.</p>
+<h2 id='opening-the-app'>Opening the app</h2>
+<p>Open the web app in any browser. Use <code>localhost</code> on basement itself, or basement's network address from your phone or another computer on the same network.</p>
+<div class='table-wrap'><table>
+<thead>
+<tr>
+<th>What</th>
+<th>On basement</th>
+<th>From another device</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Web app</td>
+<td>http://localhost:5173</td>
+<td>http://192.168.4.39:5173</td>
+</tr>
+<tr>
+<td>Swagger API docs</td>
+<td>http://localhost:8080/swagger-ui.html</td>
+<td>http://192.168.4.39:8080/swagger-ui.html</td>
+</tr>
+<tr>
+<td>Temporal UI (workflow details)</td>
+<td>http://localhost:8233</td>
+<td>http://192.168.4.39:8233</td>
+</tr>
+</tbody>
+</table></div>
+<p>If the network address stops working, your router may have given basement a new one. Double-click <code>7-show-addresses.cmd</code> in the vm-intent folder to see the current addresses.</p>
+<p>The web app is one page with three parts:</p>
+<ul>
+<li><strong>Request panel</strong>, with two tabs: <strong>Plain English</strong> for typed requests and <strong>Legacy JSON API</strong> for the old JSON format.</li>
+<li><strong>Request card</strong>, which appears once you submit. It shows the state, the questions, the spec and the finished VM.</li>
+<li><strong>Inventory</strong>, a list of every VM and its state.</li>
+</ul>
+<p>The <strong>Help</strong> menu at the top right opens this guide, the API documentation and the Temporal UI.</p>
+<h2 id='requesting-one-vm'>Requesting one VM</h2>
+<p>On the <strong>Plain English</strong> tab, describe the VM, press <strong>Preview</strong> to check it, then <strong>Submit request</strong> and confirm.</p>
+<ol>
+<li><strong>Describe it.</strong> Type in the box, or click one of the example chips under it to fill the box.</li>
+<li><strong>Preview</strong> (optional). Shows the spec your words become, under <em>Preview (nothing built)</em>. Nothing is created.</li>
+<li><strong>Submit request.</strong> A request card appears and the workflow starts.</li>
+<li><strong>Answer any question.</strong> If the state is <em>AWAITING CLARIFICATION</em>, type your answer (for example <code>azure</code>) and press <strong>Answer</strong> or Enter.</li>
+<li><strong>Check and confirm.</strong> Under <em>What I understood</em>, read the spec and the <em>Assumptions (platform defaults)</em>. Then press <strong>Looks right, build it</strong>.</li>
+<li><strong>Watch it build.</strong> The state moves to <em>PROVISIONING</em>, then <em>COMPLETED</em>. The card then shows the VM ID, IP address and the cloud's own size, region and image.</li>
+</ol>
+<p>Press <strong>Cancel</strong> at any point before you confirm. A request waits up to 24 hours for an answer or a confirmation, then cancels itself.</p>
+<h3>What to say</h3>
+<p>Mention any of these, in any order and any wording. Anything you leave out gets the default.</p>
+<div class='table-wrap'><table>
+<thead>
+<tr>
+<th>Detail</th>
+<th>Example words</th>
+<th>Default if left out</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Platform</td>
+<td>on prem, vSphere, AWS, Amazon, Azure, GCP, Google Cloud</td>
+<td><strong>Asked</strong>: the one thing vm-intent always asks for</td>
+</tr>
+<tr>
+<td>Size</td>
+<td>xsmall, small, medium, large, xlarge, or "4 cores 16 gigs"</td>
+<td>small (2 vCPU, 4 GiB)</td>
+</tr>
+<tr>
+<td>Operating system</td>
+<td>ubuntu, rhel 9, windows server 2022, debian, rocky</td>
+<td>Ubuntu 24.04 ("linux" also means Ubuntu)</td>
+</tr>
+<tr>
+<td>Location</td>
+<td>us-east, Virginia, us-central1, dc1</td>
+<td>us-east, or dc1 on vSphere</td>
+</tr>
+<tr>
+<td>Disk</td>
+<td>200 GB ssd</td>
+<td>50 GiB SSD, 128 GiB for Windows</td>
+</tr>
+<tr>
+<td>Environment</td>
+<td>dev, test, staging, production</td>
+<td>dev</td>
+</tr>
+<tr>
+<td>Lifetime</td>
+<td>for 2 weeks, for 10 days</td>
+<td>dev 30 days, test 14, staging 30, prod never expires</td>
+</tr>
+<tr>
+<td>Name</td>
+<td>called app-db-01</td>
+<td>none</td>
+</tr>
+<tr>
+<td>Public IP</td>
+<td>public IP</td>
+<td>private IP only</td>
+</tr>
+</tbody>
+</table></div>
+<p>Size names stand for fixed sizes: xsmall 1 vCPU / 2 GiB, small 2 / 4, medium 4 / 16, large 8 / 32, xlarge 16 / 64. If you give only cores or only memory, the other is set at 4 GiB per vCPU.</p>
+<p>If vm-intent doesn't recognise a size or a place, it asks rather than guessing.</p>
+<h3>Try these</h3>
+<ul>
+<li>Click the first four example chips and <strong>Preview</strong> each. They are worded differently but give the <strong>same spec hash</strong>.</li>
+<li><em>"I need a big linux machine"</em>: it asks which platform. Answer <code>azure</code>.</li>
+<li><em>"small rhel 9 box on prem for 2 weeks, called fail-demo"</em>: any VM with "fail" in its name fails on purpose, so you can watch the rollback.</li>
+</ul>
+<h2 id='following-a-request'>Following a request</h2>
+<p>The badge on the request card shows where the request is. It updates by itself every couple of seconds.</p>
+<figure class='diagram'><svg viewBox='0 0 800 384' role='img' aria-label='Every request ends in one of four states'><defs><marker id='arrow' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto-start-reverse'><path d='M0 0L10 5L0 10z' class='head'/></marker></defs><text class='title' x='20' y='30'>Every request ends in one of four states</text><g class='lines'><path d='M108 134V158' marker-end='url(#arrow)'/><path d='M196 184H210' marker-end='url(#arrow)'/><path d='M388 184H402' marker-end='url(#arrow)'/><path d='M580 184H594' marker-end='url(#arrow)'/><path d='M300 160V84H402' marker-end='url(#arrow)'/><path d='M88 208V278' marker-end='url(#arrow)'/><path d='M128 280V210' marker-end='url(#arrow)'/><path d='M300 208V278' marker-end='url(#arrow)'/><path d='M196 304H210' marker-end='url(#arrow)'/><path d='M492 208V278' marker-end='url(#arrow)'/></g><text class='q' x='108' y='126' text-anchor='middle'>You submit</text><rect class='b' x='20' y='160' width='176' height='48' rx='8'/><text x='108' y='188' text-anchor='middle'>Interpreting</text><rect class='b' x='212' y='160' width='176' height='48' rx='8'/><text x='300' y='188' text-anchor='middle'>Awaiting confirmation</text><rect class='b' x='404' y='160' width='176' height='48' rx='8'/><text x='492' y='188' text-anchor='middle'>Provisioning</text><rect class='b done' x='596' y='160' width='176' height='48' rx='8'/><text x='684' y='188' text-anchor='middle' class='strong'>Completed</text><rect class='b final' x='404' y='60' width='176' height='48' rx='8'/><text x='492' y='88' text-anchor='middle' class='strong'>Duplicate</text><rect class='b' x='20' y='280' width='176' height='48' rx='8'/><text x='108' y='308' text-anchor='middle'>Awaiting clarification</text><rect class='b final' x='212' y='280' width='176' height='48' rx='8'/><text x='300' y='308' text-anchor='middle' class='strong'>Cancelled</text><rect class='b final' x='404' y='280' width='176' height='48' rx='8'/><text x='492' y='308' text-anchor='middle' class='strong'>Failed</text><text class='q' x='203' y='150' text-anchor='middle'>spec complete</text><text class='q' x='395' y='150' text-anchor='middle'>you confirm</text><text class='q' x='587' y='150' text-anchor='middle'>VM boots</text><text class='q' x='352' y='76' text-anchor='middle'>already exists</text><text class='q' x='82' y='248' text-anchor='end'>missing</text><text class='q' x='134' y='248' text-anchor='start'>you answer</text><text class='q' x='306' y='248' text-anchor='start'>cancel, or no reply in 24 h</text><text class='q' x='498' y='248' text-anchor='start'>a step fails, VM rolled back</text><text class='q' x='20' y='364' text-anchor='start'>Shaded boxes are final states. Cancel works in either waiting state.</text></svg></figure>
+
+<p>A request waits for you twice: to answer a question if something is missing, and to confirm. After that it runs on its own.</p>
+<p>A request ends in one of four states:</p>
+<div class='table-wrap'><table>
+<thead>
+<tr>
+<th>Final state</th>
+<th>What it means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>COMPLETED</td>
+<td>The VM was built and is running</td>
+</tr>
+<tr>
+<td>FAILED</td>
+<td>A build step failed. The half-built VM was rolled back (deleted)</td>
+</tr>
+<tr>
+<td>CANCELLED</td>
+<td>You cancelled, or nobody answered or confirmed within 24 hours</td>
+</tr>
+<tr>
+<td>DUPLICATE</td>
+<td>An identical VM (same spec hash) is already built or being built, so no second one was made</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Audit trail.</strong> Open <em>Audit trail</em> on the card for a timed list of what happened and who did it. Events include REQUESTED, QUESTION_ASKED, ANSWERED, INTERPRETED, CONFIRMED, PROVISIONING, VM_CREATED, RUNNING, ROLLED_BACK, COMPLETED, FAILED, CANCELLED and DUPLICATE. The trail is kept in the database, so it survives restarts.</p>
+<p><strong>Workflow history.</strong> Open <em>Workflow history</em> for the steps the workflow ran. Its <strong>open workflow</strong> link shows every step, with timings and retries, in the Temporal UI.</p>
+<p><strong>Duplicates are safe.</strong> Submitting the same request again, even worded differently, never builds a second copy. That also makes it safe to retry if you aren't sure a request went through.</p>
+<h2 id='building-many-vms-at-once'>Building many VMs at once</h2>
+<p>A <strong>batch</strong> builds up to 10,000 VMs in one call, with no confirmation step per VM. Batches are sent through the API, not the web app. The easiest way to try one is Swagger UI.</p>
+<ol>
+<li>Open Swagger UI and expand <strong>POST /api/v2/batches</strong> under <em>Batches</em>.</li>
+<li>Press <strong>Try it out</strong> and paste a body. Each item is either plain text or an exact spec:</li>
+</ol>
+<pre><code class="language-json">{
+  &quot;requestedBy&quot;: &quot;john&quot;,
+  &quot;items&quot;: [
+    {&quot;text&quot;: &quot;small rhel 9 box on prem in dc1 for 2 weeks&quot;},
+    {&quot;spec&quot;: {&quot;name&quot;: &quot;build-agent-01&quot;, &quot;provider&quot;: &quot;aws&quot;, &quot;region&quot;: &quot;us-east&quot;, &quot;vcpu&quot;: 4, &quot;memoryGiB&quot;: 16,
+              &quot;os&quot;: &quot;ubuntu&quot;, &quot;osVersion&quot;: &quot;24.04&quot;, &quot;diskGiB&quot;: 100, &quot;diskTier&quot;: &quot;ssd&quot;, &quot;env&quot;: &quot;dev&quot;,
+              &quot;ttlDays&quot;: 7, &quot;publicIp&quot;: false}}
+  ]
+}
+</code></pre>
+<ol>
+<li>Press <strong>Execute</strong>. The answer gives a <code>batchId</code>, how many items were accepted, and any <strong>rejected</strong> items with the reason. A text item that would need a question, such as one with no platform, is rejected up front rather than paused.</li>
+<li>To follow it, use <strong>GET /api/v2/batches/{id}</strong> with that ID. It shows how many VMs are in flight, running and failed, and the typical (p50) and slow (p95) build times.</li>
+</ol>
+<p>The new VMs also appear in the web app's Inventory. The system has been load-tested at 2,000 VMs building at the same time.</p>
+<h2 id='legacy-json-and-the-inventory'>Legacy JSON and the inventory</h2>
+<p><strong>Legacy JSON API tab.</strong> Older systems send a fixed JSON format to <code>/api/v1/vms</code>. This tab lets you try it: edit the sample JSON and press <strong>POST /api/v1/vms</strong>. It skips the plain-English step and goes straight to the build workflow. If an identical VM already exists, the answer is a 409 conflict instead of a second VM. The field names in the sample are placeholders, to be matched to the real legacy format later.</p>
+<p><strong>Inventory.</strong> The bottom of the page lists the most recently changed VMs (up to 200) with name, platform, size, state and spec hash. VM states are PROVISIONING while it is built, RUNNING when ready, FAILED and DELETED (rolled back). For counts by state across every VM, use <strong>GET /api/v2/stats</strong> in Swagger.</p>
+<h2 id='sign-in-and-roles'>Sign-in and roles</h2>
+<p>Sign-in is <strong>off</strong> by default, so anyone who can reach the server can use it. Keep it on a network you trust. An administrator can turn on either or both sign-in methods:</p>
+<ul>
+<li><strong>Microsoft Entra ID.</strong> Callers send an Entra access token. Their role comes from the Entra app role they were given.</li>
+<li><strong>Client certificates (PKI).</strong> Callers connect over HTTPS (port 8443) with a certificate from a trusted CA. An allowlist on the server names each permitted certificate and its role.</li>
+</ul>
+<p>Every caller has one of four roles. Each role includes the ones below it.</p>
+<div class='table-wrap'><table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Can</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ADMIN</td>
+<td>Everything, including cancelling anyone's request</td>
+</tr>
+<tr>
+<td>BATCH</td>
+<td>Start batches and use the legacy JSON endpoint, plus everything READER can</td>
+</tr>
+<tr>
+<td>REQUESTER</td>
+<td>Preview, create, answer, confirm and cancel <strong>their own</strong> requests, plus everything READER can</td>
+</tr>
+<tr>
+<td>READER</td>
+<td>Look only: inventory, stats, audit trail, request and batch status</td>
+</tr>
+</tbody>
+</table></div>
+<p>With sign-in on, the audit trail records the real caller: a person's sign-in name, <code>app:&lt;id&gt;</code> for a service, or <code>pki:&lt;name&gt;</code> for a certificate. A missing or refused sign-in gets a 401 error, and a missing role gets 403. The message says why.</p>
+<p>The web app can't sign in yet, so use it only with sign-in off. Setup steps for administrators are in <code>docs/SECURITY.md</code>.</p>
+<h2 id='for-other-services-the-rest-api'>For other services: the REST API</h2>
+<p>Everything the web app does is also available to other systems through a REST API, described by an OpenAPI 3.0 document.</p>
+<ul>
+<li><strong>Swagger UI</strong> (<code>/swagger-ui.html</code>): read every operation and try it with <strong>Try it out</strong>. Each operation lists its <strong>Required role</strong>.</li>
+<li><strong>OpenAPI document</strong> (<code>/v3/api-docs</code>, or <code>/v3/api-docs.yaml</code>): point a client generator or an API gateway at it.</li>
+</ul>
+<div class='table-wrap'><table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>POST /api/v2/interpret</td>
+<td>Preview: text to spec, without building</td>
+</tr>
+<tr>
+<td>POST /api/v2/requests</td>
+<td>Start a one-VM request</td>
+</tr>
+<tr>
+<td>GET /api/v2/requests/{id}</td>
+<td>A request's state, spec, VM and history</td>
+</tr>
+<tr>
+<td>POST /api/v2/requests/{id}/clarify, /confirm, /cancel</td>
+<td>Answer, build, or cancel</td>
+</tr>
+<tr>
+<td>POST /api/v2/batches · GET /api/v2/batches/{id}</td>
+<td>Many VMs at once, and their progress</td>
+</tr>
+<tr>
+<td>GET /api/v2/vms · /api/v2/stats · /api/v2/audit</td>
+<td>Inventory, counts, audit trail</td>
+</tr>
+<tr>
+<td>POST /api/v1/vms</td>
+<td>The legacy JSON format</td>
+</tr>
+</tbody>
+</table></div>
+<p>Create calls return at once with an ID. Check the matching GET every 2 to 5 seconds until it reaches a final state. Errors always come back as <code>{"error": "..."}</code>. More detail is in <code>docs/API.md</code>.</p>
+<h2 id='starting-and-stopping-the-app-on-windows'>Starting and stopping the app on Windows</h2>
+<p>On basement, double-click these in <code>Documents\vm-intent</code>, in order, and leave each window open:</p>
+<ol>
+<li><code>1-start-temporal.cmd</code> starts the Temporal server and its UI.</li>
+<li><code>2-start-backend.cmd</code> starts the backend: the API, the database and the workers that build VMs. Wait for <em>Started VmIntentApplication</em>.</li>
+<li><code>3-start-frontend.cmd</code> starts the web app.</li>
+</ol>
+<p>To stop the app, close those windows. Nothing is lost: requests, VMs and the audit trail are kept in the database, and running workflows carry on where they left off after a restart.</p>
+<p>Other scripts in the folder:</p>
+<div class='table-wrap'><table>
+<thead>
+<tr>
+<th>Script</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0-install-prereqs.cmd</code></td>
+<td>One-time install of Java, Maven, Node.js and the Temporal CLI</td>
+</tr>
+<tr>
+<td><code>4-setup-mcp.cmd</code></td>
+<td>Connects the app to the Claude desktop app, so you can use it from Claude</td>
+</tr>
+<tr>
+<td><code>5-start-worker.cmd</code></td>
+<td>Starts an extra worker, for more VMs at once</td>
+</tr>
+<tr>
+<td><code>6-run-loadtest.cmd</code></td>
+<td>Runs the load test (many VMs at once)</td>
+</tr>
+<tr>
+<td><code>7-show-addresses.cmd</code></td>
+<td>Shows the addresses to use from other devices</td>
+</tr>
+</tbody>
+</table></div>
+<p>For running on Linux or Azure, see <code>README.md</code> and <code>deploy/</code>.</p>
+<h2 id='troubleshooting'>Troubleshooting</h2>
+<div class='table-wrap'><table>
+<thead>
+<tr>
+<th>Problem</th>
+<th>What to do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The page doesn't load</td>
+<td>Check that all three windows from <em>Starting and stopping</em> are open. Start any that are missing, in order.</td>
+</tr>
+<tr>
+<td>It loads on basement but not from another device</td>
+<td>Use <code>7-show-addresses.cmd</code> for the current address. Allow Node.js, Java and temporal.exe through Windows Firewall on private networks.</td>
+</tr>
+<tr>
+<td>An error box appears after Submit or Preview</td>
+<td>The backend may still be starting, or Temporal isn't running. Wait 30 seconds and try again.</td>
+</tr>
+<tr>
+<td>A request stays in PROVISIONING</td>
+<td>Simulated VMs take 20 to 60 seconds to boot. If it is still there after a few minutes, check that the backend window is running.</td>
+</tr>
+<tr>
+<td>The request says DUPLICATE</td>
+<td>An identical VM already exists. Change something, such as the name, to build another.</td>
+</tr>
+<tr>
+<td>The request FAILED</td>
+<td>Open <em>Audit trail</em> for the reason. The VM was rolled back, so nothing needs cleaning up. A name containing "fail" always fails, on purpose.</td>
+</tr>
+<tr>
+<td>A 401 or 403 error</td>
+<td>Sign-in is on. Get a token or certificate with the role the operation needs (see <em>Sign-in and roles</em>).</td>
+</tr>
+<tr>
+<td>The first backend start is slow</td>
+<td>It downloads its dependencies and a database the first time. Later starts take seconds.</td>
+</tr>
+</tbody>
+</table></div>
+</div>
+</body>
+</html>
