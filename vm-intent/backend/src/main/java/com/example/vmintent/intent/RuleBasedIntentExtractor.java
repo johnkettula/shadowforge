@@ -105,12 +105,12 @@ public class RuleBasedIntentExtractor implements IntentExtractor {
     private static final Pattern PLACE_REGION = Pattern.compile("(?:in|at)\\s+(?:the\\s+)?([a-z][a-z.' -]{1,30}?)'?s?\\s+region");
 
     /**
-     * "3 web servers", "five ubuntu vms", "2x boxes": a number followed (within two words) by a word
+     * "3 web servers", "five ubuntu vms", "2x boxes": a number followed (within three words) by a word
      * for a machine. The words in between can't be units, so "16 gb ram servers" isn't 16 VMs.
      */
     private static final Pattern COUNT = Pattern.compile(
             "(?<![\\d.:/-])(?<!(?:rhel|rocky|debian|ubuntu|centos|windows|win|version|ver|v)\\s)(\\d{1,3})\\s*(?:x\\s+)?"
-                    + "((?:(?!(?:gb|gib|g|gigs?|gigabytes?|tb|mb|ram|memory|cores?|v?cpus?|vcores?|disks?|days?|weeks?|months?|hours?)\\b)[a-z][a-z-]*\\s+){0,2})"
+                    + "((?:(?!(?:gb|gib|g|gigs?|gigabytes?|tb|mb|ram|memory|cores?|v?cpus?|vcores?|disks?|days?|weeks?|months?|hours?)\\b)[a-z][a-z-]*\\s+){0,3})"
                     + "(?:vms?|virtual machines?|servers?|boxes|box|machines?|instances?|nodes?|hosts?)(?![a-z])");
 
     @Override

@@ -379,8 +379,9 @@ function VmPanel({ vm, onClose }: { vm: VmRecord | null; onClose: () => void }) 
   const [lc, setLc] = useState<VmLifecycle | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [vcpu, setVcpu] = useState(vm?.spec.vcpu ?? 2);
-  const [mem, setMem] = useState(vm?.spec.memoryGiB ?? 4);
+  // Kept as typed (text), so clearing a box leaves it empty rather than 0.
+  const [vcpu, setVcpu] = useState(String(vm?.spec.vcpu ?? 2));
+  const [mem, setMem] = useState(String(vm?.spec.memoryGiB ?? 4));
   const [label, setLabel] = useState("before-change");
   const [sure, setSure] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
@@ -397,8 +398,8 @@ function VmPanel({ vm, onClose }: { vm: VmRecord | null; onClose: () => void }) 
       .lifecycle(hash)
       .then((l) => {
         setLc(l);
-        setVcpu(l.vcpu);
-        setMem(l.memoryGiB);
+        setVcpu(String(l.vcpu));
+        setMem(String(l.memoryGiB));
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, [hash]);
@@ -464,11 +465,14 @@ function VmPanel({ vm, onClose }: { vm: VmRecord | null; onClose: () => void }) 
           )}
           <div className="row">
             <span className="label">Resize</span>
-            <input type="number" min={1} max={64} value={vcpu} onChange={(e) => setVcpu(+e.target.value)} />
+            <input type="number" min={1} max={64} value={vcpu} onChange={(e) => setVcpu(e.target.value)} />
             <span>vCPU</span>
-            <input type="number" min={1} max={512} value={mem} onChange={(e) => setMem(+e.target.value)} />
+            <input type="number" min={1} max={512} value={mem} onChange={(e) => setMem(e.target.value)} />
             <span>GiB</span>
-            <button disabled={busy} onClick={() => act(() => api.resize(hash, vcpu, mem))}>
+            <button
+              disabled={busy || !vcpu || !mem}
+              onClick={() => act(() => api.resize(hash, Number(vcpu), Number(mem)))}
+            >
               Resize
             </button>
           </div>

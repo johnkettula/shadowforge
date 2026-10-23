@@ -23,7 +23,8 @@ class CountPhrasingTest {
                 "I need 2x boxes on gcp", 2,
                 "spin up 4 small linux machines on vsphere dc2", 4,
                 "10 instances on aws, 2 cores each", 10,
-                "3 servers on aws. actually make that 6 servers", 6);
+                "3 servers on aws. actually make that 6 servers", 6,
+                "3 small ubuntu web servers on gcp for 5 days, called web", 3);
         cases.forEach((text, n) -> {
             Interpretation it = interpreter.interpret(text);
             assertNull(it.question(), text);
@@ -42,6 +43,8 @@ class CountPhrasingTest {
                 "16 gigs server, aws",
                 "windows 2022 server on azure",
                 "aws vm for 3 days",
+                "a 4 core ubuntu web server on aws",
+                "ubuntu 22 small web server on gcp",
                 "Ubuntu box, 4 cores, 16 gigs, us-east on AWS",
                 "I need a medium Linux server in Virginia on Amazon",
                 "aws ec2 ubuntu 24.04 4 vcpu 16GB RAM us-east-1",
