@@ -2,6 +2,12 @@ package com.example.vmintent.api;
 
 import com.example.vmintent.api.ApiModels.AnswerBody;
 import com.example.vmintent.api.ApiModels.ApiError;
+import com.example.vmintent.api.ApiModels.ConfirmBody;
+import com.example.vmintent.api.ApiModels.RequestSummary;
+import com.example.vmintent.config.SearchAttributesSetup;
+import com.example.vmintent.workflow.RequestSearch;
+import io.temporal.client.WorkflowExecutionMetadata;
+import io.temporal.common.SearchAttributes;
 import com.example.vmintent.api.ApiModels.LegacyAccepted;
 import com.example.vmintent.api.ApiModels.SubmitResponse;
 import com.example.vmintent.api.ApiModels.TextBody;
@@ -60,14 +66,17 @@ public class RequestController {
     private final LegacySpecTranslator legacy;
     private final VmRegistry registry;
     private final AuditLog audit;
+    private final SearchAttributesSetup search;
 
     public RequestController(WorkflowClient client, IntentInterpreter interpreter,
-                             LegacySpecTranslator legacy, VmRegistry registry, AuditLog audit) {
+                             LegacySpecTranslator legacy, VmRegistry registry, AuditLog audit,
+                             SearchAttributesSetup search) {
         this.client = client;
         this.interpreter = interpreter;
         this.legacy = legacy;
         this.registry = registry;
         this.audit = audit;
+        this.search = search;
     }
 
     // ------------------------------------------------------------------ requests
@@ -94,8 +103,55 @@ public class RequestController {
                 WorkflowOptions.newBuilder().setTaskQueue(TaskQueues.INTENT).setWorkflowId(id).build());
         // Signed-in callers are recorded as themselves, whatever userId says.
         String user = Caller.nameOr(body.userId(), "demo-user");
-        WorkflowClient.start(wf::run, new IntentRequest(body.text(), user, "api"));
+        WorkflowClient.start(wf::run, new IntentRequest(body.text(), user, "api", search.enabled()));
         return new SubmitResponse(id);
+    }
+
+    @Tag(name = "Requests")
+    @Operation(operationId = "listRequests", summary = "List requests",
+            description = "Newest first, filtered by any of: requester, state, provider, env. Uses Temporal search "
+                    + "attributes; if the Temporal server doesn't have them, filters are refused (400) and only "
+                    + "the unfiltered list works. The state is the last one the request reported.")
+    @GetMapping("/v2/requests")
+    public List<RequestSummary> list(
+            @Parameter(description = "Who made the request; \"me\" = the signed-in caller") @RequestParam(required = false) String requester,
+            @Parameter(description = "e.g. AWAITING_CONFIRMATION, COMPLETED") @RequestParam(required = false) String state,
+            @Parameter(description = "vsphere, aws, azure or gcp") @RequestParam(required = false) String provider,
+            @Parameter(description = "dev, test, staging or prod") @RequestParam(required = false) String env,
+            @Parameter(description = "Most to return (1-200)") @RequestParam(defaultValue = "50") int limit) {
+        if ("me".equals(requester)) requester = Caller.nameOr(null, "demo-user");
+        StringBuilder q = new StringBuilder("WorkflowType = 'IntentWorkflow'");
+        boolean filtered = false;
+        filtered |= addFilter(q, "VmRequester", requester);
+        filtered |= addFilter(q, "VmState", state == null ? null : state.toUpperCase());
+        filtered |= addFilter(q, "VmProvider", provider == null ? null : provider.toLowerCase());
+        filtered |= addFilter(q, "VmEnv", env == null ? null : env.toLowerCase());
+        if (filtered && !search.enabled()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Filtering needs Temporal search attributes, "
+                    + "which this Temporal server doesn't have. See docs/TEMPORAL-FEATURES.md.");
+        }
+        // Newest first is Temporal's own order. (Not every server accepts ORDER BY, so it isn't asked for.)
+        int n = Math.max(1, Math.min(limit, 200));
+        return client.listExecutions(q.toString()).limit(n).map(RequestController::summary).toList();
+    }
+
+    private static boolean addFilter(StringBuilder q, String attribute, String value) {
+        if (value == null || value.isBlank()) return false;
+        if (!value.matches("[A-Za-z0-9@._-]{1,200}")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unexpected characters in " + attribute + " filter");
+        }
+        q.append(" AND ").append(attribute).append(" = '").append(value).append("'");
+        return true;
+    }
+
+    private static RequestSummary summary(WorkflowExecutionMetadata m) {
+        SearchAttributes sa = m.getTypedSearchAttributes();
+        return new RequestSummary(m.getExecution().getWorkflowId(),
+                sa.get(RequestSearch.STATE), sa.get(RequestSearch.REQUESTER), sa.get(RequestSearch.PROVIDER),
+                sa.get(RequestSearch.ENV), sa.get(RequestSearch.SPEC_HASH),
+                m.getStartTime() == null ? null : m.getStartTime().toString(),
+                m.getCloseTime() == null ? null : m.getCloseTime().toString(),
+                m.getStatus().name().replace("WORKFLOW_EXECUTION_STATUS_", ""));
     }
 
     @Tag(name = "Requests")
@@ -142,17 +198,25 @@ public class RequestController {
 
     @Tag(name = "Requests")
     @Operation(operationId = "confirmRequest", summary = "Confirm and build",
-            description = "Use when state is AWAITING_CONFIRMATION, after the requester has checked the spec.")
-    @ApiResponse(responseCode = "204", description = "Confirmed; the build starts")
+            description = "Use when state is AWAITING_CONFIRMATION, after the requester has checked the spec. "
+                    + "Send the specHash you were shown to make sure it's the spec being built. Answers with the "
+                    + "request's new status (PROVISIONING, or DUPLICATE if the VM already exists).")
+    @ApiResponse(responseCode = "200", description = "Confirmed; the build has started")
+    @ApiResponse(responseCode = "409", description = "Not waiting for confirmation, or a different spec",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "404", description = "No such request",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "403", description = "Not your request (sign-in on, not an admin)",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
-    @ResponseStatus(HttpStatus.NO_CONTENT)
     @PostMapping("/v2/requests/{id}/confirm")
-    public void confirm(@PathVariable String id) {
+    public RequestStatus confirm(@PathVariable String id, @RequestBody(required = false) ConfirmBody body) {
         requireOwner(id);
-        stub(id).confirm();
+        // An update, not a signal: it's refused at once (409) if the request can't be confirmed now.
+        try {
+            return stub(id).confirmSpec(Caller.nameOr(null, "demo-user"), body == null ? null : body.specHash());
+        } catch (WorkflowNotFoundException e) {
+            throw finishedOr404(id, e);
+        }
     }
 
     @Tag(name = "Requests")
@@ -200,7 +264,7 @@ public class RequestController {
             content = @Content(schema = @Schema(implementation = LegacyAccepted.class)))
     @ApiResponse(responseCode = "400", description = "Missing or invalid fields",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
-    @ApiResponse(responseCode = "409", description = "An identical VM is already being built",
+    @ApiResponse(responseCode = "409", description = "An identical VM already exists or is being built",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @PostMapping("/v1/vms")
     public ResponseEntity<?> legacyCreate(@RequestBody LegacyVmDefinition def) {
@@ -209,6 +273,11 @@ public class RequestController {
             return ResponseEntity.badRequest().body(ApiError.of(it.question()));
         }
         String workflowId = "vm-" + it.specHash();
+        VmRecord existing = registry.get(it.specHash());
+        if (existing != null && "RUNNING".equals(existing.state())) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(new ApiError("An identical VM already exists: " + existing.result().vmId(), workflowId, null));
+        }
         VmReconcileWorkflow wf = client.newWorkflowStub(VmReconcileWorkflow.class,
                 WorkflowOptions.newBuilder().setTaskQueue(TaskQueues.INTENT).setWorkflowId(workflowId).build());
         try {
@@ -244,6 +313,17 @@ public class RequestController {
         if (s.requestedBy() != null && !s.requestedBy().equals(me)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                     "Only the person who made this request, or an admin, can change it.");
+        }
+    }
+
+    /** An update to a request that has already finished: say so (409) instead of "not found". */
+    private RuntimeException finishedOr404(String id, WorkflowNotFoundException e) {
+        try {
+            var d = client.newUntypedWorkflowStub(id).describe();
+            String status = d.getStatus().name().replace("WORKFLOW_EXECUTION_STATUS_", "").toLowerCase();
+            return new ResponseStatusException(HttpStatus.CONFLICT, "This request has already finished (" + status + ").");
+        } catch (RuntimeException notThere) {
+            return e;
         }
     }
 

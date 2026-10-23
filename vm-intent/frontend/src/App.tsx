@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { api, AuditEvent, Interpretation, RequestStatus, VmRecord } from "./api";
+import {
+  api,
+  AuditEvent,
+  Interpretation,
+  InventoryReport,
+  RequestStatus,
+  RequestSummary,
+  VmLifecycle,
+  VmRecord,
+} from "./api";
 
 // Five different ways of asking for the SAME VM. Click "Preview" on each:
 // the spec hash comes out identical, which is the whole point.
@@ -11,6 +20,7 @@ const EXAMPLES = [
   "I need a big linux machine",
   "windows server 2022 on azure, 8 cores 32gb ram, 200 GB ssd, production, called app-db-01",
   "small rhel 9 box on prem for 2 weeks, called fail-demo",
+  "3 small ubuntu web servers on gcp for 5 days, called web",
 ];
 
 const LEGACY_EXAMPLE = `{
@@ -24,7 +34,7 @@ const LEGACY_EXAMPLE = `{
   "environment": "test"
 }`;
 
-const FINAL_STATES = ["COMPLETED", "FAILED", "CANCELLED", "DUPLICATE"];
+const FINAL_STATES = ["COMPLETED", "PARTIAL", "FAILED", "CANCELLED", "DUPLICATE"];
 
 export default function App() {
   const [text, setText] = useState(EXAMPLES[0]);
@@ -38,6 +48,7 @@ export default function App() {
   const [legacyJson, setLegacyJson] = useState(LEGACY_EXAMPLE);
   const [legacyResult, setLegacyResult] = useState<string | null>(null);
   const [audit, setAudit] = useState<AuditEvent[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
 
   // Reload the audit trail whenever the request changes state.
   useEffect(() => {
@@ -200,14 +211,40 @@ export default function App() {
 
           {status.state === "AWAITING_CONFIRMATION" && (
             <div className="row">
-              <button className="primary" onClick={() => run(() => api.confirm(status.requestId))}>
+              <button
+                className="primary"
+                onClick={() =>
+                  run(async () => setStatus(await api.confirm(status.requestId, status.interpretation?.specHash)))
+                }
+              >
                 Looks right, build it
               </button>
               <button onClick={() => run(() => api.cancel(status.requestId))}>Cancel</button>
             </div>
           )}
 
-          {status.vm && (
+          {status.vms && status.vms.length > 1 && (
+            <table>
+              <thead>
+                <tr>
+                  <th>VM ID</th>
+                  <th>IP address</th>
+                  <th>Provider size</th>
+                </tr>
+              </thead>
+              <tbody>
+                {status.vms.map((v) => (
+                  <tr key={v.vmId}>
+                    <td className="mono">{v.vmId}</td>
+                    <td className="mono">{v.ipAddress}</td>
+                    <td>{v.nativeSize}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {status.vm && !(status.vms && status.vms.length > 1) && (
             <dl className="grid">
               <dt>VM ID</dt>
               <dd>{status.vm.vmId}</dd>
@@ -263,8 +300,11 @@ export default function App() {
         </section>
       )}
 
+      <RequestsList onOpen={(id) => setRequestId(id)} />
+
       <section className="card">
         <h2>Inventory</h2>
+        <p className="sub">Click a VM to renew, resize, power, snapshot or remove it.</p>
         {vms.length === 0 ? (
           <p className="sub">No VMs yet.</p>
         ) : (
@@ -275,30 +315,358 @@ export default function App() {
                 <th>Platform</th>
                 <th>Size</th>
                 <th>State</th>
-                <th>Spec hash</th>
+                <th>Expires</th>
+                <th className="hide-narrow">Spec hash</th>
               </tr>
             </thead>
             <tbody>
-              {vms.map((v) => (
-                <tr key={v.specHash}>
-                  <td>{v.spec.name}</td>
-                  <td>
-                    {v.spec.provider} {v.spec.region}
-                  </td>
-                  <td>
-                    {v.spec.vcpu} vCPU / {v.spec.memoryGiB} GiB
-                  </td>
-                  <td>
-                    <span className={`badge s-${v.state}`}>{v.state}</span>
-                  </td>
-                  <td className="mono">{v.specHash.slice(0, 12)}</td>
+              {vms.map((v) => {
+                const lc = v.lifecycle;
+                return (
+                  <tr
+                    key={v.specHash}
+                    className={`clickable${selected === v.specHash ? " selected" : ""}`}
+                    onClick={() => setSelected(selected === v.specHash ? null : v.specHash)}
+                  >
+                    <td>
+                      {v.spec.name}
+                      {lc?.power === "OFF" && <span className="badge s-OFF">off</span>}
+                    </td>
+                    <td>
+                      {v.spec.provider} {v.spec.region}
+                    </td>
+                    <td>
+                      {lc ? lc.vcpu : v.spec.vcpu} vCPU / {lc ? lc.memoryGiB : v.spec.memoryGiB} GiB
+                    </td>
+                    <td>
+                      <span className={`badge s-${v.state}`}>{v.state}</span>
+                    </td>
+                    <td className={lc?.warned && v.state === "RUNNING" ? "warn" : ""}>{expiry(v)}</td>
+                    <td className="mono hide-narrow">{v.specHash.slice(0, 12)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+        {selected && (
+          <VmPanel
+            key={selected}
+            vm={vms.find((v) => v.specHash === selected) ?? null}
+            onClose={() => setSelected(null)}
+          />
+        )}
+      </section>
+
+      <InventoryCheckCard />
+    </div>
+  );
+}
+
+/** "in 5 days", "never", or the date, for the inventory table. */
+function expiry(v: VmRecord) {
+  const lc = v.lifecycle;
+  if (!lc) return v.spec.ttlDays === 0 ? "never" : "";
+  if (lc.expiresAtMs === 0) return "never";
+  if (v.state !== "RUNNING") return "";
+  const days = (lc.expiresAtMs - Date.now()) / 86_400_000;
+  if (days < 1) return `in ${Math.max(0, Math.round(days * 24))} h`;
+  return `in ${Math.round(days)} days`;
+}
+
+/** Day-2 changes for one VM. Each button is a Temporal update: refused at once if it can't be done. */
+function VmPanel({ vm, onClose }: { vm: VmRecord | null; onClose: () => void }) {
+  const [lc, setLc] = useState<VmLifecycle | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [vcpu, setVcpu] = useState(vm?.spec.vcpu ?? 2);
+  const [mem, setMem] = useState(vm?.spec.memoryGiB ?? 4);
+  const [label, setLabel] = useState("before-change");
+  const [sure, setSure] = useState(false);
+  const panel = useRef<HTMLDivElement>(null);
+  const hash = vm?.specHash;
+
+  // The panel opens under the inventory table, which can be long: bring it into view.
+  useEffect(() => {
+    panel.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, []);
+
+  useEffect(() => {
+    if (!hash) return;
+    api
+      .lifecycle(hash)
+      .then((l) => {
+        setLc(l);
+        setVcpu(l.vcpu);
+        setMem(l.memoryGiB);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  }, [hash]);
+
+  if (!vm || !hash) return null;
+
+  const act = async (fn: () => Promise<VmLifecycle>) => {
+    setError(null);
+    setBusy(true);
+    try {
+      setLc(await fn());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const active = lc?.state === "ACTIVE";
+  return (
+    <div className="vm-panel" ref={panel}>
+      <div className="row between">
+        <h3>{vm.spec.name}</h3>
+        <button onClick={onClose}>Close</button>
+      </div>
+      {!lc && !error && <p className="sub">Loading…</p>}
+      {lc && (
+        <dl className="grid">
+          <dt>State</dt>
+          <dd>
+            <span className={`badge s-${lc.state}`}>{lc.state}</span>
+          </dd>
+          <dt>Expires</dt>
+          <dd>
+            {lc.expiresAtMs === 0 ? "Never" : new Date(lc.expiresAtMs).toLocaleString()}
+            {lc.warned && active && <span className="warn"> · warning sent</span>}
+          </dd>
+          <dt>Power</dt>
+          <dd>{lc.power}</dd>
+          <dt>Size now</dt>
+          <dd>
+            {lc.vcpu} vCPU / {lc.memoryGiB} GiB
+          </dd>
+          <dt>Owner</dt>
+          <dd>{lc.owner}</dd>
+          <dt>Snapshots</dt>
+          <dd>{lc.snapshots.length === 0 ? "None" : lc.snapshots.join(", ")}</dd>
+        </dl>
+      )}
+      {error && <div className="error">{error}</div>}
+      {active && (
+        <div className="actions">
+          {lc!.expiresAtMs !== 0 && (
+            <div className="row">
+              <span className="label">Renew</span>
+              <button disabled={busy} onClick={() => act(() => api.renew(hash, 7))}>
+                +7 days
+              </button>
+              <button disabled={busy} onClick={() => act(() => api.renew(hash, 30))}>
+                +30 days
+              </button>
+            </div>
+          )}
+          <div className="row">
+            <span className="label">Resize</span>
+            <input type="number" min={1} max={64} value={vcpu} onChange={(e) => setVcpu(+e.target.value)} />
+            <span>vCPU</span>
+            <input type="number" min={1} max={512} value={mem} onChange={(e) => setMem(+e.target.value)} />
+            <span>GiB</span>
+            <button disabled={busy} onClick={() => act(() => api.resize(hash, vcpu, mem))}>
+              Resize
+            </button>
+          </div>
+          <div className="row">
+            <span className="label">Power</span>
+            <button disabled={busy} onClick={() => act(() => api.power(hash, lc!.power !== "ON"))}>
+              {lc!.power === "ON" ? "Power off" : "Power on"}
+            </button>
+          </div>
+          <div className="row">
+            <span className="label">Snapshot</span>
+            <input value={label} onChange={(e) => setLabel(e.target.value)} />
+            <button disabled={busy} onClick={() => act(() => api.snapshot(hash, label))}>
+              Take snapshot
+            </button>
+          </div>
+          <div className="row">
+            <span className="label">Remove</span>
+            {!sure ? (
+              <button className="danger" disabled={busy} onClick={() => setSure(true)}>
+                Remove this VM…
+              </button>
+            ) : (
+              <>
+                <span>This deletes the VM. Sure?</span>
+                <button
+                  className="danger"
+                  disabled={busy}
+                  onClick={() => act(() => api.decommission(hash, "Removed from the web app"))}
+                >
+                  Yes, remove it
+                </button>
+                <button onClick={() => setSure(false)}>No</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+      {lc && lc.history.length > 0 && (
+        <details>
+          <summary>Lifecycle events ({lc.history.length})</summary>
+          <ul className="history">
+            {lc.history.map((h, i) => (
+              <li key={i}>{h}</li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
+}
+
+/** Recent requests, filtered with Temporal search attributes. */
+function RequestsList({ onOpen }: { onOpen: (id: string) => void }) {
+  const [filter, setFilter] = useState("all");
+  const [rows, setRows] = useState<RequestSummary[]>([]);
+  const [note, setNote] = useState<string | null>(null);
+
+  useEffect(() => {
+    const f: Record<string, string> =
+      filter === "mine"
+        ? { requester: "me" }
+        : filter === "waiting"
+          ? { state: "AWAITING_CONFIRMATION" }
+          : filter === "failed"
+            ? { state: "FAILED" }
+            : {};
+    const load = () =>
+      api
+        .requests(f)
+        .then((r) => {
+          setRows(r);
+          setNote(null);
+        })
+        .catch((e) => setNote(e instanceof Error ? e.message : String(e)));
+    load();
+    const t = setInterval(load, 5000);
+    return () => clearInterval(t);
+  }, [filter]);
+
+  return (
+    <section className="card">
+      <div className="row between">
+        <h2>Requests</h2>
+        <select value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Which requests">
+          <option value="all">All recent</option>
+          <option value="mine">Mine</option>
+          <option value="waiting">Waiting for confirmation</option>
+          <option value="failed">Failed</option>
+        </select>
+      </div>
+      {note && <p className="sub">{note}</p>}
+      {!note && rows.length === 0 && <p className="sub">None.</p>}
+      {rows.length > 0 && (
+        <table>
+          <thead>
+            <tr>
+              <th className="hide-narrow">Started</th>
+              <th>By</th>
+              <th>Platform</th>
+              <th>State</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.requestId}>
+                <td className="mono hide-narrow">{r.startedAt ? new Date(r.startedAt).toLocaleString() : ""}</td>
+                <td>{r.requestedBy}</td>
+                <td>
+                  {r.provider} {r.env}
+                </td>
+                <td>{r.state && <span className={`badge s-${r.state}`}>{r.state.replace(/_/g, " ")}</span>}</td>
+                <td>
+                  <button onClick={() => onOpen(r.requestId)}>Open</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
+/** The nightly inventory check: VMs that disappeared, and VMs nobody recorded. */
+function InventoryCheckCard() {
+  const [report, setReport] = useState<InventoryReport | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [started, setStarted] = useState<string | null>(null);
+
+  const load = () =>
+    api
+      .inventoryChecks()
+      .then((r) => setReport(r[0] ?? null))
+      .catch(() => {});
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 5000);
+    return () => clearInterval(t);
+  }, []);
+
+  const runNow = async () => {
+    setError(null);
+    try {
+      setStarted((await api.runInventoryCheck()).checkId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  return (
+    <section className="card">
+      <div className="row between">
+        <h2>Inventory check</h2>
+        <button onClick={runNow}>Run now</button>
+      </div>
+      <p className="sub">
+        Runs every night on a Temporal Schedule: VMs that disappeared from their cloud are marked MISSING, and
+        VMs nobody recorded are listed (never deleted).
+      </p>
+      {error && <div className="error">{error}</div>}
+      {started && (!report || report.checkId !== started) && <p className="sub">Check {started} is running…</p>}
+      {!report ? (
+        <p className="sub">No check has run yet.</p>
+      ) : (
+        <>
+          <p>
+            Last check {new Date(report.finishedAt).toLocaleString()}: <b>{report.missingCount}</b> missing,{" "}
+            <b>{report.orphanCount}</b> unrecorded.
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Cloud</th>
+                <th className="hide-narrow">Recorded</th>
+                <th className="hide-narrow">In cloud</th>
+                <th>Missing</th>
+                <th>Unrecorded</th>
+                <th>Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {report.findings.map((f) => (
+                <tr key={f.provider}>
+                  <td>{f.provider}</td>
+                  <td className="hide-narrow">{f.recordedRunning}</td>
+                  <td className="hide-narrow">{f.inCloud}</td>
+                  <td>{f.missing.length}</td>
+                  <td title={f.orphans.join(", ")}>{f.orphans.length}</td>
+                  <td>{f.note}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
-      </section>
-    </div>
+        </>
+      )}
+    </section>
   );
 }
 

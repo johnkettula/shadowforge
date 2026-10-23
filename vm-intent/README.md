@@ -24,6 +24,17 @@ Stack: **React + TypeScript (Vite)** front end, **Spring Boot 3 + Temporal Java 
    half-built VM.
 6. Open the **Legacy JSON API** tab. Old-style JSON skips the AI and goes
    straight to the same reconcile workflow.
+7. Submit **"3 small ubuntu web servers on gcp for 5 days, called web"**. Three
+   VMs are built side by side, each with its own rollback.
+8. Click a VM in the **Inventory**: renew it, resize it, power it off, take a
+   snapshot or remove it. Each is a Temporal *update*, refused straight away
+   with the reason if it can't be done.
+9. Press **Run now** on the **Inventory check** card. It also runs every night
+   on a Temporal *Schedule* (see the Temporal UI's Schedules page).
+
+The Temporal features used, and how to try each one, are explained in
+[docs/TEMPORAL-FEATURES.md](docs/TEMPORAL-FEATURES.md). Clouds behind a one-way
+link (domain 2 to domain 3) are covered in [docs/ONE-WAY-LINK.md](docs/ONE-WAY-LINK.md).
 
 ## One-time setup (Windows)
 
@@ -203,6 +214,9 @@ be quick. Try the example phrasings with **Preview** to compare a model with the
 
 - Replace a `SimulatedProvider` subclass with real SDK calls, such as AWS SDK for Java v2
   `Ec2Client.runInstances` with a `clientToken` for idempotency.
-- Add an approval step (a signal from an approver) before provisioning prod VMs.
+- Add an approval step for prod VMs: an update from someone other than the requester,
+  like `confirmSpec`, with a validator that checks the approver's role.
+- Send the EXPIRY_WARNING audit events as email or chat messages.
+- Add a tools-install step (from MinIO) after the build, with its own undo in the saga.
 - Change `legacy/LegacyVmDefinition.java` to match your real legacy JSON format.
   The current fields are placeholders.

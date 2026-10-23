@@ -2,13 +2,12 @@
 openapi: 3.0.1
 info:
   title: vm-intent API
-  description: 'Request virtual machines on vSphere, AWS, Azure or Google Cloud, in plain English or as an exact
-    spec.
+  description: 'Request virtual machines on vSphere, AWS, Azure or Google Cloud, in plain English or as an exact spec.
 
 
-    **How it works.** Every request becomes one canonical, cloud-neutral spec with a SHA-256 hash. The same spec
-    can''t be built twice at once: the hash is the build''s identity. A Temporal workflow builds each VM and rolls
-    it back (deletes it) if anything fails.
+    **How it works.** Every request becomes one canonical, cloud-neutral spec with a SHA-256 hash. The same spec can''t
+    be built twice at once: the hash is the build''s identity. A Temporal workflow builds each VM and rolls it back (deletes
+    it) if anything fails.
 
 
     **Typical flows**
@@ -16,8 +15,8 @@ info:
     - *One VM, with a human in the loop:* `POST /api/v2/requests`, poll `GET /api/v2/requests/{id}`, then `/clarify`
     if it asks a question and `/confirm` to build.
 
-    - *Many VMs from a service:* `POST /api/v2/batches` with specs or text, then poll `GET /api/v2/batches/{id}`.
-    No confirmation step per VM.
+    - *Many VMs from a service:* `POST /api/v2/batches` with specs or text, then poll `GET /api/v2/batches/{id}`. No
+    confirmation step per VM.
 
     - *Check first:* `POST /api/v2/interpret` shows what a text would become, without building anything.
 
@@ -37,8 +36,7 @@ info:
   version: 2.0.0
 servers:
 - url: http://localhost:8080
-  description: Local development. Replace with your deployment's address, or fetch /v3/api-docs from the running
-    server.
+  description: Local development. Replace with your deployment's address, or fetch /v3/api-docs from the running server.
 tags:
 - name: Requests
   description: 'One VM at a time: interpret, clarify, confirm, build'
@@ -49,7 +47,301 @@ tags:
 - name: Legacy
   description: The old universal JSON format (v1)
 paths:
+  /api/v2/vms/{specHash}/snapshot:
+    post:
+      tags:
+      - VM lifecycle
+      summary: Snapshot a VM
+      description: 'Up to 20 snapshots per VM.
+
+
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)'
+      operationId: snapshotVm
+      parameters:
+      - name: specHash
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SnapshotBody'
+        required: true
+      responses:
+        '200':
+          description: Snapshot taken; the new lifecycle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VmLifecycle'
+        '409':
+          description: 'Refused: the VM isn''t in a state that allows this (the message says why)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v2/vms/{specHash}/resize:
+    post:
+      tags:
+      - VM lifecycle
+      summary: Resize a VM
+      description: 'Changes vCPU and memory. If the cloud refuses, nothing changes and the reason comes back (409).
+
+
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)'
+      operationId: resizeVm
+      parameters:
+      - name: specHash
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResizeBody'
+        required: true
+      responses:
+        '200':
+          description: Resized; the new lifecycle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VmLifecycle'
+        '409':
+          description: 'Refused: the VM isn''t in a state that allows this (the message says why)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v2/vms/{specHash}/renew:
+    post:
+      tags:
+      - VM lifecycle
+      summary: Renew a VM
+      description: 'Pushes the expiry back by 1 to 90 days (at most 365 days from today). A VM that never expires can''t
+        be renewed.
+
+
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)'
+      operationId: renewVm
+      parameters:
+      - name: specHash
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenewBody'
+        required: true
+      responses:
+        '200':
+          description: Renewed; the new lifecycle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VmLifecycle'
+        '409':
+          description: 'Refused: the VM isn''t in a state that allows this (the message says why)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v2/vms/{specHash}/power:
+    post:
+      tags:
+      - VM lifecycle
+      summary: Power a VM on or off
+      description: 'Power a VM on or off
+
+
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)'
+      operationId: powerVm
+      parameters:
+      - name: specHash
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PowerBody'
+        required: true
+      responses:
+        '200':
+          description: Done; the new lifecycle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VmLifecycle'
+        '409':
+          description: 'Refused: the VM isn''t in a state that allows this (the message says why)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v2/vms/{specHash}/decommission:
+    post:
+      tags:
+      - VM lifecycle
+      summary: Remove a VM now
+      description: 'Deletes the VM from its cloud and marks it DELETED. This can''t be undone.
+
+
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)'
+      operationId: decommissionVm
+      parameters:
+      - name: specHash
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecommissionBody'
+      responses:
+        '200':
+          description: Removed; the final lifecycle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VmLifecycle'
+        '409':
+          description: 'Refused: the VM isn''t in a state that allows this (the message says why)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /api/v2/requests:
+    get:
+      tags:
+      - Requests
+      summary: List requests
+      description: 'Newest first, filtered by any of: requester, state, provider, env. Uses Temporal search attributes;
+        if the Temporal server doesn''t have them, filters are refused (400) and only the unfiltered list works. The
+        state is the last one the request reported.
+
+
+        **Required role:** READER (when sign-in is on; it is currently off)'
+      operationId: listRequests
+      parameters:
+      - name: requester
+        in: query
+        description: Who made the request; "me" = the signed-in caller
+        required: false
+        schema:
+          type: string
+      - name: state
+        in: query
+        description: e.g. AWAITING_CONFIRMATION, COMPLETED
+        required: false
+        schema:
+          type: string
+      - name: provider
+        in: query
+        description: vsphere, aws, azure or gcp
+        required: false
+        schema:
+          type: string
+      - name: env
+        in: query
+        description: dev, test, staging or prod
+        required: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        description: Most to return (1-200)
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 50
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RequestSummary'
+        '500':
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
     post:
       tags:
       - Requests
@@ -90,7 +382,9 @@ paths:
       tags:
       - Requests
       summary: Confirm and build
-      description: 'Use when state is AWAITING_CONFIRMATION, after the requester has checked the spec.
+      description: 'Use when state is AWAITING_CONFIRMATION, after the requester has checked the spec. Send the specHash
+        you were shown to make sure it''s the spec being built. Answers with the request''s new status (PROVISIONING,
+        or DUPLICATE if the VM already exists).
 
 
         **Required role:** REQUESTER (when sign-in is on; it is currently off)'
@@ -101,9 +395,24 @@ paths:
         required: true
         schema:
           type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmBody'
       responses:
-        '204':
-          description: Confirmed; the build starts
+        '200':
+          description: Confirmed; the build has started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestStatus'
+        '409':
+          description: Not waiting for confirmation, or a different spec
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: No such request
           content:
@@ -112,6 +421,12 @@ paths:
                 $ref: '#/components/schemas/ApiError'
         '403':
           description: Not your request (sign-in on, not an admin)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '400':
+          description: Invalid request body
           content:
             application/json:
               schema:
@@ -208,13 +523,72 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+  /api/v2/inventory-checks:
+    get:
+      tags:
+      - Inventory
+      summary: Latest inventory checks
+      description: 'Results of the nightly check (and any run by hand), newest first: VMs that disappeared from their
+        cloud (now MISSING) and VMs in a cloud that nobody recorded (orphans; never deleted automatically). Clouds behind
+        the one-way link are skipped.
+
+
+        **Required role:** READER (when sign-in is on; it is currently off)'
+      operationId: listInventoryChecks
+      parameters:
+      - name: limit
+        in: query
+        description: Most to return (1-50)
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 10
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InventoryReport'
+        '500':
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+    post:
+      tags:
+      - Inventory
+      summary: Run the inventory check now
+      description: 'Starts it straight away instead of waiting for the night. The result appears in GET /api/v2/inventory-checks
+        when it finishes, usually within a minute.
+
+
+        **Required role:** ADMIN (when sign-in is on; it is currently off)'
+      operationId: runInventoryCheck
+      responses:
+        '202':
+          description: Started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckStarted'
+        '500':
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /api/v2/interpret:
     post:
       tags:
       - Requests
       summary: Preview how a request is understood
-      description: 'Turns plain English into the canonical spec and its hash, or returns the question it would ask.
-        Starts nothing and builds nothing. Many wordings of the same VM give the same specHash.
+      description: 'Turns plain English into the canonical spec and its hash, or returns the question it would ask. Starts
+        nothing and builds nothing. Many wordings of the same VM give the same specHash.
 
 
         **Required role:** REQUESTER (when sign-in is on; it is currently off)'
@@ -249,9 +623,9 @@ paths:
       tags:
       - Batches
       summary: Build many VMs at once
-      description: 'Every item is checked before anything starts. Items that need a clarifying answer, or break
-        policy, are returned in `rejected`; the rest are built with no confirmation step. An item identical to another
-        (same spec hash) is built once. Poll GET /api/v2/batches/{id}.
+      description: 'Every item is checked before anything starts. Items that need a clarifying answer, or break policy,
+        are returned in `rejected`; the rest are built with no confirmation step. An item identical to another (same
+        spec hash) is built once. Poll GET /api/v2/batches/{id}.
 
 
         **Required role:** BATCH (when sign-in is on; it is currently off)'
@@ -286,8 +660,8 @@ paths:
       tags:
       - Legacy
       summary: Create a VM from the legacy JSON format
-      description: 'The old universal JSON definition. Skips interpretation and confirmation and goes straight to
-        the build. Kept for existing callers; new callers should use /api/v2.
+      description: 'The old universal JSON definition. Skips interpretation and confirmation and goes straight to the
+        build. Kept for existing callers; new callers should use /api/v2.
 
 
         **Required role:** BATCH (when sign-in is on; it is currently off)'
@@ -312,7 +686,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
         '409':
-          description: An identical VM is already being built
+          description: An identical VM already exists or is being built
           content:
             application/json:
               schema:
@@ -348,6 +722,43 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+  /api/v2/vms/{specHash}/lifecycle:
+    get:
+      tags:
+      - VM lifecycle
+      summary: Get a VM's lifecycle
+      description: 'Expiry date, whether the warning was sent, power, current size, snapshots and recent events. Live
+        from the lifecycle workflow while the VM exists; from the inventory after it''s removed.
+
+
+        **Required role:** READER (when sign-in is on; it is currently off)'
+      operationId: getVmLifecycle
+      parameters:
+      - name: specHash
+        in: path
+        description: The VM's spec hash
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: The lifecycle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VmLifecycle'
+        '404':
+          description: No such VM, or one built before lifecycles existed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /api/v2/stats:
     get:
       tags:
@@ -377,8 +788,8 @@ paths:
       - Requests
       summary: Get a request's status
       description: 'state is one of STARTING, INTERPRETING, AWAITING_CLARIFICATION, AWAITING_CONFIRMATION, PROVISIONING,
-        COMPLETED, FAILED, CANCELLED, DUPLICATE, or BUSY (workers didn''t answer within 5 seconds; try again). The
-        last four of the first list are final.
+        COMPLETED, FAILED, CANCELLED, DUPLICATE, or BUSY (workers didn''t answer within 5 seconds; try again). The last
+        four of the first list are final.
 
 
         **Required role:** READER (when sign-in is on; it is currently off)'
@@ -450,8 +861,8 @@ paths:
       tags:
       - Inventory
       summary: Read the audit trail
-      description: 'Events for one request, batch or VM (spec hash or its first characters), oldest first. With
-        no filter, the latest events overall.
+      description: 'Events for one request, batch or VM (spec hash or its first characters), oldest first. With no filter,
+        the latest events overall.
 
 
         **Required role:** READER (when sign-in is on; it is currently off)'
@@ -494,28 +905,16 @@ paths:
                 $ref: '#/components/schemas/ApiError'
 components:
   schemas:
-    TextBody:
+    SnapshotBody:
       required:
-      - text
+      - label
       type: object
       properties:
-        text:
+        label:
           type: string
-          description: What you want, in your own words.
-          example: Ubuntu box, 4 cores, 16 gigs, us-east on AWS
-        userId:
-          type: string
-          description: Who is asking. Recorded in the audit trail.
-          example: jdoe
-      description: A VM request in plain English.
-    SubmitResponse:
-      type: object
-      properties:
-        requestId:
-          type: string
-          description: ID to use with the other /requests endpoints.
-          example: intent-3f2c9a1e-5b7d-4c1a-9e0f-2a6b8c4d1e7f
-      description: A request was started.
+          description: Lowercase letters, digits and dashes, up to 40.
+          example: before-upgrade
+      description: Take a snapshot of a VM.
     ApiError:
       type: object
       properties:
@@ -543,19 +942,136 @@ components:
         reason:
           type: string
           description: Why, or the question that would need answering.
-          example: 'Needs an answer: Which platform should this run on: vSphere (on-prem), AWS, Azure or Google
-            Cloud?'
+          example: 'Needs an answer: Which platform should this run on: vSphere (on-prem), AWS, Azure or Google Cloud?'
       description: A batch item that was not accepted.
-    AnswerBody:
-      required:
-      - answer
+    VmLifecycle:
       type: object
       properties:
-        answer:
+        state:
           type: string
-          description: The answer, in plain words.
-          example: azure
-      description: An answer to the question a request is waiting on.
+          enum:
+          - ACTIVE
+          - DECOMMISSIONING
+          - DECOMMISSIONED
+          - MISSING
+        expiresAt:
+          type: string
+          description: When the VM is removed (ISO-8601), or empty if it never expires.
+        expiresAtMs:
+          type: integer
+          description: Same as expiresAt, in epoch milliseconds; 0 = never.
+          format: int64
+        warned:
+          type: boolean
+          description: The expiry warning has been sent for the current expiry date.
+        power:
+          type: string
+          enum:
+          - 'ON'
+          - 'OFF'
+        vcpu:
+          type: integer
+          description: Current vCPU (after any resize).
+          format: int32
+        memoryGiB:
+          type: integer
+          description: Current memory in GiB (after any resize).
+          format: int32
+        snapshots:
+          type: array
+          description: Snapshots taken, newest last.
+          items:
+            type: string
+            description: Snapshots taken, newest last.
+        owner:
+          type: string
+          description: 'Who owns the VM: the person who asked for it.'
+        history:
+          type: array
+          description: Timestamped lifecycle events, newest last (the last 50).
+          items:
+            type: string
+            description: Timestamped lifecycle events, newest last (the last 50).
+      description: 'A running VM''s life after the build: expiry, power, size, snapshots.'
+    ResizeBody:
+      required:
+      - memoryGiB
+      - vcpu
+      type: object
+      properties:
+        vcpu:
+          maximum: 64
+          minimum: 1
+          type: integer
+          format: int32
+          example: 4
+        memoryGiB:
+          maximum: 512
+          minimum: 1
+          type: integer
+          format: int32
+          example: 16
+      description: A new size for a VM.
+    RenewBody:
+      required:
+      - days
+      type: object
+      properties:
+        days:
+          type: integer
+          description: Days to add (1-90). The new expiry can't be more than 365 days from today.
+          format: int32
+          example: 14
+      description: Push a VM's expiry back.
+    PowerBody:
+      required:
+      - 'on'
+      type: object
+      properties:
+        'on':
+          type: boolean
+          description: true = on, false = off.
+          example: false
+      description: Power a VM on or off.
+    DecommissionBody:
+      type: object
+      properties:
+        reason:
+          type: string
+          description: Why, for the audit trail.
+          example: Project finished
+      description: Remove a VM now.
+    TextBody:
+      required:
+      - text
+      type: object
+      properties:
+        text:
+          type: string
+          description: What you want, in your own words.
+          example: Ubuntu box, 4 cores, 16 gigs, us-east on AWS
+        userId:
+          type: string
+          description: Who is asking. Recorded in the audit trail.
+          example: jdoe
+      description: A VM request in plain English.
+    SubmitResponse:
+      type: object
+      properties:
+        requestId:
+          type: string
+          description: ID to use with the other /requests endpoints.
+          example: intent-3f2c9a1e-5b7d-4c1a-9e0f-2a6b8c4d1e7f
+      description: A request was started.
+    ConfirmBody:
+      type: object
+      properties:
+        specHash:
+          type: string
+          description: The specHash you were shown. If given and it doesn't match, the confirmation is refused (409),
+            so nobody confirms a spec they didn't see.
+          example: 3af19a4e8492dc7edd60f92413fe0567546acd258f9c214eaebca7c4dd0d5d72
+      description: Confirm the spec a request is waiting on.
     Interpretation:
       type: object
       properties:
@@ -585,7 +1101,76 @@ components:
           type: string
           description: Set when something must be answered before a spec can be built.
           example: 'Which platform should this run on: vSphere (on-prem), AWS, Azure or Google Cloud?'
+        count:
+          type: integer
+          description: How many identical VMs were asked for. Left out when it's one.
+          format: int32
+          example: 3
       description: What a request was understood to mean. Either spec/specHash are set, or question is.
+    RequestStatus:
+      type: object
+      properties:
+        requestId:
+          type: string
+        state:
+          type: string
+          enum:
+          - STARTING
+          - INTERPRETING
+          - AWAITING_CLARIFICATION
+          - AWAITING_CONFIRMATION
+          - PROVISIONING
+          - COMPLETED
+          - PARTIAL
+          - FAILED
+          - CANCELLED
+          - DUPLICATE
+          - BUSY
+        message:
+          type: string
+          description: Human-readable status, or the question being asked.
+        interpretation:
+          $ref: '#/components/schemas/Interpretation'
+        vm:
+          $ref: '#/components/schemas/VmResult'
+        history:
+          type: array
+          description: Timestamped steps so far.
+          items:
+            type: string
+            description: Timestamped steps so far.
+        requestedBy:
+          type: string
+          description: Who made the request.
+          example: jdoe@example.com
+        vms:
+          type: array
+          description: Every VM of a request for more than one (count > 1), in order.
+          items:
+            $ref: '#/components/schemas/VmResult'
+      description: Where a request is, and what it understood.
+    VmResult:
+      type: object
+      properties:
+        vmId:
+          type: string
+          example: i-0b755f1ffc4e
+        ipAddress:
+          type: string
+          example: 10.20.0.17
+        provider:
+          type: string
+          example: aws
+        nativeRegion:
+          type: string
+          example: us-east-1
+        nativeSize:
+          type: string
+          example: m6i.xlarge
+        nativeImage:
+          type: string
+          example: 'AMI lookup: ubuntu 24.04'
+      description: The built VM, in the provider's own terms.
     VmSpec:
       type: object
       properties:
@@ -668,6 +1253,23 @@ components:
           type: boolean
           example: false
       description: The canonical, cloud-neutral VM spec. Its SHA-256 (specHash) is the VM's identity.
+    AnswerBody:
+      required:
+      - answer
+      type: object
+      properties:
+        answer:
+          type: string
+          description: The answer, in plain words.
+          example: azure
+      description: An answer to the question a request is waiting on.
+    CheckStarted:
+      type: object
+      properties:
+        checkId:
+          type: string
+          example: inventory-check-manual-1792800000000
+      description: An inventory check was started.
     BatchBody:
       required:
       - items
@@ -815,6 +1417,7 @@ components:
           - RUNNING
           - FAILED
           - DELETED
+          - MISSING
         detail:
           type: string
           description: Provider plan, or why it failed.
@@ -823,29 +1426,9 @@ components:
         updatedAt:
           type: string
           description: ISO-8601 time of the last change.
+        lifecycle:
+          $ref: '#/components/schemas/VmLifecycle'
       description: One VM in the inventory.
-    VmResult:
-      type: object
-      properties:
-        vmId:
-          type: string
-          example: i-0b755f1ffc4e
-        ipAddress:
-          type: string
-          example: 10.20.0.17
-        provider:
-          type: string
-          example: aws
-        nativeRegion:
-          type: string
-          example: us-east-1
-        nativeSize:
-          type: string
-          example: m6i.xlarge
-        nativeImage:
-          type: string
-          example: 'AMI lookup: ubuntu 24.04'
-      description: The built VM, in the provider's own terms.
     StatsResponse:
       type: object
       properties:
@@ -860,42 +1443,81 @@ components:
             RUNNING: 1980
             FAILED: 20
       description: Inventory counts.
-    RequestStatus:
+    RequestSummary:
       type: object
       properties:
         requestId:
           type: string
+          example: intent-3f2c9a1e-5b7d-4c1a-9e0f-2a6b8c4d1e7f
         state:
           type: string
-          enum:
-          - STARTING
-          - INTERPRETING
-          - AWAITING_CLARIFICATION
-          - AWAITING_CONFIRMATION
-          - PROVISIONING
-          - COMPLETED
-          - FAILED
-          - CANCELLED
-          - DUPLICATE
-          - BUSY
-        message:
-          type: string
-          description: Human-readable status, or the question being asked.
-        interpretation:
-          $ref: '#/components/schemas/Interpretation'
-        vm:
-          $ref: '#/components/schemas/VmResult'
-        history:
-          type: array
-          description: Timestamped steps so far.
-          items:
-            type: string
-            description: Timestamped steps so far.
+          description: Last state the request reported.
+          example: AWAITING_CONFIRMATION
         requestedBy:
           type: string
-          description: Who made the request.
-          example: jdoe@example.com
-      description: Where a request is, and what it understood.
+          example: jdoe
+        provider:
+          type: string
+          example: aws
+        env:
+          type: string
+          example: dev
+        specHash:
+          type: string
+        startedAt:
+          type: string
+          description: ISO-8601 start time.
+        closedAt:
+          type: string
+          description: ISO-8601 end time, or empty while it runs.
+        workflowStatus:
+          type: string
+          description: 'Temporal''s own status: RUNNING, COMPLETED, FAILED, TIMED_OUT, ...'
+          example: RUNNING
+      description: One request in a list.
+    InventoryFinding:
+      type: object
+      properties:
+        provider:
+          type: string
+        note:
+          type: string
+        recordedRunning:
+          type: integer
+          format: int32
+        inCloud:
+          type: integer
+          format: int32
+        missing:
+          type: array
+          items:
+            type: string
+        orphans:
+          type: array
+          items:
+            type: string
+    InventoryReport:
+      type: object
+      properties:
+        checkId:
+          type: string
+        startedAt:
+          type: string
+        finishedAt:
+          type: string
+        missingCount:
+          type: integer
+          description: VMs marked MISSING by this check.
+          format: int32
+        orphanCount:
+          type: integer
+          description: VMs in a cloud with no record here (reported, not deleted).
+          format: int32
+        findings:
+          type: array
+          items:
+            $ref: '#/components/schemas/InventoryFinding'
+      description: The result of one inventory check.
     BatchStatus:
       type: object
       properties:

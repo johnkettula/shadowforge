@@ -106,6 +106,43 @@ public class SimCloud {
                 .param("id", vmId).update();
     }
 
+    public void resize(String vmId, int vcpu, int memoryGiB) {
+        callApi();
+        requireLive(vmId);
+        jdbc.sql("UPDATE sim_cloud_vm SET vcpu = :c, memory_gib = :m WHERE vm_id = :id")
+                .param("c", vcpu).param("m", memoryGiB).param("id", vmId).update();
+    }
+
+    public void setPower(String vmId, boolean on) {
+        callApi();
+        requireLive(vmId);
+        jdbc.sql("UPDATE sim_cloud_vm SET power = :p WHERE vm_id = :id")
+                .param("p", on ? "ON" : "OFF").param("id", vmId).update();
+    }
+
+    public String snapshot(String vmId, String label) {
+        callApi();
+        requireLive(vmId);
+        int n = jdbc.sql("UPDATE sim_cloud_vm SET snapshot_count = snapshot_count + 1 WHERE vm_id = :id RETURNING snapshot_count")
+                .param("id", vmId).query(Integer.class).single();
+        return "snap-" + vmId.replaceAll("[^a-z0-9]", "") + "-" + n;
+    }
+
+    /** VMs of one provider that aren't deleted. */
+    public List<String> list(String provider) {
+        callApi();
+        return jdbc.sql("SELECT vm_id FROM sim_cloud_vm WHERE provider = :p AND state <> 'DELETED' ORDER BY vm_id")
+                .param("p", provider).query(String.class).list();
+    }
+
+    private void requireLive(String vmId) {
+        List<String> state = jdbc.sql("SELECT state FROM sim_cloud_vm WHERE vm_id = :id")
+                .param("id", vmId).query(String.class).list();
+        if (state.isEmpty() || "DELETED".equals(state.get(0))) {
+            throw ApplicationFailure.newNonRetryableFailure("VM " + vmId + " not found", "VmNotFound");
+        }
+    }
+
     /** A real API call takes time and is sometimes refused. */
     private void callApi() {
         ThreadLocalRandom rnd = ThreadLocalRandom.current();

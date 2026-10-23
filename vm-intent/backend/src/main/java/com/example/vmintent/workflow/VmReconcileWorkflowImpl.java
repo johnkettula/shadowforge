@@ -1,19 +1,27 @@
 package com.example.vmintent.workflow;
 
 import com.example.vmintent.provider.ProviderActivities;
+import com.example.vmintent.workflow.Models.LifecycleRequest;
+import com.example.vmintent.workflow.Models.LinkReply;
 import com.example.vmintent.workflow.Models.ProviderPlan;
 import com.example.vmintent.workflow.Models.ReconcileRequest;
+import com.example.vmintent.workflow.Models.Route;
 import com.example.vmintent.workflow.Models.VmResult;
 import com.example.vmintent.workflow.Models.VmStatus;
 import io.temporal.activity.ActivityOptions;
+import io.temporal.api.enums.v1.ParentClosePolicy;
 import io.temporal.common.RetryOptions;
 import io.temporal.failure.ActivityFailure;
 import io.temporal.failure.ApplicationFailure;
+import io.temporal.failure.TemporalFailure;
 import io.temporal.spring.boot.WorkflowImpl;
+import io.temporal.workflow.Async;
+import io.temporal.workflow.ChildWorkflowOptions;
 import io.temporal.workflow.Saga;
 import io.temporal.workflow.Workflow;
 
 import java.time.Duration;
+import java.util.Map;
 
 /**
  * Builds one VM. Workflow ID = "vm-" + spec hash, so the same spec can't be built twice at once.
@@ -24,6 +32,16 @@ import java.time.Duration;
  *  - Create/delete go to the provider's rate-limited queue (aws-q); plan and status
  *    checks go to its read queue (aws-read-q), which has a looser limit.
  *  - Throttling from the cloud is retried with exponential backoff, for up to 30 minutes.
+ *
+ * Two ways to reach the cloud (see CloudOps):
+ *  - direct: call its API from here (the simulated clouds, or a cloud this domain can reach);
+ *  - one-way link: send a CREATE order to domain 3 and wait for its answer on the return link.
+ *
+ * Once the VM runs, a VmLifecycleWorkflow ("life-" + spec hash) takes over: expiry, renewals,
+ * resize, power, snapshots and decommissioning.
+ *
+ * Saga: every step that changes something adds its "undo". If a later step fails, the undo
+ * steps run in reverse order, so a failed build never leaves half a VM behind.
  */
 @WorkflowImpl(taskQueues = TaskQueues.INTENT)
 public class VmReconcileWorkflowImpl implements VmReconcileWorkflow {
@@ -34,12 +52,11 @@ public class VmReconcileWorkflowImpl implements VmReconcileWorkflow {
     static final Duration FIRST_CHECK = Duration.ofSeconds(15);
     static final Duration MAX_CHECK_INTERVAL = Duration.ofSeconds(30);
 
-    private static final RetryOptions CLOUD_RETRY = RetryOptions.newBuilder()
-            .setInitialInterval(Duration.ofSeconds(2))
-            .setBackoffCoefficient(2.0)
-            .setMaximumInterval(Duration.ofSeconds(60))
-            .setDoNotRetry("SimulatedBootFailure", "InvalidSpec", "VmNotFound")
-            .build();
+    /**
+     * Version marker for the one-way link and lifecycle steps. Builds started before they existed
+     * replay with DEFAULT_VERSION and take the old path; see ReplayTest.
+     */
+    static final String LINK_AND_LIFECYCLE = "link-and-lifecycle";
 
     private final RecordActivities records = Workflow.newActivityStub(
             RecordActivities.class,
@@ -51,11 +68,21 @@ public class VmReconcileWorkflowImpl implements VmReconcileWorkflow {
                             .build())
                     .build());
 
+    private CloudOps cloud;
+    /** A reply that arrived before CloudOps was ready (can't happen in practice, but cheap to handle). */
+    private LinkReply early;
+
     @Override
     public VmResult reconcile(ReconcileRequest request) {
         String cloudName = request.spec().provider();
-        ProviderActivities mutate = providerStub(TaskQueues.forProvider(cloudName), Duration.ofSeconds(30));
-        ProviderActivities read = providerStub(TaskQueues.readQueue(cloudName), Duration.ofSeconds(15));
+        int version = Workflow.getVersion(LINK_AND_LIFECYCLE, Workflow.DEFAULT_VERSION, 1);
+        Route route = version >= 1 ? CloudOps.linkStub().route(cloudName) : Route.DIRECT;
+        // One build = one idempotency key. Builds started before this change used the spec hash alone.
+        String buildKey = version >= 1
+                ? request.specHash() + "-" + Workflow.getInfo().getRunId().substring(0, 8)
+                : request.specHash();
+        cloud = new CloudOps(cloudName, route, request.specHash(), buildKey, request.requestedBy());
+        if (early != null) cloud.receive(early);
 
         // Saga = a list of "undo" steps, run in reverse if something fails.
         Saga saga = new Saga(new Saga.Options.Builder().build());
@@ -63,21 +90,35 @@ public class VmReconcileWorkflowImpl implements VmReconcileWorkflow {
         // Recorded first, so the inventory shows the VM as soon as its build begins,
         // even while it waits its turn under the cloud's rate limit.
         records.save(hash, request.spec(), "PROVISIONING", "Queued for " + cloudName, null);
-        records.audit(request.requestId(), hash, "PROVISIONING", "system", "Build started on " + cloudName);
+        records.audit(request.requestId(), hash, "PROVISIONING", "system",
+                "Build started on " + cloudName + (route.oneWay() ? " (over the one-way link)" : ""));
         try {
-            ProviderPlan plan = read.plan(request.spec());
+            ProviderPlan plan = cloud.plan(request.spec());
             records.save(hash, request.spec(), "PROVISIONING", plan.summary(), null);
 
-            String vmId = mutate.createVm(request.spec(), plan, hash);
-            saga.addCompensation(mutate::deleteVm, vmId);
-            records.audit(request.requestId(), hash, "VM_CREATED", "system", vmId);
-
-            String ip = waitForBoot(read, vmId);
+            String vmId;
+            String ip;
+            if (route.oneWay()) {
+                // The undo goes in BEFORE the wait: if no answer comes, domain 3 may still have built it.
+                saga.addCompensation(() -> cloud.deleteByKeyNoWait(request.spec()));
+                records.audit(request.requestId(), hash, "LINK_ORDER_SENT", "system", "CREATE sent to domain 3");
+                LinkReply built = cloud.sendAndWait("CREATE", request.spec(), plan, null, Map.of());
+                vmId = built.vmId();
+                ip = built.ipAddress();
+                records.audit(request.requestId(), hash, "VM_CREATED", "system", vmId + " (reported by domain 3)");
+            } else {
+                vmId = cloud.mutate().createVm(request.spec(), plan, buildKey);
+                String created = vmId;
+                saga.addCompensation(() -> cloud.mutate().deleteVm(created));
+                records.audit(request.requestId(), hash, "VM_CREATED", "system", vmId);
+                ip = waitForBoot(cloud.read(), vmId);
+            }
 
             VmResult result = new VmResult(vmId, ip, cloudName,
                     plan.nativeRegion(), plan.nativeSize(), plan.nativeImage());
             records.save(hash, request.spec(), "RUNNING", plan.summary(), result);
             records.audit(request.requestId(), hash, "RUNNING", "system", vmId + " at " + ip);
+            if (version >= 1) startLifecycle(request, result);
             return result;
         } catch (ActivityFailure | ApplicationFailure e) {
             saga.compensate();
@@ -85,6 +126,33 @@ public class VmReconcileWorkflowImpl implements VmReconcileWorkflow {
             records.save(hash, request.spec(), "FAILED", "Rolled back: " + reason, null);
             records.audit(request.requestId(), hash, "ROLLED_BACK", "system", reason);
             throw e;
+        }
+    }
+
+    @Override
+    public void linkReply(LinkReply reply) {
+        if (cloud != null) cloud.receive(reply);
+        else early = reply;
+    }
+
+    /**
+     * Hands the running VM to its own long-lived workflow. ABANDON = it carries on after this build
+     * workflow finishes. We only wait until it has started, not until it ends (which may be months).
+     */
+    private void startLifecycle(ReconcileRequest request, VmResult result) {
+        VmLifecycleWorkflow life = Workflow.newChildWorkflowStub(VmLifecycleWorkflow.class,
+                ChildWorkflowOptions.newBuilder()
+                        .setWorkflowId(VmLifecycleWorkflowImpl.workflowId(request.specHash()))
+                        .setTaskQueue(TaskQueues.INTENT)
+                        .setParentClosePolicy(ParentClosePolicy.PARENT_CLOSE_POLICY_ABANDON)
+                        .build());
+        Async.procedure(life::run, new LifecycleRequest(request.spec(), request.specHash(), result,
+                request.requestedBy(), request.requestId(), null));
+        try {
+            Workflow.getWorkflowExecution(life).get();
+        } catch (TemporalFailure e) {
+            // Already looked after (the same spec was built through another path): keep the VM, note it.
+            records.audit(request.requestId(), request.specHash(), "LIFECYCLE_NOT_STARTED", "system", reason(e));
         }
     }
 
@@ -110,22 +178,11 @@ public class VmReconcileWorkflowImpl implements VmReconcileWorkflow {
         }
     }
 
-    private static ProviderActivities providerStub(String taskQueue, Duration callTimeout) {
-        return Workflow.newActivityStub(
-                ProviderActivities.class,
-                ActivityOptions.newBuilder()
-                        .setTaskQueue(taskQueue)
-                        .setStartToCloseTimeout(callTimeout)
-                        // Keep retrying throttled calls (with backoff) for up to 30 minutes.
-                        .setScheduleToCloseTimeout(Duration.ofMinutes(30))
-                        .setRetryOptions(CLOUD_RETRY)
-                        .build());
-    }
-
-    private static String reason(Exception e) {
+    static String reason(Throwable e) {
         Throwable t = e;
         while (t.getCause() != null) t = t.getCause();
         if (t instanceof ApplicationFailure af) return af.getOriginalMessage();
+        if (t instanceof TemporalFailure tf) return tf.getOriginalMessage();
         return t.getMessage();
     }
 }

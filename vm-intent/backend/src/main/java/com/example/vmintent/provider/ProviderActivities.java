@@ -5,6 +5,8 @@ import com.example.vmintent.workflow.Models.ProviderPlan;
 import com.example.vmintent.workflow.Models.VmStatus;
 import io.temporal.activity.ActivityInterface;
 
+import java.util.List;
+
 /**
  * The one interface every cloud adapter implements. Adding a fifth
  * provider = one new class + two task queues; no workflow changes.
@@ -30,4 +32,18 @@ public interface ProviderActivities {
     VmStatus describeVm(String vmId);
 
     void deleteVm(String vmId);
+
+    // ---- After the build ("day 2"). Each is one short call, like the others.
+
+    /** Change the VM's size. Real clouds stop the VM, change its type and start it again. */
+    void resizeVm(String vmId, int vcpu, int memoryGiB);
+
+    /** Power the VM on (true) or off (false). */
+    void setPower(String vmId, boolean on);
+
+    /** Take a snapshot and return its ID. */
+    String snapshotVm(String vmId, String label);
+
+    /** IDs of every VM this cloud has that isn't deleted. Used by the nightly inventory check. */
+    List<String> listVmIds();
 }

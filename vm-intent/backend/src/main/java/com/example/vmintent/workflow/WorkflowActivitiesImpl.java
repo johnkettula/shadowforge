@@ -4,13 +4,18 @@ import com.example.vmintent.db.AuditLog;
 import com.example.vmintent.intent.IntentInterpreter;
 import com.example.vmintent.intent.Interpretation;
 import com.example.vmintent.provider.VmRegistry;
+import com.example.vmintent.spec.SpecCanonicalizer;
 import com.example.vmintent.spec.VmSpec;
+import com.example.vmintent.workflow.Models.BatchItem;
+import com.example.vmintent.workflow.Models.VmLifecycle;
 import com.example.vmintent.workflow.Models.VmRecord;
 import com.example.vmintent.workflow.Models.VmResult;
 import io.temporal.spring.boot.ActivityImpl;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 /** Activities are normal Spring beans, so they can use injected services. */
 @Component
@@ -39,6 +44,22 @@ public class WorkflowActivitiesImpl implements IntentActivities, RecordActivitie
         if ("RUNNING".equals(r.state()) && r.result() != null) return r.result().vmId();
         if ("PROVISIONING".equals(r.state())) return "provisioning";
         return null;   // FAILED or DELETED: OK to build again
+    }
+
+    @Override
+    public List<BatchItem> expand(Interpretation it) {
+        int n = it.vmCount();
+        List<BatchItem> items = new ArrayList<>(n);
+        for (int i = 1; i <= n; i++) {
+            VmSpec spec = it.spec().withName(String.format("%s-%02d", it.spec().name(), i));
+            items.add(new BatchItem(spec, SpecCanonicalizer.hash(spec)));
+        }
+        return items;
+    }
+
+    @Override
+    public void saveLifecycle(String specHash, String state, VmLifecycle lifecycle) {
+        registry.putLifecycle(specHash, state, lifecycle);
     }
 
     @Override

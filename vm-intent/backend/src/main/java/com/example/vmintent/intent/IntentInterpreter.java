@@ -46,7 +46,14 @@ public class IntentInterpreter {
 
         String hash = SpecCanonicalizer.hash(spec);
         VmSpec named = SpecCanonicalizer.withGeneratedName(spec, hash);
-        return new Interpretation(text, source, named, hash, PolicyDefaults.summary(named),
-                List.copyOf(assumptions), null);
+        int count = draft.count == null || draft.count < 1 ? 1 : draft.count;
+        String summary = PolicyDefaults.summary(named);
+        if (count > 1) {
+            summary = count + " × " + summary;
+            assumptions.add(count + " identical VMs, named " + named.name() + "-01 to " + named.name()
+                    + String.format("-%02d", count) + ".");
+        }
+        return new Interpretation(text, source, named, hash, summary,
+                List.copyOf(assumptions), null, count > 1 ? count : null);
     }
 }

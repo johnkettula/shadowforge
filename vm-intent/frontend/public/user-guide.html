@@ -48,7 +48,7 @@ svg .lines path { fill: none; stroke: var(--quiet); stroke-width: 1.25; } svg .h
 <h1>vm-intent User Guide</h1>
 
 <p class="updated">Last updated 21 October 2026.</p>
-<nav class="toc" aria-label="Contents"><strong>Contents</strong><ol><li><a href='#what-vm-intent-does'>What vm-intent does</a></li><li><a href='#opening-the-app'>Opening the app</a></li><li><a href='#requesting-one-vm'>Requesting one VM</a></li><li><a href='#following-a-request'>Following a request</a></li><li><a href='#building-many-vms-at-once'>Building many VMs at once</a></li><li><a href='#legacy-json-and-the-inventory'>Legacy JSON and the inventory</a></li><li><a href='#sign-in-and-roles'>Sign-in and roles</a></li><li><a href='#for-other-services-the-rest-api'>For other services: the REST API</a></li><li><a href='#starting-and-stopping-the-app-on-windows'>Starting and stopping the app on Windows</a></li><li><a href='#troubleshooting'>Troubleshooting</a></li></ol></nav>
+<nav class="toc" aria-label="Contents"><strong>Contents</strong><ol><li><a href='#what-vm-intent-does'>What vm-intent does</a></li><li><a href='#opening-the-app'>Opening the app</a></li><li><a href='#requesting-one-vm'>Requesting one VM</a></li><li><a href='#following-a-request'>Following a request</a></li><li><a href='#several-vms-in-one-request'>Several VMs in one request</a></li><li><a href='#looking-after-a-vm-expiry-and-changes'>Looking after a VM: expiry and changes</a></li><li><a href='#the-nightly-inventory-check'>The nightly inventory check</a></li><li><a href='#building-many-vms-at-once'>Building many VMs at once</a></li><li><a href='#legacy-json-and-the-inventory'>Legacy JSON and the inventory</a></li><li><a href='#sign-in-and-roles'>Sign-in and roles</a></li><li><a href='#for-other-services-the-rest-api'>For other services: the REST API</a></li><li><a href='#starting-and-stopping-the-app-on-windows'>Starting and stopping the app on Windows</a></li><li><a href='#troubleshooting'>Troubleshooting</a></li></ol></nav>
 
 <h2 id='what-vm-intent-does'>What vm-intent does</h2>
 <p>You ask for a virtual machine in plain English, and vm-intent builds it on vSphere, AWS, Azure or Google Cloud. The clouds are <strong>simulated</strong> in this version, so nothing real is created and no cloud accounts are needed.</p>
@@ -183,7 +183,7 @@ svg .lines path { fill: none; stroke: var(--quiet); stroke-width: 1.25; } svg .h
 <figure class='diagram'><svg viewBox='0 0 800 384' role='img' aria-label='Every request ends in one of four states'><defs><marker id='arrow' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto-start-reverse'><path d='M0 0L10 5L0 10z' class='head'/></marker></defs><text class='title' x='20' y='30'>Every request ends in one of four states</text><g class='lines'><path d='M108 134V158' marker-end='url(#arrow)'/><path d='M196 184H210' marker-end='url(#arrow)'/><path d='M388 184H402' marker-end='url(#arrow)'/><path d='M580 184H594' marker-end='url(#arrow)'/><path d='M300 160V84H402' marker-end='url(#arrow)'/><path d='M88 208V278' marker-end='url(#arrow)'/><path d='M128 280V210' marker-end='url(#arrow)'/><path d='M300 208V278' marker-end='url(#arrow)'/><path d='M196 304H210' marker-end='url(#arrow)'/><path d='M492 208V278' marker-end='url(#arrow)'/></g><text class='q' x='108' y='126' text-anchor='middle'>You submit</text><rect class='b' x='20' y='160' width='176' height='48' rx='8'/><text x='108' y='188' text-anchor='middle'>Interpreting</text><rect class='b' x='212' y='160' width='176' height='48' rx='8'/><text x='300' y='188' text-anchor='middle'>Awaiting confirmation</text><rect class='b' x='404' y='160' width='176' height='48' rx='8'/><text x='492' y='188' text-anchor='middle'>Provisioning</text><rect class='b done' x='596' y='160' width='176' height='48' rx='8'/><text x='684' y='188' text-anchor='middle' class='strong'>Completed</text><rect class='b final' x='404' y='60' width='176' height='48' rx='8'/><text x='492' y='88' text-anchor='middle' class='strong'>Duplicate</text><rect class='b' x='20' y='280' width='176' height='48' rx='8'/><text x='108' y='308' text-anchor='middle'>Awaiting clarification</text><rect class='b final' x='212' y='280' width='176' height='48' rx='8'/><text x='300' y='308' text-anchor='middle' class='strong'>Cancelled</text><rect class='b final' x='404' y='280' width='176' height='48' rx='8'/><text x='492' y='308' text-anchor='middle' class='strong'>Failed</text><text class='q' x='203' y='150' text-anchor='middle'>spec complete</text><text class='q' x='395' y='150' text-anchor='middle'>you confirm</text><text class='q' x='587' y='150' text-anchor='middle'>VM boots</text><text class='q' x='352' y='76' text-anchor='middle'>already exists</text><text class='q' x='82' y='248' text-anchor='end'>missing</text><text class='q' x='134' y='248' text-anchor='start'>you answer</text><text class='q' x='306' y='248' text-anchor='start'>cancel, or no reply in 24 h</text><text class='q' x='498' y='248' text-anchor='start'>a step fails, VM rolled back</text><text class='q' x='20' y='364' text-anchor='start'>Shaded boxes are final states. Cancel works in either waiting state.</text></svg></figure>
 
 <p>A request waits for you twice: to answer a question if something is missing, and to confirm. After that it runs on its own.</p>
-<p>A request ends in one of four states:</p>
+<p>A request ends in one of five states:</p>
 <div class='table-wrap'><table>
 <thead>
 <tr>
@@ -194,7 +194,11 @@ svg .lines path { fill: none; stroke: var(--quiet); stroke-width: 1.25; } svg .h
 <tbody>
 <tr>
 <td>COMPLETED</td>
-<td>The VM was built and is running</td>
+<td>The VM (or every VM, for a request for several) was built and is running</td>
+</tr>
+<tr>
+<td>PARTIAL</td>
+<td>A request for several VMs where some were built and some failed (the failed ones were rolled back)</td>
 </tr>
 <tr>
 <td>FAILED</td>
@@ -210,9 +214,60 @@ svg .lines path { fill: none; stroke: var(--quiet); stroke-width: 1.25; } svg .h
 </tr>
 </tbody>
 </table></div>
-<p><strong>Audit trail.</strong> Open <em>Audit trail</em> on the card for a timed list of what happened and who did it. Events include REQUESTED, QUESTION_ASKED, ANSWERED, INTERPRETED, CONFIRMED, PROVISIONING, VM_CREATED, RUNNING, ROLLED_BACK, COMPLETED, FAILED, CANCELLED and DUPLICATE. The trail is kept in the database, so it survives restarts.</p>
+<p><strong>Confirming checks the spec.</strong> <strong>Looks right, build it</strong> sends the spec hash you were looking at. If the request isn't waiting any more, or the spec isn't the one you saw, you get a message saying so instead of a build.</p>
+<p><strong>Audit trail.</strong> Open <em>Audit trail</em> on the card for a timed list of what happened and who did it. Events include REQUESTED, QUESTION_ASKED, ANSWERED, INTERPRETED, CONFIRMED, PROVISIONING, VM_CREATED, RUNNING, ROLLED_BACK, COMPLETED, FAILED, CANCELLED and DUPLICATE, plus the lifecycle events below. The trail is kept in the database, so it survives restarts.</p>
 <p><strong>Workflow history.</strong> Open <em>Workflow history</em> for the steps the workflow ran. Its <strong>open workflow</strong> link shows every step, with timings and retries, in the Temporal UI.</p>
 <p><strong>Duplicates are safe.</strong> Submitting the same request again, even worded differently, never builds a second copy. That also makes it safe to retry if you aren't sure a request went through.</p>
+<p><strong>Finding a request again.</strong> The <em>Requests</em> list shows recent requests, newest first. Pick <em>Mine</em>, <em>Waiting for confirmation</em> or <em>Failed</em> to filter it, and press <strong>Open</strong> to bring a request back onto the card.</p>
+<h2 id='several-vms-in-one-request'>Several VMs in one request</h2>
+<p>Ask for a number of machines and you get that many: "3 small ubuntu web servers on gcp, called web" builds <code>web-01</code>, <code>web-02</code> and <code>web-03</code>. The summary starts with "3 ×" so you can check the count before you confirm. They're built side by side, at most five at a time, and each one is rolled back on its own if it fails. One request can ask for up to 20; for more, use a batch (below).</p>
+<p>Numbers that belong to something else aren't counts: "a RHEL 9 server" or "16 GB RAM server" is one VM.</p>
+<h2 id='looking-after-a-vm-expiry-and-changes'>Looking after a VM: expiry and changes</h2>
+<p>Every VM gets an expiry date from its lifetime (dev 30 days, test 14, prod never, or what you asked for). The inventory's <strong>Expires</strong> column shows how long is left, in amber once the warning has gone out.</p>
+<ul>
+<li><strong>Warning.</strong> Three days before a VM expires (less for short-lived VMs), the owner is warned. The warning is recorded in the audit trail as EXPIRY_WARNING.</li>
+<li><strong>Expiry.</strong> When the time is up, the VM is removed and its state becomes DELETED.</li>
+</ul>
+<p><strong>Click a VM in the inventory</strong> to open its panel. There you can:</p>
+<div class='table-wrap'><table>
+<thead>
+<tr>
+<th>Action</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Renew +7 / +30 days</td>
+<td>Push the expiry back. At most 90 days at a time, and never more than 365 days from today</td>
+</tr>
+<tr>
+<td>Resize</td>
+<td>Change vCPU and memory. If the cloud refuses, nothing changes and you see why</td>
+</tr>
+<tr>
+<td>Power off / on</td>
+<td>Stop or start the VM. It keeps its expiry date</td>
+</tr>
+<tr>
+<td>Take snapshot</td>
+<td>Save a snapshot with a label (lowercase letters, digits and dashes)</td>
+</tr>
+<tr>
+<td>Remove this VM</td>
+<td>Delete it now. It asks <em>Sure?</em> first, because this can't be undone</td>
+</tr>
+</tbody>
+</table></div>
+<p>A change that can't be done (renewing a VM that never expires, powering off a VM that's already off) is refused straight away with the reason, and nothing happens to the VM. With sign-in on, only the VM's owner or an admin can change it.</p>
+<p>The same spec can be built again after it was removed; you get a new VM.</p>
+<h2 id='the-nightly-inventory-check'>The nightly inventory check</h2>
+<p>Every night at 02:00 UTC the app compares each cloud with its inventory. The <em>Inventory check</em> card shows the last result:</p>
+<ul>
+<li><strong>Missing:</strong> a VM the inventory says is running, but the cloud no longer has (someone deleted it by hand). It's marked MISSING.</li>
+<li><strong>Unrecorded:</strong> a VM in the cloud that the inventory never recorded. These are only listed, never deleted; deciding what to do is up to a person.</li>
+</ul>
+<p>Press <strong>Run now</strong> to check straight away (admins only when sign-in is on). Clouds reached over the one-way link to domain 3 are skipped. To change the time or pause it, use the Temporal UI's <strong>Schedules</strong> page.</p>
 <h2 id='building-many-vms-at-once'>Building many VMs at once</h2>
 <p>A <strong>batch</strong> builds up to 10,000 VMs in one call, with no confirmation step per VM. Batches are sent through the API, not the web app. The easiest way to try one is Swagger UI.</p>
 <ol>
@@ -236,7 +291,7 @@ svg .lines path { fill: none; stroke: var(--quiet); stroke-width: 1.25; } svg .h
 <p>The new VMs also appear in the web app's Inventory. The system has been load-tested at 2,000 VMs building at the same time.</p>
 <h2 id='legacy-json-and-the-inventory'>Legacy JSON and the inventory</h2>
 <p><strong>Legacy JSON API tab.</strong> Older systems send a fixed JSON format to <code>/api/v1/vms</code>. This tab lets you try it: edit the sample JSON and press <strong>POST /api/v1/vms</strong>. It skips the plain-English step and goes straight to the build workflow. If an identical VM already exists, the answer is a 409 conflict instead of a second VM. The field names in the sample are placeholders, to be matched to the real legacy format later.</p>
-<p><strong>Inventory.</strong> The bottom of the page lists the most recently changed VMs (up to 200) with name, platform, size, state and spec hash. VM states are PROVISIONING while it is built, RUNNING when ready, FAILED and DELETED (rolled back). For counts by state across every VM, use <strong>GET /api/v2/stats</strong> in Swagger.</p>
+<p><strong>Inventory.</strong> The bottom of the page lists the most recently changed VMs (up to 200) with name, platform, size, state and spec hash. VM states are PROVISIONING while it is built, RUNNING when ready, FAILED (rolled back), DELETED (removed or expired) and MISSING (gone from its cloud). Click a VM to look after it (see above). For counts by state across every VM, use <strong>GET /api/v2/stats</strong> in Swagger.</p>
 <h2 id='sign-in-and-roles'>Sign-in and roles</h2>
 <p>Sign-in is <strong>off</strong> by default, so anyone who can reach the server can use it. Keep it on a network you trust. An administrator can turn on either or both sign-in methods:</p>
 <ul>
@@ -254,7 +309,7 @@ svg .lines path { fill: none; stroke: var(--quiet); stroke-width: 1.25; } svg .h
 <tbody>
 <tr>
 <td>ADMIN</td>
-<td>Everything, including cancelling anyone's request</td>
+<td>Everything, including cancelling anyone's request, changing anyone's VM and running the inventory check</td>
 </tr>
 <tr>
 <td>BATCH</td>
@@ -262,7 +317,7 @@ svg .lines path { fill: none; stroke: var(--quiet); stroke-width: 1.25; } svg .h
 </tr>
 <tr>
 <td>REQUESTER</td>
-<td>Preview, create, answer, confirm and cancel <strong>their own</strong> requests, plus everything READER can</td>
+<td>Preview, create, answer, confirm and cancel <strong>their own</strong> requests, look after <strong>their own</strong> VMs (renew, resize, power, snapshot, remove), plus everything READER can</td>
 </tr>
 <tr>
 <td>READER</td>

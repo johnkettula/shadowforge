@@ -1,6 +1,7 @@
 package com.example.vmintent.workflow;
 
 import com.example.vmintent.intent.Interpretation;
+import com.example.vmintent.workflow.Models.BatchItem;
 import com.example.vmintent.workflow.Models.IntentRequest;
 import com.example.vmintent.workflow.Models.ReconcileRequest;
 import com.example.vmintent.workflow.Models.RequestStatus;
@@ -10,6 +11,7 @@ import io.temporal.common.RetryOptions;
 import io.temporal.failure.ChildWorkflowFailure;
 import io.temporal.failure.TemporalFailure;
 import io.temporal.spring.boot.WorkflowImpl;
+import io.temporal.workflow.Async;
 import io.temporal.workflow.ChildWorkflowOptions;
 import io.temporal.workflow.Workflow;
 
@@ -52,12 +54,20 @@ public class IntentWorkflowImpl implements IntentWorkflow {
     private final List<String> answers = new ArrayList<>();
     private int answersUsed = 0;
     private boolean confirmed = false;
+    private String confirmedBy;
     private boolean cancelled = false;
+    private boolean tagged = false;
+    private List<VmResult> vms;
+
+    /** Most builds of one multi-VM request that run at the same time. */
+    static final int MAX_PARALLEL_BUILDS = 5;
 
     @Override
     public RequestStatus run(IntentRequest request) {
         requestId = Workflow.getInfo().getWorkflowId();
         actor = request.userId() == null ? "unknown" : request.userId();
+        tagged = request.searchAttributes();
+        if (tagged) Workflow.upsertTypedSearchAttributes(RequestSearch.REQUESTER.valueSet(actor));
         log("Request received via " + request.channel() + ": \"" + request.text() + "\"");
         audit(null, "REQUESTED", actor, "via " + request.channel() + ": " + request.text());
         String text = request.text();
@@ -68,6 +78,12 @@ public class IntentWorkflowImpl implements IntentWorkflow {
             interpretation = activities.interpret(text);
             log("Interpreted with " + interpretation.extractor());
             if (interpretation.question() == null) {
+                if (tagged) {
+                    Workflow.upsertTypedSearchAttributes(
+                            RequestSearch.PROVIDER.valueSet(interpretation.spec().provider()),
+                            RequestSearch.ENV.valueSet(interpretation.spec().env()),
+                            RequestSearch.SPEC_HASH.valueSet(interpretation.specHash()));
+                }
                 audit(interpretation.specHash(), "INTERPRETED", "system",
                         interpretation.summary() + " (by " + interpretation.extractor() + ")");
                 break;
@@ -90,7 +106,10 @@ public class IntentWorkflowImpl implements IntentWorkflow {
         if (cancelled) return finish("CANCELLED", "Cancelled by user.");
         if (!decided) return finish("CANCELLED", "Not confirmed within 24 hours.");
         log("User confirmed spec " + interpretation.specHash().substring(0, 12));
-        audit(interpretation.specHash(), "CONFIRMED", actor, interpretation.summary());
+        audit(interpretation.specHash(), "CONFIRMED", confirmedBy != null ? confirmedBy : actor, interpretation.summary());
+
+        // 3b. Several VMs asked for ("3 web servers"): build them side by side.
+        if (interpretation.vmCount() > 1) return buildMany(request);
 
         // 3. Same spec already built? Then this is a duplicate, not a second VM.
         String existing = activities.findExistingVm(interpretation.specHash());
@@ -126,18 +145,104 @@ public class IntentWorkflowImpl implements IntentWorkflow {
     }
 
     @Override
+    public void validateConfirmSpec(String who, String specHash) {
+        if (cancelled || !"AWAITING_CONFIRMATION".equals(state)) {
+            throw new IllegalArgumentException("This request is " + state.toLowerCase().replace('_', ' ')
+                    + ", not waiting for confirmation.");
+        }
+        if (specHash != null && !specHash.isBlank() && !specHash.equals(interpretation.specHash())) {
+            throw new IllegalArgumentException("That isn't the spec this request is waiting on. Reload and check it again.");
+        }
+    }
+
+    @Override
+    public RequestStatus confirmSpec(String who, String specHash) {
+        confirmedBy = who;
+        confirmed = true;
+        // Answer once the request has moved on, so the caller sees "PROVISIONING" (or "DUPLICATE").
+        Workflow.await(() -> !"AWAITING_CONFIRMATION".equals(state));
+        return status();
+    }
+
+    @Override
     public void cancel() {
         cancelled = true;
     }
 
     @Override
     public RequestStatus status() {
-        return new RequestStatus(requestId, state, message, interpretation, vm, List.copyOf(history), actor);
+        return new RequestStatus(requestId, state, message, interpretation, vm, List.copyOf(history), actor,
+                vms == null ? null : List.copyOf(vms));
     }
 
     private void setState(String newState, String newMessage) {
+        if (tagged && !newState.equals(state)) Workflow.upsertTypedSearchAttributes(RequestSearch.STATE.valueSet(newState));
         state = newState;
         message = newMessage;
+    }
+
+    /**
+     * Builds every VM of a multi-VM request, at most MAX_PARALLEL_BUILDS at a time. Each is its own
+     * child workflow ("vm-" + its spec hash), with its own rollback, so one failure doesn't stop the rest.
+     */
+    private RequestStatus buildMany(IntentRequest request) {
+        List<BatchItem> items = activities.expand(interpretation);
+        int n = items.size();
+        VmResult[] built = new VmResult[n];
+        List<String> failures = new ArrayList<>();
+        List<String> duplicates = new ArrayList<>();
+        int[] inFlight = {0};
+        int[] finished = {0};
+        String where = interpretation.spec().provider();
+        setState("PROVISIONING", "Building " + n + " VMs on " + where + "...");
+        for (int i = 0; i < n; i++) {
+            BatchItem item = items.get(i);
+            String existing = activities.findExistingVm(item.specHash());
+            if (existing != null) {
+                duplicates.add(item.spec().name());
+                finished[0]++;
+                continue;
+            }
+            Workflow.await(() -> inFlight[0] < MAX_PARALLEL_BUILDS);
+            inFlight[0]++;
+            int slot = i;
+            VmReconcileWorkflow child = Workflow.newChildWorkflowStub(VmReconcileWorkflow.class,
+                    ChildWorkflowOptions.newBuilder()
+                            .setWorkflowId("vm-" + item.specHash())
+                            .setTaskQueue(TaskQueues.INTENT)
+                            .build());
+            Async.function(child::reconcile,
+                            new ReconcileRequest(item.spec(), item.specHash(), request.userId(), requestId))
+                    .handle((result, failure) -> {
+                        inFlight[0]--;
+                        finished[0]++;
+                        if (failure == null) built[slot] = result;
+                        else failures.add(item.spec().name() + ": " + rootMessage(failure));
+                        message = progress(n, built, failures, duplicates);
+                        return null;
+                    });
+        }
+        Workflow.await(() -> finished[0] == n);
+
+        vms = new ArrayList<>();
+        for (VmResult r : built) if (r != null) vms.add(r);
+        if (!vms.isEmpty()) vm = vms.get(0);
+        String summary = progress(n, built, failures, duplicates)
+                + (failures.isEmpty() ? "" : " Failed (rolled back): " + String.join("; ", failures) + ".")
+                + (duplicates.isEmpty() ? "" : " Already existed: " + String.join(", ", duplicates) + ".");
+        if (vms.size() == n) return finish("COMPLETED", "All " + n + " VMs are running.");
+        if (vms.isEmpty() && failures.isEmpty()) return finish("DUPLICATE", summary);
+        if (vms.isEmpty()) return finish("FAILED", summary);
+        return finish("PARTIAL", summary);
+    }
+
+    private static String progress(int n, VmResult[] built, List<String> failures, List<String> duplicates) {
+        int running = 0;
+        for (VmResult r : built) if (r != null) running++;
+        int waiting = n - running - failures.size() - duplicates.size();
+        return n + " VMs: " + running + " running" + (failures.isEmpty() ? "" : ", " + failures.size() + " failed")
+                + (duplicates.isEmpty() ? "" : ", " + duplicates.size() + " already existed")
+                + (waiting > 0 ? ", " + waiting + " in progress." : ".");
     }
 
     private RequestStatus finish(String finalState, String finalMessage) {

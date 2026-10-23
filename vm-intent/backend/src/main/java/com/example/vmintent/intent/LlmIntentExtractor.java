@@ -43,6 +43,7 @@ public class LlmIntentExtractor implements IntentExtractor {
               env: "dev" | "test" | "staging" | "prod" | null
               ttlDays: integer or null
               publicIp: true | false | null
+              count: integer or null  (how many identical VMs, e.g. "3 web servers" = 3; null = one)
             Examples:
               "Ubuntu box, 4 cores, 16 gigs, us-east on AWS" ->
               {"provider":"aws","region":"us-east","vcpu":4,"memoryGiB":16,"os":"ubuntu"}

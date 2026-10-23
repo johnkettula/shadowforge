@@ -105,9 +105,28 @@ r = call("POST", "/api/v2/requests", 200,
          {"text": f"small debian 12 box on gcp us-central called ct-{RUN}", "userId": "contract-test"},
          name="createRequest (to build)")
 wait_request(r["requestId"], {"AWAITING_CONFIRMATION"})
-call("POST", f"/api/v2/requests/{r['requestId']}/confirm", 204, name="confirmRequest")
+pending = call("GET", f"/api/v2/requests/{r['requestId']}", 200, name="getRequest: awaiting confirmation")
+call("POST", f"/api/v2/requests/{r['requestId']}/confirm", 409, {"specHash": "0" * 64},
+     name="confirmRequest: a different spec -> 409")
+call("POST", f"/api/v2/requests/{r['requestId']}/confirm", 200,
+     {"specHash": pending["interpretation"]["specHash"]}, name="confirmRequest")
 done = wait_request(r["requestId"], {"COMPLETED", "FAILED", "DUPLICATE"})
 call("GET", f"/api/v2/requests/{r['requestId']}", 200, name=f"getRequest: final ({done['state']})")
+call("POST", f"/api/v2/requests/{r['requestId']}/confirm", 409, name="confirmRequest: already finished -> 409")
+call("GET", "/api/v2/requests?limit=5", 200, name="listRequests")
+
+# --- VM lifecycle (day 2), on the VM just built
+if done["state"] == "COMPLETED":
+    h = done["interpretation"]["specHash"]
+    time.sleep(1)
+    call("GET", f"/api/v2/vms/{h}/lifecycle", 200, name="getVmLifecycle")
+    call("POST", f"/api/v2/vms/{h}/renew", 200, {"days": 7}, name="renewVm")
+    call("POST", f"/api/v2/vms/{h}/renew", 409, {"days": 0}, name="renewVm: 0 days -> 409")
+    call("POST", f"/api/v2/vms/{h}/resize", 200, {"vcpu": 4, "memoryGiB": 16}, name="resizeVm")
+    call("POST", f"/api/v2/vms/{h}/power", 200, {"on": False}, name="powerVm")
+    call("POST", f"/api/v2/vms/{h}/snapshot", 200, {"label": "contract-test"}, name="snapshotVm")
+    call("POST", f"/api/v2/vms/{h}/decommission", 200, {"reason": "contract test"}, name="decommissionVm")
+call("GET", "/api/v2/vms/" + "0" * 64 + "/lifecycle", 404, name="getVmLifecycle: unknown VM -> 404")
 
 # --- Requests: errors
 call("GET", "/api/v2/requests/intent-does-not-exist", 404, name="getRequest: unknown ID -> 404")
@@ -134,6 +153,9 @@ call("GET", "/api/v2/batches/batch-does-not-exist", 404, name="getBatch: unknown
 call("GET", "/api/v2/vms", 200, name="listVms")
 call("GET", "/api/v2/stats", 200, name="getStats")
 call("GET", f"/api/v2/audit?requestId={b['batchId']}&limit=20", 200, name="getAuditTrail")
+chk = call("POST", "/api/v2/inventory-checks", 202, name="runInventoryCheck")
+time.sleep(5)
+call("GET", "/api/v2/inventory-checks?limit=1", 200, name="listInventoryChecks")
 
 # --- Legacy
 legacy = {"name": f"legacy-{RUN}", "cloud": "GCP", "location": "us-central1", "cpu": 2, "ramGb": 8,

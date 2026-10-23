@@ -23,5 +23,17 @@ public record Interpretation(
         @Schema(description = "Defaults that were filled in.") List<String> assumptions,
         @Schema(description = "Set when something must be answered before a spec can be built.",
                 example = "Which platform should this run on: vSphere (on-prem), AWS, Azure or Google Cloud?")
-        String question
-) {}
+        String question,
+        @Schema(description = "How many identical VMs were asked for. Left out when it's one.", example = "3")
+        Integer count
+) {
+    public Interpretation(String text, String extractor, VmSpec spec, String specHash, String summary,
+                          List<String> assumptions, String question) {
+        this(text, extractor, spec, specHash, summary, assumptions, question, null);
+    }
+
+    /** How many VMs to build: 1 unless the request asked for more. */
+    public int vmCount() {
+        return count == null || count < 1 ? 1 : count;
+    }
+}

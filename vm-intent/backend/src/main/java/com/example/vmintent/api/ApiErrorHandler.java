@@ -2,6 +2,8 @@ package com.example.vmintent.api;
 
 import com.example.vmintent.api.ApiModels.ApiError;
 import io.temporal.client.WorkflowNotFoundException;
+import io.temporal.client.WorkflowUpdateException;
+import io.temporal.failure.TemporalFailure;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -25,6 +27,19 @@ public class ApiErrorHandler {
         String id = e.getExecution() == null ? null : e.getExecution().getWorkflowId();
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ApiError("No request or workflow with that ID", id, null));
+    }
+
+    /**
+     * An update was refused by its validator, or failed: the request or VM isn't in a state that
+     * allows it. The message says why, in plain words.
+     */
+    @ExceptionHandler(WorkflowUpdateException.class)
+    public ResponseEntity<ApiError> updateRefused(WorkflowUpdateException e) {
+        Throwable t = e;
+        while (t.getCause() != null) t = t.getCause();
+        String msg = t instanceof TemporalFailure tf ? tf.getOriginalMessage() : t.getMessage();
+        String id = e.getExecution() == null ? null : e.getExecution().getWorkflowId();
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new ApiError(msg, id, null));
     }
 
     @ExceptionHandler({HttpMessageNotReadableException.class, MissingServletRequestParameterException.class,

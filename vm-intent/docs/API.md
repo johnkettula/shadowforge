@@ -25,13 +25,22 @@ addresses instead, set `VMINTENT_API_SERVER_URLS` (comma-separated).
 | `createRequest` | `POST /api/v2/requests` | Start a one-VM request (asks questions, waits for confirmation) |
 | `getRequest` | `GET /api/v2/requests/{id}` | State, interpretation, VM details, history |
 | `clarifyRequest` | `POST /api/v2/requests/{id}/clarify` | Answer the question (state `AWAITING_CLARIFICATION`) |
-| `confirmRequest` | `POST /api/v2/requests/{id}/confirm` | Build it (state `AWAITING_CONFIRMATION`) |
+| `confirmRequest` | `POST /api/v2/requests/{id}/confirm` | Build it (state `AWAITING_CONFIRMATION`). Send `{"specHash": ...}` to make sure it's the spec you saw. 200 with the new status; 409 with the reason if it can't be confirmed |
+| `listRequests` | `GET /api/v2/requests` | Recent requests, filtered by `requester` (`me` = you), `state`, `provider`, `env` |
 | `cancelRequest` | `POST /api/v2/requests/{id}/cancel` | Cancel while waiting |
 | `createBatch` | `POST /api/v2/batches` | Build up to 10,000 VMs, no per-VM confirmation |
 | `getBatch` | `GET /api/v2/batches/{id}` | Live counts and p50/p95 build times |
 | `listVms` | `GET /api/v2/vms` | The 200 most recently changed VMs |
 | `getStats` | `GET /api/v2/stats` | VM counts by state |
 | `getAuditTrail` | `GET /api/v2/audit` | Events for a request, batch or VM |
+| `getVmLifecycle` | `GET /api/v2/vms/{specHash}/lifecycle` | Expiry, power, current size, snapshots |
+| `renewVm` | `POST /api/v2/vms/{specHash}/renew` | `{"days": 14}`: push the expiry back (1-90 days) |
+| `resizeVm` | `POST /api/v2/vms/{specHash}/resize` | `{"vcpu": 4, "memoryGiB": 16}` |
+| `powerVm` | `POST /api/v2/vms/{specHash}/power` | `{"on": false}` |
+| `snapshotVm` | `POST /api/v2/vms/{specHash}/snapshot` | `{"label": "before-upgrade"}` |
+| `decommissionVm` | `POST /api/v2/vms/{specHash}/decommission` | Remove the VM now |
+| `listInventoryChecks` | `GET /api/v2/inventory-checks` | Results of the nightly drift and orphan check |
+| `runInventoryCheck` | `POST /api/v2/inventory-checks` | Run the check now (ADMIN) |
 | `createLegacyVm` | `POST /api/v1/vms` | The old universal JSON format |
 
 ## Conventions
@@ -40,8 +49,9 @@ addresses instead, set `VMINTENT_API_SERVER_URLS` (comma-separated).
 - **Fields with no value are left out** of responses, never sent as `null`. Treat any field not marked
   required as optional.
 - **Errors** (every 4xx and 5xx) have the body `{"error": "...", "workflowId"?: "...", "rejected"?: [...]}`.
-  `400` is a bad body, `404` an unknown ID, `409` an identical VM already being built (legacy endpoint),
-  and `500` an unexpected error.
+  `400` is a bad body, `404` an unknown ID, `409` a change that can't be made now (the `error` says why:
+  a request not waiting for confirmation, a VM already off, an identical VM already built), and `500` an
+  unexpected error.
 - **Idempotency.** A VM's identity is the SHA-256 of its canonical spec (`specHash`). Sending the same
   spec again while it's being built, or after it's built, does not create a second VM: a batch counts it
   under `duplicate`, the legacy endpoint returns `409`, and a request finishes as `DUPLICATE`. It is safe
@@ -80,7 +90,7 @@ curl -s http://localhost:8080/api/v2/batches/batch-...
 Point any OpenAPI generator at `/v3/api-docs` (or `docs/openapi.yaml`):
 
 ```bash
-# TypeScript types (checked: generates all 12 operations)
+# TypeScript types (checked: generates all 21 operations)
 npx openapi-typescript http://localhost:8080/v3/api-docs -o vmintent-api.d.ts
 
 # Java, C#, Python, Go... with OpenAPI Generator
@@ -124,6 +134,6 @@ python tests/api_contract_test.py http://localhost:8080
 With sign-in on, give it an ADMIN credential: `VMINTENT_TOKEN=<token>`, or `VMINTENT_CLIENT_CERT`,
 `VMINTENT_CLIENT_KEY` and `VMINTENT_CA` for a certificate.
 
-It runs 21 checks: every operation, the full question, confirm and cancel flows, a batch, and the 400,
-404 and 409 error cases. Each request and response is validated against the live document. Run it in CI
+It runs 35 checks: every operation, the full question, confirm and cancel flows, a VM's day-2 changes, a
+batch, the inventory check, and the 400, 404 and 409 error cases. Each request and response is validated against the live document. Run it in CI
 after any API change.

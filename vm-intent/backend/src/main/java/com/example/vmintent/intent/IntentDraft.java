@@ -22,6 +22,8 @@ public class IntentDraft {
     public String env;
     public Integer ttlDays;
     public Boolean publicIp;
+    /** How many identical VMs ("3 web servers"); null = one. */
+    public Integer count;
     /** Set when the interpreter saw something it couldn't place and should ask about. */
     public String question;
     public List<String> notes = new ArrayList<>();

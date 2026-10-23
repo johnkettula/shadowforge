@@ -38,24 +38,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class BatchWorkflowTest {
 
     private TestWorkflowEnvironment env;
-    private FakeCloud cloud;
-    private FakeRecords records;
+    private TestFakes.FakeCloud cloud;
+    private TestFakes.FakeRecords records;
 
     @BeforeEach
     void setUp() {
         env = TestWorkflowEnvironment.newInstance();
-        cloud = new FakeCloud();
-        records = new FakeRecords();
-
-        Worker intent = env.newWorker(TaskQueues.INTENT);
-        intent.registerWorkflowImplementationTypes(
-                BatchProvisionWorkflowImpl.class, BatchShardWorkflowImpl.class, VmReconcileWorkflowImpl.class);
-        intent.registerActivitiesImplementations(records);
-        for (String p : TaskQueues.PROVIDERS) {
-            env.newWorker(TaskQueues.forProvider(p)).registerActivitiesImplementations(cloud);
-            env.newWorker(TaskQueues.readQueue(p)).registerActivitiesImplementations(cloud);
-        }
-        env.start();
+        cloud = new TestFakes.FakeCloud();
+        records = new TestFakes.FakeRecords();
+        TestFakes.startWorkers(env, cloud, records, new TestFakes.FakeLink());
     }
 
     @AfterEach
@@ -117,70 +108,7 @@ class BatchWorkflowTest {
         assertEquals(0, p.failed());
     }
 
-    // ------------------------------------------------------------------ helpers and fakes
-
     private static BatchItem item(String name, int i) {
-        String provider = TaskQueues.PROVIDERS[i % TaskQueues.PROVIDERS.length];
-        String region = "vsphere".equals(provider) ? "dc1" : "us-east";
-        VmSpec spec = new VmSpec(name, provider, region, 2, 4, "ubuntu", "24.04", 80, "ssd", "test", 1, false);
-        return new BatchItem(spec, SpecCanonicalizer.hash(spec));
-    }
-
-    /** A cloud where every VM is running on the second status check, unless its name contains "fail". */
-    static class FakeCloud implements ProviderActivities {
-        final AtomicInteger created = new AtomicInteger();
-        final AtomicInteger throttleFirstCreates = new AtomicInteger();
-        final Map<String, String> vmIdByKey = new ConcurrentHashMap<>();
-        final Map<String, String> nameById = new ConcurrentHashMap<>();
-        final Map<String, AtomicInteger> checks = new ConcurrentHashMap<>();
-        final Set<String> deleted = ConcurrentHashMap.newKeySet();
-
-        @Override
-        public ProviderPlan plan(VmSpec spec) {
-            return ProviderCatalog.plan(spec);
-        }
-
-        @Override
-        public String createVm(VmSpec spec, ProviderPlan plan, String key) {
-            if (throttleFirstCreates.getAndDecrement() > 0) {
-                throw ApplicationFailure.newFailure("Simulated throttling", "Throttled");
-            }
-            return vmIdByKey.computeIfAbsent(key, k -> {
-                created.incrementAndGet();
-                String id = "vm-" + k.substring(0, 8);
-                nameById.put(id, spec.name());
-                return id;
-            });
-        }
-
-        @Override
-        public VmStatus describeVm(String vmId) {
-            int n = checks.computeIfAbsent(vmId, k -> new AtomicInteger()).incrementAndGet();
-            if (n < 2) return new VmStatus("PENDING", null, "booting");
-            if (nameById.get(vmId).contains("fail")) return new VmStatus("FAILED", null, "boot failed");
-            return new VmStatus("RUNNING", "10.0.0." + n, "running");
-        }
-
-        @Override
-        public void deleteVm(String vmId) {
-            deleted.add(vmId);
-        }
-    }
-
-    /** Remembers audit events instead of writing them to Postgres. */
-    static class FakeRecords implements RecordActivities {
-        final Map<String, Set<String>> hashesByEvent = new ConcurrentHashMap<>();
-
-        @Override
-        public void save(String specHash, VmSpec spec, String state, String detail, VmResult result) {}
-
-        @Override
-        public void audit(String requestId, String specHash, String event, String actor, String detail) {
-            if (specHash != null) hashesByEvent.computeIfAbsent(event, e -> ConcurrentHashMap.newKeySet()).add(specHash);
-        }
-
-        int count(String event) {
-            return hashesByEvent.getOrDefault(event, Set.of()).size();
-        }
+        return TestFakes.item(name, i);
     }
 }

@@ -91,20 +91,61 @@ The badge on the request card shows where the request is. It updates by itself e
 
 A request waits for you twice: to answer a question if something is missing, and to confirm. After that it runs on its own.
 
-A request ends in one of four states:
+A request ends in one of five states:
 
 | Final state | What it means |
 | --- | --- |
-| COMPLETED | The VM was built and is running |
+| COMPLETED | The VM (or every VM, for a request for several) was built and is running |
+| PARTIAL | A request for several VMs where some were built and some failed (the failed ones were rolled back) |
 | FAILED | A build step failed. The half-built VM was rolled back (deleted) |
 | CANCELLED | You cancelled, or nobody answered or confirmed within 24 hours |
 | DUPLICATE | An identical VM (same spec hash) is already built or being built, so no second one was made |
 
-**Audit trail.** Open *Audit trail* on the card for a timed list of what happened and who did it. Events include REQUESTED, QUESTION_ASKED, ANSWERED, INTERPRETED, CONFIRMED, PROVISIONING, VM_CREATED, RUNNING, ROLLED_BACK, COMPLETED, FAILED, CANCELLED and DUPLICATE. The trail is kept in the database, so it survives restarts.
+**Confirming checks the spec.** **Looks right, build it** sends the spec hash you were looking at. If the request isn't waiting any more, or the spec isn't the one you saw, you get a message saying so instead of a build.
+
+**Audit trail.** Open *Audit trail* on the card for a timed list of what happened and who did it. Events include REQUESTED, QUESTION_ASKED, ANSWERED, INTERPRETED, CONFIRMED, PROVISIONING, VM_CREATED, RUNNING, ROLLED_BACK, COMPLETED, FAILED, CANCELLED and DUPLICATE, plus the lifecycle events below. The trail is kept in the database, so it survives restarts.
 
 **Workflow history.** Open *Workflow history* for the steps the workflow ran. Its **open workflow** link shows every step, with timings and retries, in the Temporal UI.
 
 **Duplicates are safe.** Submitting the same request again, even worded differently, never builds a second copy. That also makes it safe to retry if you aren't sure a request went through.
+
+**Finding a request again.** The *Requests* list shows recent requests, newest first. Pick *Mine*, *Waiting for confirmation* or *Failed* to filter it, and press **Open** to bring a request back onto the card.
+
+## Several VMs in one request
+
+Ask for a number of machines and you get that many: "3 small ubuntu web servers on gcp, called web" builds `web-01`, `web-02` and `web-03`. The summary starts with "3 ×" so you can check the count before you confirm. They're built side by side, at most five at a time, and each one is rolled back on its own if it fails. One request can ask for up to 20; for more, use a batch (below).
+
+Numbers that belong to something else aren't counts: "a RHEL 9 server" or "16 GB RAM server" is one VM.
+
+## Looking after a VM: expiry and changes
+
+Every VM gets an expiry date from its lifetime (dev 30 days, test 14, prod never, or what you asked for). The inventory's **Expires** column shows how long is left, in amber once the warning has gone out.
+
+- **Warning.** Three days before a VM expires (less for short-lived VMs), the owner is warned. The warning is recorded in the audit trail as EXPIRY_WARNING.
+- **Expiry.** When the time is up, the VM is removed and its state becomes DELETED.
+
+**Click a VM in the inventory** to open its panel. There you can:
+
+| Action | What it does |
+| --- | --- |
+| Renew +7 / +30 days | Push the expiry back. At most 90 days at a time, and never more than 365 days from today |
+| Resize | Change vCPU and memory. If the cloud refuses, nothing changes and you see why |
+| Power off / on | Stop or start the VM. It keeps its expiry date |
+| Take snapshot | Save a snapshot with a label (lowercase letters, digits and dashes) |
+| Remove this VM | Delete it now. It asks *Sure?* first, because this can't be undone |
+
+A change that can't be done (renewing a VM that never expires, powering off a VM that's already off) is refused straight away with the reason, and nothing happens to the VM. With sign-in on, only the VM's owner or an admin can change it.
+
+The same spec can be built again after it was removed; you get a new VM.
+
+## The nightly inventory check
+
+Every night at 02:00 UTC the app compares each cloud with its inventory. The *Inventory check* card shows the last result:
+
+- **Missing:** a VM the inventory says is running, but the cloud no longer has (someone deleted it by hand). It's marked MISSING.
+- **Unrecorded:** a VM in the cloud that the inventory never recorded. These are only listed, never deleted; deciding what to do is up to a person.
+
+Press **Run now** to check straight away (admins only when sign-in is on). Clouds reached over the one-way link to domain 3 are skipped. To change the time or pause it, use the Temporal UI's **Schedules** page.
 
 ## Building many VMs at once
 
@@ -134,7 +175,7 @@ The new VMs also appear in the web app's Inventory. The system has been load-tes
 
 **Legacy JSON API tab.** Older systems send a fixed JSON format to `/api/v1/vms`. This tab lets you try it: edit the sample JSON and press **POST /api/v1/vms**. It skips the plain-English step and goes straight to the build workflow. If an identical VM already exists, the answer is a 409 conflict instead of a second VM. The field names in the sample are placeholders, to be matched to the real legacy format later.
 
-**Inventory.** The bottom of the page lists the most recently changed VMs (up to 200) with name, platform, size, state and spec hash. VM states are PROVISIONING while it is built, RUNNING when ready, FAILED and DELETED (rolled back). For counts by state across every VM, use **GET /api/v2/stats** in Swagger.
+**Inventory.** The bottom of the page lists the most recently changed VMs (up to 200) with name, platform, size, state and spec hash. VM states are PROVISIONING while it is built, RUNNING when ready, FAILED (rolled back), DELETED (removed or expired) and MISSING (gone from its cloud). Click a VM to look after it (see above). For counts by state across every VM, use **GET /api/v2/stats** in Swagger.
 
 ## Sign-in and roles
 
@@ -147,9 +188,9 @@ Every caller has one of four roles. Each role includes the ones below it.
 
 | Role | Can |
 | --- | --- |
-| ADMIN | Everything, including cancelling anyone's request |
+| ADMIN | Everything, including cancelling anyone's request, changing anyone's VM and running the inventory check |
 | BATCH | Start batches and use the legacy JSON endpoint, plus everything READER can |
-| REQUESTER | Preview, create, answer, confirm and cancel **their own** requests, plus everything READER can |
+| REQUESTER | Preview, create, answer, confirm and cancel **their own** requests, look after **their own** VMs (renew, resize, power, snapshot, remove), plus everything READER can |
 | READER | Look only: inventory, stats, audit trail, request and batch status |
 
 With sign-in on, the audit trail records the real caller: a person's sign-in name, `app:<id>` for a service, or `pki:<name>` for a certificate. A missing or refused sign-in gets a 401 error, and a missing role gets 403. The message says why.

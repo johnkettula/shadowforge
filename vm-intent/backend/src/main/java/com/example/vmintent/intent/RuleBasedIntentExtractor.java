@@ -104,6 +104,15 @@ public class RuleBasedIntentExtractor implements IntentExtractor {
     /** "<place> region" where <place> isn't in the vocabulary. */
     private static final Pattern PLACE_REGION = Pattern.compile("(?:in|at)\\s+(?:the\\s+)?([a-z][a-z.' -]{1,30}?)'?s?\\s+region");
 
+    /**
+     * "3 web servers", "five ubuntu vms", "2x boxes": a number followed (within two words) by a word
+     * for a machine. The words in between can't be units, so "16 gb ram servers" isn't 16 VMs.
+     */
+    private static final Pattern COUNT = Pattern.compile(
+            "(?<![\\d.:/-])(?<!(?:rhel|rocky|debian|ubuntu|centos|windows|win|version|ver|v)\\s)(\\d{1,3})\\s*(?:x\\s+)?"
+                    + "((?:(?!(?:gb|gib|g|gigs?|gigabytes?|tb|mb|ram|memory|cores?|v?cpus?|vcores?|disks?|days?|weeks?|months?|hours?)\\b)[a-z][a-z-]*\\s+){0,2})"
+                    + "(?:vms?|virtual machines?|servers?|boxes|box|machines?|instances?|nodes?|hosts?)(?![a-z])");
+
     @Override
     public String name() {
         return "rules";
@@ -177,6 +186,7 @@ public class RuleBasedIntentExtractor implements IntentExtractor {
         readSizes(text, d);
         readOsVersion(text, d);
         readTtl(text, d);
+        readCount(text, d);
 
         if (text.matches(".*(no public|internal only|private ip|private only|not public).*")) {
             d.publicIp = false;
@@ -276,6 +286,15 @@ public class RuleBasedIntentExtractor implements IntentExtractor {
             d.ttlDays = 7;
         } else if (Vocabulary.containsWord(text, "permanent") || Vocabulary.containsWord(text, "long-lived")) {
             d.ttlDays = 0;
+        }
+    }
+
+    /** The LAST count wins, so "3 servers... make that 5 servers" means 5. */
+    private static void readCount(String text, IntentDraft d) {
+        Matcher m = COUNT.matcher(text);
+        while (m.find()) {
+            int n = Integer.parseInt(m.group(1));
+            if (n >= 1) d.count = n;
         }
     }
 

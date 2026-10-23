@@ -26,12 +26,18 @@ public final class PolicyDefaults {
     private static final Map<String, Integer> TTL_BY_ENV = Map.of(
             "dev", 30, "test", 14, "staging", 30, "prod", 0);
 
+    /** Most VMs one request can ask for. More than that is a batch (POST /api/v2/batches). */
+    public static final int MAX_COUNT = 20;
+
     private PolicyDefaults() {}
 
     /** Returns the question to ask if a required field is missing, otherwise null. */
     public static String missingQuestion(IntentDraft d) {
         if (d.provider == null) {
             return "Which platform should this run on: vSphere (on-prem), AWS, Azure or Google Cloud?";
+        }
+        if (d.count != null && d.count > MAX_COUNT) {
+            return "One request can build up to " + MAX_COUNT + " VMs (for more, use a batch). How many do you need?";
         }
         return d.question;
     }

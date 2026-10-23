@@ -33,14 +33,14 @@ Each role includes the ones below it.
 
 | vm-intent role | Entra app role (value) | Can |
 |---|---|---|
-| `ADMIN` | `VmIntent.Admin` | Everything, including changing anyone's request |
+| `ADMIN` | `VmIntent.Admin` | Everything, including changing anyone's request or VM, and running the inventory check |
 | `BATCH` | `VmIntent.Batch` | `POST /api/v2/batches`, `POST /api/v1/vms` (legacy), plus everything READER can |
-| `REQUESTER` | `VmIntent.Request` | Interpret, create, answer, confirm and cancel **their own** requests, plus READER |
+| `REQUESTER` | `VmIntent.Request` | Interpret, create, answer, confirm and cancel **their own** requests; renew, resize, power, snapshot and remove **their own** VMs; plus READER |
 | `READER` | `VmIntent.Read` | All `GET`s: inventory, stats, audit, request and batch status |
 
 - With Entra ID, roles come from the token's `roles` claim (app roles) and `scp` claim (delegated scopes with
   the same names). With client certificates, the allowlist gives each certificate its role.
-- **Only the requester** (or an ADMIN) can answer, confirm or cancel a request. Anyone else gets 403.
+- **Only the requester** (or an ADMIN) can answer, confirm or cancel a request, or change the VM it built. Anyone else gets 403.
 - **The audit trail records the signed-in caller**: a person's sign-in name, `app:<client-id>` for a service
   with an Entra token, or `pki:<name>` for a client certificate (the name from the allowlist).
   Any `userId` or `requestedBy` in the request body is ignored when sign-in is on.

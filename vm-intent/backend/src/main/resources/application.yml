@@ -85,6 +85,31 @@ vmintent:
     api-latency-ms: ${VMINTENT_SIM_LATENCY_MS:250}
     throttle-rate: ${VMINTENT_SIM_THROTTLE:0.02}   # share of cloud calls refused as "throttled"
 
+  # The one-way link to domain 3. See docs/ONE-WAY-LINK.md.
+  link:
+    # Clouds reached over the link instead of directly: comma-separated (aws,azure), or * for all.
+    # Empty (the default) = call every cloud directly, as on a single PC.
+    one-way-providers: ${VMINTENT_LINK_PROVIDERS:}
+    # Orders are written here as files; the link software carries them to domain 3.
+    outbox-dir: ${VMINTENT_LINK_OUTBOX:${user.home}/.vm-intent/link/outbox}
+    # The return link drops domain 3's answers here. Every process with workers must see the same folders.
+    inbox-dir: ${VMINTENT_LINK_INBOX:${user.home}/.vm-intent/link/inbox}
+    # How long a build waits for domain 3's answer before giving up and undoing.
+    reply-timeout-minutes: ${VMINTENT_LINK_REPLY_TIMEOUT:120}
+    # Answer the orders here, as a pretend domain 3, to try the link on one PC.
+    simulate-domain3: ${VMINTENT_LINK_SIMULATE:false}
+    simulated-build-seconds: 8
+
+  # The nightly check that every cloud still matches the inventory (a Temporal Schedule).
+  inventory-check:
+    enabled: ${VMINTENT_INVENTORY_CHECK:true}
+    cron: "${VMINTENT_INVENTORY_CHECK_CRON:0 2 * * *}"     # minute hour day month weekday: 02:00 every day
+    time-zone: ${VMINTENT_INVENTORY_CHECK_TZ:UTC}          # e.g. America/New_York
+
+  # Tag requests with VmRequester, VmState, ... so they can be listed and filtered.
+  # auto = set them up on the Temporal server if it allows; off = don't use them.
+  search-attributes: ${VMINTENT_SEARCH_ATTRIBUTES:auto}
+
   # Sign-in for the REST API. See docs/SECURITY.md.
   security:
     mode: ${VMINTENT_SECURITY_MODE:none}          # none | entra | pki | entra,pki

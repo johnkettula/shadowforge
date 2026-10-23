@@ -50,7 +50,60 @@ public final class ApiModels {
             @Schema(description = "Who is asking. Recorded in the audit trail.", example = "provisioning-service")
             String requestedBy) {}
 
+    @Schema(description = "Confirm the spec a request is waiting on.")
+    public record ConfirmBody(
+            @Schema(description = "The specHash you were shown. If given and it doesn't match, the confirmation is "
+                    + "refused (409), so nobody confirms a spec they didn't see.",
+                    example = "3af19a4e8492dc7edd60f92413fe0567546acd258f9c214eaebca7c4dd0d5d72")
+            String specHash) {}
+
+    // ------------------------------------------------------------------ VM lifecycle (day 2)
+
+    @Schema(description = "Push a VM's expiry back.")
+    public record RenewBody(
+            @Schema(description = "Days to add (1-90). The new expiry can't be more than 365 days from today.",
+                    requiredMode = Schema.RequiredMode.REQUIRED, example = "14")
+            int days) {}
+
+    @Schema(description = "A new size for a VM.")
+    public record ResizeBody(
+            @Schema(minimum = "1", maximum = "64", requiredMode = Schema.RequiredMode.REQUIRED, example = "4") int vcpu,
+            @Schema(minimum = "1", maximum = "512", requiredMode = Schema.RequiredMode.REQUIRED, example = "16") int memoryGiB) {}
+
+    @Schema(description = "Power a VM on or off.")
+    public record PowerBody(
+            @Schema(description = "true = on, false = off.", requiredMode = Schema.RequiredMode.REQUIRED, example = "false")
+            boolean on) {}
+
+    @Schema(description = "Take a snapshot of a VM.")
+    public record SnapshotBody(
+            @Schema(description = "Lowercase letters, digits and dashes, up to 40.", requiredMode = Schema.RequiredMode.REQUIRED,
+                    example = "before-upgrade")
+            String label) {}
+
+    @Schema(description = "Remove a VM now.")
+    public record DecommissionBody(
+            @Schema(description = "Why, for the audit trail.", example = "Project finished") String reason) {}
+
     // ------------------------------------------------------------------ responses
+
+    @Schema(description = "One request in a list.")
+    public record RequestSummary(
+            @Schema(example = "intent-3f2c9a1e-5b7d-4c1a-9e0f-2a6b8c4d1e7f") String requestId,
+            @Schema(description = "Last state the request reported.", example = "AWAITING_CONFIRMATION") String state,
+            @Schema(example = "jdoe") String requestedBy,
+            @Schema(example = "aws") String provider,
+            @Schema(example = "dev") String env,
+            String specHash,
+            @Schema(description = "ISO-8601 start time.") String startedAt,
+            @Schema(description = "ISO-8601 end time, or empty while it runs.") String closedAt,
+            @Schema(description = "Temporal's own status: RUNNING, COMPLETED, FAILED, TIMED_OUT, ...", example = "RUNNING")
+            String workflowStatus) {}
+
+    @Schema(description = "An inventory check was started.")
+    public record CheckStarted(
+            @Schema(example = "inventory-check-manual-1792800000000") String checkId) {}
+
 
     @Schema(description = "A request was started.")
     public record SubmitResponse(

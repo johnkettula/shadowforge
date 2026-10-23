@@ -6,12 +6,18 @@ import com.example.vmintent.workflow.Models.VmStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
+
 /**
  * Shared code for the four simulated clouds (see SimCloud).
  * To go live, replace a subclass's methods with real SDK calls, e.g. for AWS:
  *   createVm   -> Ec2Client.runInstances(...) with clientToken = idempotencyKey
  *   describeVm -> Ec2Client.describeInstances(...) and map the instance state
  *   deleteVm   -> Ec2Client.terminateInstances(...)
+ *   resizeVm   -> stopInstances, modifyInstanceAttribute(instanceType), startInstances
+ *   setPower   -> startInstances / stopInstances
+ *   snapshotVm -> createSnapshots(...) for the instance's volumes
+ *   listVmIds  -> describeInstances(...) filtered on a "managed-by=vm-intent" tag
  */
 public abstract class SimulatedProvider implements ProviderActivities {
 
@@ -47,5 +53,29 @@ public abstract class SimulatedProvider implements ProviderActivities {
     public void deleteVm(String vmId) {
         log.info("[{}] delete {} (compensation)", providerName(), vmId);
         cloud.delete(vmId);
+    }
+
+    @Override
+    public void resizeVm(String vmId, int vcpu, int memoryGiB) {
+        log.info("[{}] resize {} to {} vCPU / {} GiB", providerName(), vmId, vcpu, memoryGiB);
+        cloud.resize(vmId, vcpu, memoryGiB);
+    }
+
+    @Override
+    public void setPower(String vmId, boolean on) {
+        log.info("[{}] power {} {}", providerName(), on ? "on" : "off", vmId);
+        cloud.setPower(vmId, on);
+    }
+
+    @Override
+    public String snapshotVm(String vmId, String label) {
+        String id = cloud.snapshot(vmId, label);
+        log.info("[{}] snapshot {} of {} ({})", providerName(), id, vmId, label);
+        return id;
+    }
+
+    @Override
+    public List<String> listVmIds() {
+        return cloud.list(providerName());
     }
 }
