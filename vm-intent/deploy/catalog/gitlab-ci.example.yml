@@ -1,0 +1,22 @@
+# Example pipeline for a Git repository of catalog definitions (one YAML file each, in definitions/).
+# Merge requests are checked; merges to main are published. Who may approve a merge request is set
+# in the repository's protected-branch and approval rules: that review is the approval to publish.
+#
+# CI/CD variables: VMINTENT_URL, and VMINTENT_TOKEN (masked) for a service with the OPERATOR role.
+stages: [check, publish]
+
+check-definitions:
+  stage: check
+  image: curlimages/curl:8.10.1
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - sh deploy/catalog/publish.sh --check definitions/*.yaml
+
+publish-definitions:
+  stage: publish
+  image: curlimages/curl:8.10.1
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  script:
+    - sh deploy/catalog/publish.sh definitions/*.yaml

@@ -1,0 +1,47 @@
+# A small test install: one pod of each, sign-in off, a throwaway database password.
+#   kubectl create namespace vm-intent-dev
+#   kubectl apply -k deploy/kubernetes/overlays/dev
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: vm-intent-dev
+resources:
+  - ../../base
+secretGenerator:
+  - name: vm-intent-secrets
+    literals:
+      - db-password=vmintent-dev     # dev only: prod reads it from a file that isn't in Git
+configMapGenerator:
+  - name: vm-intent-config
+    behavior: merge
+    literals:
+      - VMINTENT_DB_URL=jdbc:postgresql://postgres.vm-intent-dev.svc.cluster.local:5432/vmintent
+      - VMINTENT_LINK_PROVIDERS=gcp
+      - VMINTENT_LINK_SIMULATE=true
+generatorOptions:
+  disableNameSuffixHash: false
+replicas:
+  - name: vm-intent-api
+    count: 1
+  - name: vm-intent-web
+    count: 1
+  - name: vm-intent-worker-workflows
+    count: 1
+  - name: vm-intent-worker-clouds
+    count: 1
+patches:
+  - target:
+      kind: HorizontalPodAutoscaler
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 3
+images:
+  - name: vm-intent-backend
+    newName: registry.example.com/vm-intent/backend
+    newTag: dev
+  - name: vm-intent-web
+    newName: registry.example.com/vm-intent/web
+    newTag: dev

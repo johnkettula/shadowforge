@@ -44,6 +44,24 @@ class ReplayTest {
         WorkflowReplayer.replayWorkflowExecution(history("reconcile-v1-completed"), VmReconcileWorkflowImpl.class);
     }
 
+    // Catalog runs recorded on a real Temporal server: a run resumed after a failed step, one torn
+    // down after a failed step, and one that waited for an approval.
+
+    @Test
+    void catalogRunResumedAfterAFailedStep() throws Exception {
+        WorkflowReplayer.replayWorkflowExecution(history("catalog-v1-resumed"), CatalogRunWorkflowImpl.class);
+    }
+
+    @Test
+    void catalogRunTornDown() throws Exception {
+        WorkflowReplayer.replayWorkflowExecution(history("catalog-v1-torn-down"), CatalogRunWorkflowImpl.class);
+    }
+
+    @Test
+    void catalogRunWithAnApproval() throws Exception {
+        WorkflowReplayer.replayWorkflowExecution(history("catalog-v1-approved"), CatalogRunWorkflowImpl.class);
+    }
+
     static WorkflowExecutionHistory history(String name) throws Exception {
         try (InputStream in = ReplayTest.class.getResourceAsStream("/histories/" + name + ".json")) {
             if (in == null) throw new IllegalStateException("missing history " + name);

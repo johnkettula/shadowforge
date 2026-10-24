@@ -31,6 +31,16 @@ public final class PolicyDefaults {
 
     private PolicyDefaults() {}
 
+    /** The OS version used when none is given (ubuntu 24.04, rhel 9, ...), or "" if unknown. */
+    public static String defaultOsVersion(String os) {
+        return os == null ? "" : OS_DEFAULT_VERSION.getOrDefault(os, "");
+    }
+
+    /** The lifetime in days used when none is given: by environment (prod = never expires). */
+    public static int defaultTtlDays(String env) {
+        return env == null ? 30 : TTL_BY_ENV.getOrDefault(env, 30);
+    }
+
     /** Returns the question to ask if a required field is missing, otherwise null. */
     public static String missingQuestion(IntentDraft d) {
         if (d.provider == null) {

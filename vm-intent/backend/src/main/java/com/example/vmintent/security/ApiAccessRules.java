@@ -10,19 +10,27 @@ import java.util.List;
  *
  * Roles, from most to least powerful (each includes the ones below it):
  *   ADMIN      everything
+ *   OPERATOR   technical operators: publish and retire catalog definitions, and resume or tear down
+ *              anyone's catalog run; includes REQUESTER
+ *   AUDITOR    the decision log, the history archive and audit replays; includes READER
  *   BATCH      bulk and legacy creation, for services; includes READER
- *   REQUESTER  one-at-a-time requests (interpret, create, answer, confirm, cancel) and changes to
- *              their own VMs (renew, resize, power, snapshot, remove); includes READER
- *   READER     read-only: inventory, stats, audit, request and batch status
+ *   REQUESTER  one-at-a-time requests (interpret, create, answer, confirm, cancel), catalog runs, and
+ *              changes to their own VMs and runs (renew, resize, power, snapshot, remove, resume,
+ *              tear down, approve someone else's run); includes READER
+ *   READER     read-only: inventory, stats, audit trail, request, batch, definition and run status
  */
 public final class ApiAccessRules {
 
-    public enum Role { ADMIN, BATCH, REQUESTER, READER }
+    public enum Role { ADMIN, OPERATOR, AUDITOR, BATCH, REQUESTER, READER }
 
     /** Role hierarchy in Spring Security's notation. */
     public static final String HIERARCHY = """
+            ROLE_ADMIN > ROLE_OPERATOR
+            ROLE_ADMIN > ROLE_AUDITOR
             ROLE_ADMIN > ROLE_BATCH
             ROLE_ADMIN > ROLE_REQUESTER
+            ROLE_OPERATOR > ROLE_REQUESTER
+            ROLE_AUDITOR > ROLE_READER
             ROLE_BATCH > ROLE_READER
             ROLE_REQUESTER > ROLE_READER
             """;
@@ -45,6 +53,19 @@ public final class ApiAccessRules {
             new Rule(HttpMethod.POST, "/api/v2/vms/*/snapshot", Role.REQUESTER),
             new Rule(HttpMethod.POST, "/api/v2/vms/*/decommission", Role.REQUESTER),
             new Rule(HttpMethod.POST, "/api/v2/inventory-checks", Role.ADMIN),
+            // The catalog: operators publish definitions; requesters start runs and look after their own.
+            new Rule(HttpMethod.POST, "/api/v2/definitions/validate", Role.REQUESTER),
+            new Rule(HttpMethod.POST, "/api/v2/definitions", Role.OPERATOR),
+            new Rule(HttpMethod.POST, "/api/v2/definitions/**", Role.OPERATOR),
+            new Rule(HttpMethod.POST, "/api/v2/runs", Role.REQUESTER),
+            // Resume and tear down: the run's requester (checked in CatalogController) or an operator.
+            new Rule(HttpMethod.POST, "/api/v2/runs/*/resume", Role.REQUESTER),
+            new Rule(HttpMethod.POST, "/api/v2/runs/*/teardown", Role.REQUESTER),
+            new Rule(HttpMethod.POST, "/api/v2/runs/*/approve", Role.REQUESTER),
+            // Compliance: the decision log, the archive and audit replays.
+            new Rule(HttpMethod.GET, "/api/v2/compliance/**", Role.AUDITOR),
+            new Rule(HttpMethod.POST, "/api/v2/compliance/sweeps", Role.ADMIN),
+            new Rule(HttpMethod.POST, "/api/v2/compliance/**", Role.AUDITOR),
             new Rule(HttpMethod.GET, "/api/**", Role.READER));
 
     /** Always open, so callers can discover the API before they have a token. */

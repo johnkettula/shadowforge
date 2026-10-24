@@ -56,11 +56,14 @@ public class VmController {
     private final WorkflowClient client;
     private final VmRegistry registry;
     private final InventoryActivitiesImpl inventory;
+    private final com.example.vmintent.audit.DecisionLog decisions;
 
-    public VmController(WorkflowClient client, VmRegistry registry, InventoryActivitiesImpl inventory) {
+    public VmController(WorkflowClient client, VmRegistry registry, InventoryActivitiesImpl inventory,
+                        com.example.vmintent.audit.DecisionLog decisions) {
         this.client = client;
         this.registry = registry;
         this.inventory = inventory;
+        this.decisions = decisions;
     }
 
     // ------------------------------------------------------------------ lifecycle
@@ -179,7 +182,10 @@ public class VmController {
         } catch (WorkflowNotFoundException e) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, gone(specHash));
         }
-        if (owner != null && !owner.equals(me)) {
+        boolean allowed = owner == null || owner.equals(me);
+        decisions.record(me, String.join(",", Caller.roles()), "vm.change", "vm/" + specHash, allowed, "VM owner or ADMIN",
+                allowed ? "owns the VM" : "the VM belongs to " + owner, null);
+        if (!allowed) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the VM's owner, or an admin, can change it.");
         }
     }

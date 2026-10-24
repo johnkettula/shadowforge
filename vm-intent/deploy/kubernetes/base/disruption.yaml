@@ -1,0 +1,30 @@
+# Node drains and upgrades take pods away one at a time.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: vm-intent-api
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vm-intent-api
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: vm-intent-worker-workflows
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vm-intent-worker-workflows
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: vm-intent-worker-clouds
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vm-intent-worker-clouds

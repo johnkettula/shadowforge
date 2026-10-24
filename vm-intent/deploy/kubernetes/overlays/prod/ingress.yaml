@@ -1,0 +1,21 @@
+# The web app (and through it the API) at https://vm-intent.example.com.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vm-intent
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [vm-intent.example.com]
+      secretName: vm-intent-tls
+  rules:
+    - host: vm-intent.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: vm-intent-web
+                port:
+                  name: http

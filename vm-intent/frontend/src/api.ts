@@ -111,6 +111,138 @@ export interface AuditEvent {
   detail: string | null;
 }
 
+// ------------------------------------------------------------------ catalog (CatalogModels.java)
+
+export interface DefinitionEntry {
+  kind: "Provisioning" | "Blueprint";
+  name: string;
+  version: number;
+  description?: string;
+  sha256: string;
+  publishedBy: string;
+  publishedAt: string;
+  retired: boolean;
+}
+
+export interface InputDef {
+  name: string;
+  type: "string" | "int" | "bool" | "list";
+  description?: string;
+  required: boolean;
+  defaultValue?: unknown;
+  allowed?: unknown[];
+}
+
+export interface StepDef {
+  id: string;
+  action: string;
+  title?: string;
+  when?: string;
+}
+
+export interface Definition {
+  name: string;
+  version: number;
+  description?: string;
+  owner?: string;
+  classification?: string;
+  blueprint?: string;
+  inputs: InputDef[];
+  steps: StepDef[];
+  recoveryWaitHours: number;
+}
+
+export interface DefinitionView {
+  entry: DefinitionEntry;
+  definition?: Definition;
+  yaml: string;
+}
+
+export interface Classification {
+  code: string;
+  label: string;
+  retentionYears: number;
+}
+
+export interface StepState {
+  id: string;
+  action: string;
+  title: string;
+  state: string;
+  attempts: number;
+  output?: Record<string, unknown>;
+  error?: string;
+  startedAt?: string;
+  finishedAt?: string;
+}
+
+export interface RunStatus {
+  runId: string;
+  definition: string;
+  version: number;
+  state: string;
+  message: string;
+  requestedBy: string;
+  classification: Classification;
+  params: Record<string, unknown>;
+  steps: StepState[];
+  failedStep?: string;
+  recoveryDeadline?: string;
+  approval?: { step: string; message: string; approvers: string[]; deadline: string };
+  history: string[];
+}
+
+export interface RunRow {
+  runId: string;
+  definition: string;
+  version: number;
+  classification: string;
+  requestedBy: string;
+  state: string;
+  startedAt: string;
+  finishedAt?: string;
+}
+
+export interface Decision {
+  id: number;
+  at: string;
+  actor: string;
+  roles?: string;
+  action: string;
+  resource?: string;
+  decision: "ALLOW" | "DENY";
+  policy: string;
+  reason?: string;
+  classification: string;
+  keepUntil: string;
+}
+
+export interface ArchiveRow {
+  workflowId: string;
+  runId: string;
+  workflowType: string;
+  classification: string;
+  retentionYears: number;
+  closedAt: string;
+  archivedAt: string;
+  keepUntil: string;
+  sha256: string;
+  sizeBytes: number;
+  events: number;
+  expiredAt?: string;
+}
+
+export interface ReplayResult {
+  workflowId: string;
+  runId: string;
+  workflowType: string;
+  source: "archive" | "temporal";
+  events: number;
+  sha256?: string;
+  matches: boolean;
+  problem?: string;
+}
+
 async function call<T>(method: string, url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
     method,
@@ -152,4 +284,27 @@ export const api = {
     call<VmLifecycle>("POST", `/api/v2/vms/${hash}/decommission`, { reason }),
   inventoryChecks: () => call<InventoryReport[]>("GET", "/api/v2/inventory-checks?limit=1"),
   runInventoryCheck: () => call<{ checkId: string }>("POST", "/api/v2/inventory-checks"),
+
+  definitions: () => call<DefinitionEntry[]>("GET", "/api/v2/definitions"),
+  definition: (name: string) => call<DefinitionView>("GET", `/api/v2/definitions/Provisioning/${encodeURIComponent(name)}`),
+  classifications: () => call<{ default: string; classifications: Classification[] }>("GET", "/api/v2/classifications"),
+  startRun: (definition: string, params: Record<string, unknown>, classification?: string) =>
+    call<{ runId: string; existing: boolean; status: RunStatus }>("POST", "/api/v2/runs", {
+      definition,
+      params,
+      classification: classification || null,
+    }),
+  runs: () => call<RunRow[]>("GET", "/api/v2/runs?limit=15"),
+  run: (id: string) => call<RunStatus>("GET", `/api/v2/runs/${id}`),
+  resume: (id: string, note: string) => call<RunStatus>("POST", `/api/v2/runs/${id}/resume`, { note }),
+  teardown: (id: string, reason: string) => call<RunStatus>("POST", `/api/v2/runs/${id}/teardown`, { reason }),
+  approve: (id: string, approved: boolean, note: string) =>
+    call<RunStatus>("POST", `/api/v2/runs/${id}/approve`, { approved, note }),
+
+  decisions: (resource: string) =>
+    call<Decision[]>("GET", `/api/v2/compliance/decisions?limit=30${resource ? "&resource=" + encodeURIComponent(resource) : ""}`),
+  archive: () => call<ArchiveRow[]>("GET", "/api/v2/compliance/archive?limit=30"),
+  replay: (workflowId: string, runId?: string) =>
+    call<ReplayResult>("POST", "/api/v2/compliance/replays", { workflowId, runId: runId ?? null }),
+  sweep: () => call<{ workflowId: string }>("POST", "/api/v2/compliance/sweeps"),
 };

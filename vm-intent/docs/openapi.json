@@ -6,7 +6,7 @@
     "license": {
       "name": "Internal use"
     },
-    "version": "2.0.0"
+    "version": "2.1.0"
   },
   "servers": [
     {
@@ -361,6 +361,335 @@
           },
           "409": {
             "description": "Refused: the VM isn't in a state that allows this (the message says why)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/runs": {
+      "get": {
+        "tags": [
+          "Catalog runs"
+        ],
+        "summary": "Recent runs",
+        "description": "Newest first, from the run records.\n\n**Required role:** READER (when sign-in is on; it is currently off)",
+        "operationId": "listRuns",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          },
+          {
+            "name": "definition",
+            "in": "query",
+            "description": "Only this definition",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Only this state",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RunRow"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Catalog runs"
+        ],
+        "summary": "Start a run of a definition",
+        "description": "Checks the inputs, fills in defaults and starts the run. The run's ID comes from the definition version and the inputs, so sending the same thing again finds the run already going (200, existing=true) instead of starting a second one.\n\n**Required role:** REQUESTER (when sign-in is on; it is currently off)",
+        "operationId": "startRun",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunStarted"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "A run with the same definition version and inputs is already going",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunStarted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad inputs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such definition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/runs/{runId}/teardown": {
+      "post": {
+        "tags": [
+          "Catalog runs"
+        ],
+        "summary": "Tear a run down",
+        "description": "Undoes everything the run did, newest step first (including the failed step's partial work). For a run stopped after a failure or waiting for an approval. The run's requester or an operator.\n\n**Required role:** REQUESTER (when sign-in is on; it is currently off)",
+        "operationId": "teardownRun",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TeardownBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "409": {
+            "description": "Not in a state that can be torn down",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/runs/{runId}/resume": {
+      "post": {
+        "tags": [
+          "Catalog runs"
+        ],
+        "summary": "Resume a stopped run",
+        "description": "Runs the failed step again (it picks up whatever its last try did), then carries on. The run's requester or an operator. 409 if the run isn't stopped after a failure.\n\n**Required role:** REQUESTER (when sign-in is on; it is currently off)",
+        "operationId": "resumeRun",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResumeBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "409": {
+            "description": "Not stopped",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/runs/{runId}/approve": {
+      "post": {
+        "tags": [
+          "Catalog runs"
+        ],
+        "summary": "Approve or reject a waiting step",
+        "description": "Anyone but the run's requester, and only someone on the step's approvers list if it has one.\n\n**Required role:** REQUESTER (when sign-in is on; it is currently off)",
+        "operationId": "approveRun",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "403": {
+            "description": "Not allowed to answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not waiting for an approval",
             "content": {
               "application/json": {
                 "schema": {
@@ -877,6 +1206,376 @@
         }
       }
     },
+    "/api/v2/definitions": {
+      "get": {
+        "tags": [
+          "Catalog"
+        ],
+        "summary": "List definitions and blueprints",
+        "description": "The newest version of each, or every version with all=true.\n\n**Required role:** READER (when sign-in is on; it is currently off)",
+        "operationId": "listDefinitions",
+        "parameters": [
+          {
+            "name": "all",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Entry"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Catalog"
+        ],
+        "summary": "Publish a definition sent as JSON",
+        "description": "Operators only. A published version never changes: publish a higher version to change it. Publishing the same version with the same content again does nothing (UNCHANGED), so a pipeline can publish every file on every merge.\n\n**Required role:** OPERATOR (when sign-in is on; it is currently off)",
+        "operationId": "publishDefinitionJson",
+        "requestBody": {
+          "content": {
+            "application/yaml": {
+              "schema": {
+                "type": "string"
+              }
+            },
+            "text/yaml": {
+              "schema": {
+                "type": "string"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YamlBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Published",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishResult"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Already published, unchanged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Refused: the problems are listed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/definitions/{kind}/{name}/{version}/retire": {
+      "post": {
+        "tags": [
+          "Catalog"
+        ],
+        "summary": "Retire a version",
+        "description": "No new runs of it; runs already going carry on. retired=false brings it back.\n\n**Required role:** OPERATOR (when sign-in is on; it is currently off)",
+        "operationId": "retireDefinition",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetireBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DefinitionView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/definitions/validate": {
+      "post": {
+        "tags": [
+          "Catalog"
+        ],
+        "summary": "Check a definition sent as JSON",
+        "description": "Send the YAML (Content-Type: application/yaml or text/plain), or JSON {\"yaml\": \"...\"}. Every problem is listed at once: names, actions and their settings, every CEL expression, and that steps only read earlier steps. Used by the Git pipeline before a merge.\n\n**Required role:** REQUESTER (when sign-in is on; it is currently off)",
+        "operationId": "validateDefinitionJson",
+        "requestBody": {
+          "content": {
+            "application/yaml": {
+              "schema": {
+                "type": "string"
+              }
+            },
+            "text/yaml": {
+              "schema": {
+                "type": "string"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YamlBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/compliance/sweeps": {
+      "post": {
+        "tags": [
+          "Compliance"
+        ],
+        "summary": "Run the archive sweep now",
+        "description": "Copies closed histories to the archive and removes what is past its retention. It also runs every hour on the vm-archive-sweep schedule.\n\n**Required role:** ADMIN (when sign-in is on; it is currently off)",
+        "operationId": "runArchiveSweep",
+        "responses": {
+          "202": {
+            "description": "Started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SweepStarted"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/compliance/replays": {
+      "post": {
+        "tags": [
+          "Compliance"
+        ],
+        "summary": "Replay a recorded workflow for audit",
+        "description": "Runs today's code against the recorded history without doing anything again: no cloud calls, no files, no database writes. matches=true shows the recorded run is exactly what this code does. Uses the archive (SHA-256 checked) or, if it isn't archived yet, Temporal.\n\n**Required role:** AUDITOR (when sign-in is on; it is currently off)",
+        "operationId": "replayWorkflow",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplayBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The result (matches true or false)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such workflow in the archive or Temporal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v2/batches": {
       "post": {
         "tags": [
@@ -1111,6 +1810,48 @@
         }
       }
     },
+    "/api/v2/runs/{runId}": {
+      "get": {
+        "tags": [
+          "Catalog runs"
+        ],
+        "summary": "Get a run",
+        "description": "Live from the run's workflow: every step, what it produced, and what the run is waiting for.\n\n**Required role:** READER (when sign-in is on; it is currently off)",
+        "operationId": "getRun",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "404": {
+            "description": "No such run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v2/requests/{id}": {
       "get": {
         "tags": [
@@ -1147,6 +1888,304 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/definitions/{kind}/{name}": {
+      "get": {
+        "tags": [
+          "Catalog"
+        ],
+        "summary": "Get one definition or blueprint",
+        "description": "kind = Provisioning or Blueprint. version 0 (the default) = the newest.\n\n**Required role:** READER (when sign-in is on; it is currently off)",
+        "operationId": "getDefinition",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The definition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DefinitionView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not published",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/compliance/decisions": {
+      "get": {
+        "tags": [
+          "Compliance"
+        ],
+        "summary": "The decision log",
+        "description": "Every authorization decision, newest first: who asked to do what, ALLOW or DENY, and the rule that decided. Each is kept for its classification's retention.\n\n**Required role:** AUDITOR (when sign-in is on; it is currently off)",
+        "operationId": "listDecisions",
+        "parameters": [
+          {
+            "name": "actor",
+            "in": "query",
+            "description": "Only this person or service",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resource",
+            "in": "query",
+            "description": "Only resources starting with this, e.g. a run ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "decision",
+            "in": "query",
+            "description": "ALLOW or DENY",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Decision"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/compliance/archive": {
+      "get": {
+        "tags": [
+          "Compliance"
+        ],
+        "summary": "Archived histories",
+        "description": "Newest first.\n\n**Required role:** AUDITOR (when sign-in is on; it is currently off)",
+        "operationId": "listArchive",
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "classification",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ArchiveRow"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/compliance/archive/{workflowId}/{runId}": {
+      "get": {
+        "tags": [
+          "Compliance"
+        ],
+        "summary": "Download an archived history",
+        "description": "The history JSON, as \"temporal workflow show --output json\" writes it. Its SHA-256 is checked first.\n\n**Required role:** AUDITOR (when sign-in is on; it is currently off)",
+        "operationId": "downloadArchivedHistory",
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The history",
+            "content": {
+              "application/json": {}
+            }
+          },
+          "404": {
+            "description": "Not archived, or past its retention",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/classifications": {
+      "get": {
+        "tags": [
+          "Catalog"
+        ],
+        "summary": "Data classifications",
+        "description": "Each code, its text, and how many years runs with it are kept. The first one marked default applies when neither the run nor its definition gives one.\n\n**Required role:** READER (when sign-in is on; it is currently off)",
+        "operationId": "listClassifications",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object"
+                  }
                 }
               }
             }
@@ -1468,6 +2507,258 @@
         },
         "description": "Remove a VM now."
       },
+      "RunBody": {
+        "required": [
+          "definition"
+        ],
+        "type": "object",
+        "properties": {
+          "definition": {
+            "type": "string",
+            "example": "web-server"
+          },
+          "version": {
+            "type": "integer",
+            "description": "A version; empty = the newest that isn't retired.",
+            "format": "int32",
+            "example": 1
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "description": "The definition's inputs.",
+              "example": {
+                "app": "shop",
+                "env": "dev"
+              }
+            },
+            "description": "The definition's inputs.",
+            "example": {
+              "app": "shop",
+              "env": "dev"
+            }
+          },
+          "classification": {
+            "type": "string",
+            "description": "Data classification code; empty = the definition's. Can raise the definition's retention, not lower it.",
+            "example": "C3"
+          },
+          "requestedBy": {
+            "type": "string",
+            "description": "Who is asking, when sign-in is off.",
+            "example": "jdoe"
+          }
+        },
+        "description": "Start a run of a definition."
+      },
+      "Approval": {
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "approvers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "deadline": {
+            "type": "string"
+          }
+        },
+        "description": "An approval step that is waiting."
+      },
+      "Classification": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "C3"
+          },
+          "label": {
+            "type": "string",
+            "example": "Confidential"
+          },
+          "retentionYears": {
+            "type": "integer",
+            "description": "Years to keep histories and decision logs (1-5).",
+            "format": "int32",
+            "example": 3
+          }
+        },
+        "description": "A data classification: a code with its text. The code decides how long the run, its history and its access decisions are kept."
+      },
+      "RunStarted": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string"
+          },
+          "existing": {
+            "type": "boolean",
+            "description": "true = a run with these inputs already existed"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus"
+          }
+        },
+        "description": "A run that has started, or the one already running with the same inputs."
+      },
+      "RunStatus": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "example": "run-web-server-3f2a9c41d07e5b18"
+          },
+          "definition": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "RUNNING",
+              "AWAITING_RECOVERY",
+              "AWAITING_APPROVAL",
+              "TEARING_DOWN",
+              "COMPLETED",
+              "TORN_DOWN",
+              "TEARDOWN_INCOMPLETE"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "requestedBy": {
+            "type": "string"
+          },
+          "classification": {
+            "$ref": "#/components/schemas/Classification"
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object"
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StepState"
+            }
+          },
+          "failedStep": {
+            "type": "string",
+            "description": "The step that failed, while waiting for a decision."
+          },
+          "recoveryDeadline": {
+            "type": "string",
+            "description": "When the run tears itself down if nobody decides (ISO-8601)."
+          },
+          "approval": {
+            "$ref": "#/components/schemas/Approval"
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "description": "Where one catalog run is."
+      },
+      "StepState": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "RUNNING",
+              "DONE",
+              "SKIPPED",
+              "FAILED",
+              "UNDONE",
+              "UNDO_FAILED"
+            ]
+          },
+          "attempts": {
+            "type": "integer",
+            "description": "Tries so far, counting every resume.",
+            "format": "int32"
+          },
+          "output": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "description": "What the step produced; later steps read it as steps.<id>."
+            },
+            "description": "What the step produced; later steps read it as steps.<id>."
+          },
+          "error": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string"
+          },
+          "finishedAt": {
+            "type": "string"
+          }
+        },
+        "description": "One step of a run."
+      },
+      "TeardownBody": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "example": "not needed any more"
+          }
+        }
+      },
+      "ResumeBody": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "description": "Why, or what was fixed.",
+            "example": "the site files are in the store now"
+          }
+        }
+      },
+      "ApproveBody": {
+        "required": [
+          "approved"
+        ],
+        "type": "object",
+        "properties": {
+          "approved": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string",
+            "example": "change ticket CHG-1234"
+          }
+        }
+      },
       "TextBody": {
         "required": [
           "text"
@@ -1765,6 +3056,392 @@
         },
         "description": "An inventory check was started."
       },
+      "PublishResult": {
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "PUBLISHED",
+              "UNCHANGED",
+              "REFUSED"
+            ]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "problems": {
+            "type": "array",
+            "description": "Why it was refused: every problem found, each as 'where: what'.",
+            "items": {
+              "type": "string",
+              "description": "Why it was refused: every problem found, each as 'where: what'."
+            }
+          }
+        },
+        "description": "What publishing did."
+      },
+      "YamlBody": {
+        "required": [
+          "yaml"
+        ],
+        "type": "object",
+        "properties": {
+          "yaml": {
+            "type": "string"
+          }
+        },
+        "description": "A definition as YAML, for clients that can only send JSON."
+      },
+      "RetireBody": {
+        "type": "object",
+        "properties": {
+          "retired": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "description": "Stop (or allow again) new runs of one version."
+      },
+      "Blueprint": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "standard-vm"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "description": {
+            "type": "string"
+          },
+          "appliesWhen": {
+            "type": "string",
+            "description": "CEL condition: the blueprint also applies to every catalog VM for which this is true. Empty = only to definitions that name it."
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BlueprintRule"
+            }
+          },
+          "sourceSha256": {
+            "type": "string"
+          }
+        },
+        "description": "A blueprint: rules (CEL conditions) that a VM spec must pass before it's built."
+      },
+      "BlueprintRule": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "prod-needs-two-cpus"
+          },
+          "check": {
+            "type": "string",
+            "description": "CEL condition that must be true.",
+            "example": "spec.env != 'prod' || spec.vcpu >= 2"
+          },
+          "message": {
+            "type": "string",
+            "example": "Production VMs need at least 2 vCPU."
+          }
+        }
+      },
+      "Definition": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "web-server"
+          },
+          "version": {
+            "type": "integer",
+            "description": "Goes up by one each time it's published.",
+            "format": "int32",
+            "example": 3
+          },
+          "description": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string",
+            "description": "Who looks after this definition (team or person).",
+            "example": "platform-team"
+          },
+          "classification": {
+            "type": "string",
+            "description": "Default data classification code for its runs.",
+            "example": "C3"
+          },
+          "blueprint": {
+            "type": "string",
+            "description": "Blueprint whose rules every VM it builds must pass, or empty.",
+            "example": "standard-vm"
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InputDef"
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StepDef"
+            }
+          },
+          "recoveryWaitHours": {
+            "type": "integer",
+            "description": "Hours a failed run waits for Resume or Tear down before it tears itself down (1-72).",
+            "format": "int32",
+            "example": 72
+          },
+          "sourceSha256": {
+            "type": "string",
+            "description": "SHA-256 of the YAML it was read from."
+          }
+        },
+        "description": "A provisioning definition: the inputs it takes and the steps it runs, in order."
+      },
+      "DefinitionView": {
+        "type": "object",
+        "properties": {
+          "entry": {
+            "$ref": "#/components/schemas/Entry"
+          },
+          "definition": {
+            "$ref": "#/components/schemas/Definition"
+          },
+          "blueprint": {
+            "$ref": "#/components/schemas/Blueprint"
+          },
+          "yaml": {
+            "type": "string"
+          }
+        },
+        "description": "A published version, as data and as the YAML it was published from."
+      },
+      "Entry": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "Provisioning",
+              "Blueprint"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "description": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "publishedBy": {
+            "type": "string"
+          },
+          "publishedAt": {
+            "type": "string"
+          },
+          "retired": {
+            "type": "boolean"
+          }
+        },
+        "description": "One published version."
+      },
+      "InputDef": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "size"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "string",
+              "int",
+              "bool",
+              "list"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "defaultValue": {
+            "type": "object",
+            "description": "Used when the input isn't given."
+          },
+          "allowed": {
+            "type": "array",
+            "description": "If set, the value must be one of these.",
+            "items": {
+              "type": "object",
+              "description": "If set, the value must be one of these."
+            }
+          }
+        },
+        "description": "One input a definition takes."
+      },
+      "StepDef": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "create"
+          },
+          "action": {
+            "type": "string",
+            "example": "vm.create"
+          },
+          "title": {
+            "type": "string",
+            "description": "Shown in the run's step list.",
+            "example": "Build the VM"
+          },
+          "when": {
+            "type": "string",
+            "description": "CEL condition; the step is skipped when it's false."
+          },
+          "with": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object"
+            }
+          },
+          "attempts": {
+            "type": "integer",
+            "description": "Tries before the run stops and waits for a decision (1-10).",
+            "format": "int32",
+            "example": 3
+          },
+          "timeoutMinutes": {
+            "type": "integer",
+            "description": "Longest one try may take, in minutes.",
+            "format": "int32",
+            "example": 30
+          }
+        },
+        "description": "One step of a definition."
+      },
+      "ValidationResult": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "problems": {
+            "type": "array",
+            "description": "Every problem, each as 'where: what'.",
+            "items": {
+              "type": "string",
+              "description": "Every problem, each as 'where: what'."
+            }
+          }
+        },
+        "description": "What checking a definition found."
+      },
+      "SweepStarted": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string"
+          }
+        }
+      },
+      "ReplayBody": {
+        "required": [
+          "workflowId"
+        ],
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "example": "run-web-server-3f2a9c41d07e"
+          },
+          "runId": {
+            "type": "string",
+            "description": "A run; empty = the newest archived one, else the newest in Temporal."
+          }
+        },
+        "description": "Replay a recorded workflow."
+      },
+      "ReplayResult": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "workflowType": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "archive",
+              "temporal"
+            ]
+          },
+          "events": {
+            "type": "integer",
+            "description": "Events in the history.",
+            "format": "int32"
+          },
+          "sha256": {
+            "type": "string",
+            "description": "SHA-256 of the archived file, checked before the replay."
+          },
+          "matches": {
+            "type": "boolean",
+            "description": "true = today's code makes exactly the decisions recorded in the history."
+          },
+          "problem": {
+            "type": "string",
+            "description": "Where and why it differs, if it does."
+          },
+          "replayedAt": {
+            "type": "string"
+          },
+          "replayedBy": {
+            "type": "string"
+          }
+        },
+        "description": "What an audit replay found."
+      },
       "BatchBody": {
         "required": [
           "items"
@@ -1999,6 +3676,43 @@
         },
         "description": "Inventory counts."
       },
+      "RunRow": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string"
+          },
+          "temporalRunId": {
+            "type": "string"
+          },
+          "definition": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "classification": {
+            "type": "string"
+          },
+          "requestedBy": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "finishedAt": {
+            "type": "string"
+          }
+        },
+        "description": "A run, as recorded (also after Temporal has removed it)."
+      },
       "RequestSummary": {
         "type": "object",
         "properties": {
@@ -2103,6 +3817,105 @@
           }
         },
         "description": "The result of one inventory check."
+      },
+      "Decision": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "at": {
+            "type": "string",
+            "description": "ISO-8601 time."
+          },
+          "actor": {
+            "type": "string",
+            "example": "jdoe@example.com"
+          },
+          "roles": {
+            "type": "string",
+            "example": "REQUESTER"
+          },
+          "action": {
+            "type": "string",
+            "example": "POST /api/v2/runs/run-web-server-3f2a9c41d07e/resume"
+          },
+          "resource": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "ALLOW",
+              "DENY"
+            ]
+          },
+          "policy": {
+            "type": "string",
+            "description": "The rule that decided.",
+            "example": "role rule: REQUESTER"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "classification": {
+            "type": "string",
+            "example": "C3"
+          },
+          "keepUntil": {
+            "type": "string",
+            "description": "Removed after this time (ISO-8601)."
+          }
+        },
+        "description": "One authorization decision."
+      },
+      "ArchiveRow": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "workflowType": {
+            "type": "string"
+          },
+          "classification": {
+            "type": "string"
+          },
+          "retentionYears": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "closedAt": {
+            "type": "string"
+          },
+          "archivedAt": {
+            "type": "string"
+          },
+          "keepUntil": {
+            "type": "string",
+            "description": "Removed after this time."
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "events": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "expiredAt": {
+            "type": "string",
+            "description": "Set when the file was removed at the end of its retention."
+          }
+        },
+        "description": "One archived workflow history."
       },
       "BatchStatus": {
         "type": "object",

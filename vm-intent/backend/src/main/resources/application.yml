@@ -61,6 +61,9 @@ vmintent:
 
   # How much work each worker process takes on. See config/WorkerTuning.java.
   workers:
+    # Task queues this process works on, comma-separated (intent-q, aws-q, aws-read-q, ...). Empty = all.
+    # On Kubernetes each kind of pod gets its own (deploy/kubernetes).
+    queues: ${VMINTENT_WORKER_QUEUES:}
     virtual-threads: true
     intent:
       max-workflow-tasks: 200     # workflow steps run at once, per process
@@ -106,6 +109,37 @@ vmintent:
     cron: "${VMINTENT_INVENTORY_CHECK_CRON:0 2 * * *}"     # minute hour day month weekday: 02:00 every day
     time-zone: ${VMINTENT_INVENTORY_CHECK_TZ:UTC}          # e.g. America/New_York
 
+  # The catalog: operator-written definitions (YAML) and their runs. See docs/DEFINITIONS.md.
+  catalog:
+    # The file store the actions copy from (files.copy, tools.stage): stands in for MinIO or an SSH server.
+    files-dir: ${VMINTENT_FILES_DIR:${user.home}/.vm-intent/files}
+    # One folder per VM standing in for its disk (simulated VMs). Every worker must see the same folders.
+    targets-dir: ${VMINTENT_TARGETS_DIR:${user.home}/.vm-intent/targets}
+
+  # Audit: data classification, retention, the decision log and the history archive. See docs/AUDIT.md.
+  audit:
+    # Codes, their text and retention (1-5 years). Empty = the built-in placeholders C1, C3, C5.
+    classifications-file: ${VMINTENT_CLASSIFICATIONS_FILE:}
+    # The code used when neither a run nor its definition gives one. Empty = the file's "default".
+    default-classification: ${VMINTENT_DEFAULT_CLASSIFICATION:}
+    # Write-once archive of closed workflow histories (a persistent volume in Kubernetes).
+    archive-dir: ${VMINTENT_ARCHIVE_DIR:${user.home}/.vm-intent/archive}
+    # The sweep that archives closed histories and removes what is past its retention (a Temporal Schedule).
+    sweep-enabled: ${VMINTENT_ARCHIVE_SWEEP:true}
+    sweep-cron: "${VMINTENT_ARCHIVE_SWEEP_CRON:17 * * * *}"   # minute 17 of every hour
+    sweep-lookback-days: 30
+    # Log allowed GETs too (every decision). false = only changes and refusals.
+    log-reads: ${VMINTENT_LOG_READS:true}
+
+  # Decisions beyond the caller's role (resume, tear down, approve, publish). OPA is optional:
+  # set its decision URL, e.g. http://opa:8181/v1/data/vmintent/allow, and both must allow.
+  policy:
+    opa-url: ${VMINTENT_OPA_URL:}
+
+  # /healthz/live and /healthz/ready on this port, for Kubernetes probes (0 = off). Works in worker pods too.
+  health:
+    port: ${VMINTENT_HEALTH_PORT:0}
+
   # Tag requests with VmRequester, VmState, ... so they can be listed and filtered.
   # auto = set them up on the Temporal server if it allows; off = don't use them.
   search-attributes: ${VMINTENT_SEARCH_ATTRIBUTES:auto}
@@ -142,7 +176,7 @@ vmintent:
     # Other web pages allowed to call the API from a browser (CORS), comma-separated; patterns allowed.
     # The web app itself doesn't need an entry. Example: https://portal.example.com,https://*.example.org
     cors-origins: ${VMINTENT_CORS_ORIGINS:http://localhost:[*],http://127.0.0.1:[*]}
-    version: 2.0.0
+    version: 2.1.0
 
 # OpenAPI (Swagger): /v3/api-docs (JSON), /v3/api-docs.yaml, /swagger-ui.html
 springdoc:

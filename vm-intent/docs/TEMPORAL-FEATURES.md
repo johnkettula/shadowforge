@@ -23,6 +23,8 @@ A quick reminder of the basics:
 | `VmLifecycleWorkflow` | `life-<spec hash>` | One running VM: expiry, renewal, resize, power, snapshots, removal |
 | `BatchProvisionWorkflow`, `BatchShardWorkflow` | `batch-...` | Thousands of VMs from the batch API |
 | `InventoryCheckWorkflow` | `inventory-check-...` | Nightly check that the clouds still match the inventory |
+| `CatalogRunWorkflow` | `run-<definition>-<hash of version and inputs>` | One run of an operator-written definition: steps in order, resume or tear down after a failure |
+| `ArchiveSweepWorkflow` | `archive-sweep-...` | Hourly: copies closed histories to the write-once archive, removes expired ones |
 
 ## 1. Waiting for an answer over the one-way link
 
@@ -71,7 +73,7 @@ idempotency key. One failed VM in a multi-VM request is rolled back on its own; 
 
 - A **query** (`status()`) lets the web app ask a running workflow where it is, without waiting for it.
 - **Search attributes** are extra fields Temporal indexes for each request: `VmRequester`, `VmState`,
-  `VmProvider`, `VmEnv` and `VmSpecHash`. They power `GET /api/v2/requests?requester=&state=&provider=&env=`
+  `VmProvider`, `VmEnv` and `VmSpecHash`, and for catalog runs `VmDefinition` and `VmClassification`. They power `GET /api/v2/requests?requester=&state=&provider=&env=`
   and the web app's *Requests* list. You can also search in the Temporal UI, for example
   `VmRequester = "jdoe" AND VmState = "AWAITING_CONFIRMATION"`.
 
@@ -84,7 +86,7 @@ filtered until someone runs:
 temporal operator search-attribute create --name VmRequester --type Keyword
 ```
 
-for each of the five attributes, or `tcld` on Temporal Cloud. Set `VMINTENT_SEARCH_ATTRIBUTES=off` to not use them.
+for each of the seven attributes, or `tcld` on Temporal Cloud. Set `VMINTENT_SEARCH_ATTRIBUTES=off` to not use them.
 
 ## 5. Confirming with an update
 
@@ -163,7 +165,42 @@ To add a history from a real server:
 temporal workflow show --workflow-id intent-... --output json > backend/src/test/resources/histories/my-case.json
 ```
 
-## 10. Time-skipping tests
+## 10. Catalog runs that wait instead of failing
+
+**Features:** updates with validators, durable timers, child workflows, deterministic workflow code.
+
+A catalog run ([DEFINITIONS.md](DEFINITIONS.md)) runs a definition's steps in order. When a step
+fails, the workflow doesn't fail: it stops in AWAITING_RECOVERY and waits with
+`Workflow.await(72 hours, () -> decision != null)`. A waiting run costs nothing.
+
+- **`resume`** and **`teardown`** are updates. Their validators refuse them straight away (409) unless
+  the run is waiting. Resume runs only the failed step again; teardown undoes the finished steps,
+  newest first. If the timer runs out first, the run tears itself down.
+- **`approve`** is an update too: an `approval.wait` step waits until someone answers. Its validator
+  refuses the run's own requester (four-eyes) and anyone not on the step's approvers list.
+- **`vm.create`** starts the same `VmReconcileWorkflow` as a plain-English request, as a child
+  workflow, so the VM gets its rollback, the one-way link and its lifecycle.
+- **CEL in workflow code.** `when:` conditions and `${ }` values are worked out inside the workflow.
+  That's allowed because CEL is deterministic: no clock, no I/O, no randomness. The run keeps a copy
+  of its definition in its input, so a definition published later can't change how it replays.
+- **The workflow ID comes from the inputs**, so sending the same run twice finds the first one
+  (`WorkflowExecutionAlreadyStarted`), and a waiting run can't be duplicated.
+
+- Code: `workflow/CatalogRunWorkflowImpl.java`, `catalog/CatalogActivitiesImpl.java`
+
+## 11. Archive and audit replay
+
+**Features:** Schedules, visibility queries, `fetchHistory`, `Worker.replayWorkflowExecution`.
+
+The `vm-archive-sweep` schedule lists closed workflows (`ExecutionStatus != 'Running' AND CloseTime > ...`),
+fetches each history and writes it to the write-once archive, kept 1-5 years by data classification.
+`POST /api/v2/compliance/replays` replays one against today's code, the same way Temporal recovers a
+workflow after a restart: activities aren't run, their recorded results are fed back in, and any
+difference is reported. See [AUDIT.md](AUDIT.md).
+
+- Code: `workflow/ArchiveSweepWorkflowImpl.java`, `audit/ArchiveActivitiesImpl.java`, `audit/ReplayService.java`
+
+## 12. Time-skipping tests
 
 **Feature:** `TestWorkflowEnvironment`.
 
@@ -181,5 +218,6 @@ One thing to know: it only skips ahead while a timer is waiting. To wait for a w
 | `LinkFilesTest` | The real file-based link with the simulated domain 3 |
 | `IntentWorkflowTest` | Confirm update, several VMs at once, search attributes |
 | `InventoryCheckTest` | Missing VMs and orphans |
-| `ReplayTest` | Old histories against new code |
+| `ReplayTest` | Old histories against new code, including real catalog runs (resumed, torn down, approved) |
+| `CatalogRunWorkflowTest` | Steps in order, resume with partial work, teardown, 72-hour auto teardown, approvals, blueprints |
 | `CountPhrasingTest` | "3 web servers" vs "a RHEL 9 server" |

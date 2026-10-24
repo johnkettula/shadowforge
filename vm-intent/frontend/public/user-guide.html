@@ -48,7 +48,7 @@ svg .lines path { fill: none; stroke: var(--quiet); stroke-width: 1.25; } svg .h
 <h1>vm-intent User Guide</h1>
 
 <p class="updated">Last updated 21 October 2026.</p>
-<nav class="toc" aria-label="Contents"><strong>Contents</strong><ol><li><a href='#what-vm-intent-does'>What vm-intent does</a></li><li><a href='#opening-the-app'>Opening the app</a></li><li><a href='#requesting-one-vm'>Requesting one VM</a></li><li><a href='#following-a-request'>Following a request</a></li><li><a href='#several-vms-in-one-request'>Several VMs in one request</a></li><li><a href='#looking-after-a-vm-expiry-and-changes'>Looking after a VM: expiry and changes</a></li><li><a href='#the-nightly-inventory-check'>The nightly inventory check</a></li><li><a href='#building-many-vms-at-once'>Building many VMs at once</a></li><li><a href='#legacy-json-and-the-inventory'>Legacy JSON and the inventory</a></li><li><a href='#sign-in-and-roles'>Sign-in and roles</a></li><li><a href='#for-other-services-the-rest-api'>For other services: the REST API</a></li><li><a href='#starting-and-stopping-the-app-on-windows'>Starting and stopping the app on Windows</a></li><li><a href='#troubleshooting'>Troubleshooting</a></li></ol></nav>
+<nav class="toc" aria-label="Contents"><strong>Contents</strong><ol><li><a href='#what-vm-intent-does'>What vm-intent does</a></li><li><a href='#opening-the-app'>Opening the app</a></li><li><a href='#requesting-one-vm'>Requesting one VM</a></li><li><a href='#following-a-request'>Following a request</a></li><li><a href='#several-vms-in-one-request'>Several VMs in one request</a></li><li><a href='#looking-after-a-vm-expiry-and-changes'>Looking after a VM: expiry and changes</a></li><li><a href='#the-nightly-inventory-check'>The nightly inventory check</a></li><li><a href='#catalog-runs-ready-made-jobs-from-operators'>Catalog runs: ready-made jobs from operators</a></li><li><a href='#compliance-decisions-archive-and-replay'>Compliance: decisions, archive and replay</a></li><li><a href='#building-many-vms-at-once'>Building many VMs at once</a></li><li><a href='#legacy-json-and-the-inventory'>Legacy JSON and the inventory</a></li><li><a href='#sign-in-and-roles'>Sign-in and roles</a></li><li><a href='#for-other-services-the-rest-api'>For other services: the REST API</a></li><li><a href='#starting-and-stopping-the-app-on-windows'>Starting and stopping the app on Windows</a></li><li><a href='#troubleshooting'>Troubleshooting</a></li></ol></nav>
 
 <h2 id='what-vm-intent-does'>What vm-intent does</h2>
 <p>You ask for a virtual machine in plain English, and vm-intent builds it on vSphere, AWS, Azure or Google Cloud. The clouds are <strong>simulated</strong> in this version, so nothing real is created and no cloud accounts are needed.</p>
@@ -268,6 +268,28 @@ svg .lines path { fill: none; stroke: var(--quiet); stroke-width: 1.25; } svg .h
 <li><strong>Unrecorded:</strong> a VM in the cloud that the inventory never recorded. These are only listed, never deleted; deciding what to do is up to a person.</li>
 </ul>
 <p>Press <strong>Run now</strong> to check straight away (admins only when sign-in is on). Clouds reached over the one-way link to domain 3 are skipped. To change the time or pause it, use the Temporal UI's <strong>Schedules</strong> page.</p>
+<h2 id='catalog-runs-ready-made-jobs-from-operators'>Catalog runs: ready-made jobs from operators</h2>
+<p>The <strong>Catalog</strong> card runs jobs that technical operators have written in YAML: build a VM, install tools, copy files, set its configuration, check it's ready. Each job is a <em>definition</em>; how to write one is in <code>docs/DEFINITIONS.md</code>.</p>
+<ol>
+<li>Pick a definition at the top right of the card, for example <strong>web-server</strong>. Its steps and data classification are shown.</li>
+<li>Fill in its inputs (a <code>*</code> means required) and press <strong>Start run</strong>. The run opens below with every step and its state.</li>
+<li>Starting the same definition with the same inputs again opens the run that is already going instead of starting a second one.</li>
+</ol>
+<p>A production web server (<code>env</code> = prod) first waits for an <strong>approval</strong>: someone other than you must press <strong>Approve</strong> (or <strong>Reject</strong>) on the run, with a note such as a change ticket.</p>
+<p><strong>When a step fails</strong>, the run doesn't start again from the beginning. It stops, shows the reason, and waits for a decision:</p>
+<ul>
+<li>Fix the cause (for example, put the missing file in the file store), then press <strong>Resume step …</strong>. Only the failed step runs again, and it picks up what it already did: files already copied are skipped.</li>
+<li>Or press <strong>Tear down…</strong> and confirm: everything the run did is undone, newest first, including the VM.</li>
+<li>If nobody decides by the time shown under <em>Decide by</em> (72 hours at most), the run tears itself down.</li>
+</ul>
+<p>The person who started a run, or an operator, can resume or tear it down. A VM built by a run is also in the Inventory, where it can be renewed or changed like any other.</p>
+<h2 id='compliance-decisions-archive-and-replay'>Compliance: decisions, archive and replay</h2>
+<p>The <strong>Compliance</strong> card is for auditors.</p>
+<ul>
+<li><strong>Decision log:</strong> every permission decision, newest first: who asked to do what, whether it was allowed, and the rule that decided. Type a run ID to see only that run's decisions.</li>
+<li><strong>Archive:</strong> every finished workflow's history is copied here every hour, write-once, and kept for 1 to 5 years depending on its data classification (a code such as C3, with its text). <strong>Replay</strong> runs the recorded workflow against today's code without doing anything again, and shows <strong>matches</strong> if the code makes exactly the recorded decisions. <strong>Archive now</strong> copies new histories straight away.</li>
+</ul>
+<p>The classification codes C1, C3 and C5 are placeholders until the real scheme is set (<code>docs/AUDIT.md</code>).</p>
 <h2 id='building-many-vms-at-once'>Building many VMs at once</h2>
 <p>A <strong>batch</strong> builds up to 10,000 VMs in one call, with no confirmation step per VM. Batches are sent through the API, not the web app. The easiest way to try one is Swagger UI.</p>
 <ol>
@@ -298,7 +320,7 @@ svg .lines path { fill: none; stroke: var(--quiet); stroke-width: 1.25; } svg .h
 <li><strong>Microsoft Entra ID.</strong> Callers send an Entra access token. Their role comes from the Entra app role they were given.</li>
 <li><strong>Client certificates (PKI).</strong> Callers connect over HTTPS (port 8443) with a certificate from a trusted CA. An allowlist on the server names each permitted certificate and its role.</li>
 </ul>
-<p>Every caller has one of four roles. Each role includes the ones below it.</p>
+<p>Every caller has one of six roles. Each role includes the ones below it.</p>
 <div class='table-wrap'><table>
 <thead>
 <tr>
@@ -312,12 +334,20 @@ svg .lines path { fill: none; stroke: var(--quiet); stroke-width: 1.25; } svg .h
 <td>Everything, including cancelling anyone's request, changing anyone's VM and running the inventory check</td>
 </tr>
 <tr>
+<td>OPERATOR</td>
+<td>Publish catalog definitions, and resume or tear down anyone's run, plus everything REQUESTER can</td>
+</tr>
+<tr>
+<td>AUDITOR</td>
+<td>The decision log, the archive and replays, plus everything READER can</td>
+</tr>
+<tr>
 <td>BATCH</td>
 <td>Start batches and use the legacy JSON endpoint, plus everything READER can</td>
 </tr>
 <tr>
 <td>REQUESTER</td>
-<td>Preview, create, answer, confirm and cancel <strong>their own</strong> requests, look after <strong>their own</strong> VMs (renew, resize, power, snapshot, remove), plus everything READER can</td>
+<td>Preview, create, answer, confirm and cancel <strong>their own</strong> requests, look after <strong>their own</strong> VMs (renew, resize, power, snapshot, remove), start catalog runs and resume or tear down <strong>their own</strong>, approve <strong>someone else's</strong>, plus everything READER can</td>
 </tr>
 <tr>
 <td>READER</td>

@@ -34,7 +34,7 @@ import java.util.Optional;
  *
  *   clients:
  *     - name: ci-pipeline                       # shown in the audit trail as "pki:ci-pipeline"
- *       role: BATCH                             # ADMIN, BATCH, REQUESTER or READER
+ *       role: BATCH                             # ADMIN, OPERATOR, AUDITOR, BATCH, REQUESTER or READER
  *       subject: "CN=ci-pipeline,OU=Build,O=Example Corp,C=US"
  *       issuer: "CN=Example Issuing CA 1,O=Example Corp,C=US"   # optional, recommended
  *     - name: reporting
@@ -140,7 +140,7 @@ public class PkiAllowlist {
             try {
                 role = ApiAccessRules.Role.valueOf(roleText.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException(where + ": role must be ADMIN, BATCH, REQUESTER or READER");
+                throw new IllegalArgumentException(where + ": role must be ADMIN, OPERATOR, AUDITOR, BATCH, REQUESTER or READER");
             }
             if (subject == null && sha == null) {
                 throw new IllegalArgumentException(where + ": give 'subject' or 'sha256'");

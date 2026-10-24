@@ -19,7 +19,13 @@ public final class RequestSearch {
     public static final SearchAttributeKey<String> ENV = SearchAttributeKey.forKeyword("VmEnv");
     public static final SearchAttributeKey<String> SPEC_HASH = SearchAttributeKey.forKeyword("VmSpecHash");
 
-    public static final List<SearchAttributeKey<String>> ALL = List.of(REQUESTER, STATE, PROVIDER, ENV, SPEC_HASH);
+    /** Catalog runs: which definition the run follows (name). */
+    public static final SearchAttributeKey<String> DEFINITION = SearchAttributeKey.forKeyword("VmDefinition");
+    /** Catalog runs: the data classification code, which decides how long the run is kept. */
+    public static final SearchAttributeKey<String> CLASSIFICATION = SearchAttributeKey.forKeyword("VmClassification");
+
+    public static final List<SearchAttributeKey<String>> ALL =
+            List.of(REQUESTER, STATE, PROVIDER, ENV, SPEC_HASH, DEFINITION, CLASSIFICATION);
 
     private RequestSearch() {}
 }

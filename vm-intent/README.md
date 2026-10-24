@@ -31,6 +31,13 @@ Stack: **React + TypeScript (Vite)** front end, **Spring Boot 3 + Temporal Java 
    with the reason if it can't be done.
 9. Press **Run now** on the **Inventory check** card. It also runs every night
    on a Temporal *Schedule* (see the Temporal UI's Schedules page).
+10. In the **Catalog** card, run **web-server**: a VM, nginx, the site's files,
+    settings and a readiness check, from an operator-written YAML definition.
+    If a step fails the run waits: **Resume** picks up where it stopped, or
+    **Tear down** undoes it all ([docs/DEFINITIONS.md](docs/DEFINITIONS.md)).
+11. In the **Compliance** card, look at the decision log, archive the finished
+    histories and **Replay** one: it re-runs the recorded workflow against
+    today's code without doing anything again ([docs/AUDIT.md](docs/AUDIT.md)).
 
 The Temporal features used, and how to try each one, are explained in
 [docs/TEMPORAL-FEATURES.md](docs/TEMPORAL-FEATURES.md). Clouds behind a one-way
@@ -87,11 +94,18 @@ backend/src/main/java/com/example/vmintent/
               and the VM inventory (VmRegistry)
   workflow/   also BatchProvisionWorkflow -> BatchShardWorkflow -> one VmReconcileWorkflow per VM
   config/     WorkerTuning: per-queue concurrency and cloud rate limits
-  security/   Sign-in (Entra ID tokens, client certificates) and who may call what (ApiAccessRules)
+  security/   Sign-in (Entra ID tokens, client certificates), who may call what (ApiAccessRules),
+              and logging every decision (ApiDecisionPublisher)
+  catalog/    Operator-written YAML definitions and blueprints: parser and checks, the actions
+              (CatalogActivitiesImpl), data classifications
+  cel/        The CEL expression engine used in definitions
+  audit/      Decision log, optional OPA, the write-once history archive, audit replay
+  workflow/   also CatalogRunWorkflow (steps, resume or tear down) and ArchiveSweepWorkflow
   legacy/     The old JSON format -> the same spec (no AI)
   api/        REST endpoints used by the React app
 frontend/src/ App.tsx (the whole UI), api.ts (typed REST calls)
-deploy/       docker-compose.yml for Linux, deploy/linux/ scripts and systemd units
+deploy/       docker-compose.yml for Linux, deploy/linux/ scripts and systemd units,
+              deploy/kubernetes/ (kustomize), deploy/catalog/ (publishing definitions from Git)
 loadtest/     run-loadtest.mjs: the 2,000-VM load test
 docs/         USER-GUIDE.md (the Help menu's guide; rebuild with docs/build-user-guide.py),
               SCALING.md: how it scales, and load-test results
@@ -154,6 +168,14 @@ and the load-test results.
 - **Load test:** `node loadtest/run-loadtest.mjs --count 2000 --fail 20` submits 2,000 VMs, watches
   them build, and writes a JSON report.
 
+## Running on Kubernetes
+
+Every worker runs on Kubernetes in production: `kubectl apply -k deploy/kubernetes/overlays/dev`
+(or `overlays/prod`). The API, the workflow workers and the cloud workers are separate deployments
+that scale on their own, each pod chooses its task queues with `VMINTENT_WORKER_QUEUES`, and every
+pod answers health probes on port 8081. Temporal and Postgres come from their own charts or
+services. See [docs/KUBERNETES.md](docs/KUBERNETES.md).
+
 ## Running on Linux
 
 **With Docker** (Postgres-backed Temporal, API, 3 workers, web app, Temporal UI):
@@ -214,9 +236,8 @@ be quick. Try the example phrasings with **Preview** to compare a model with the
 
 - Replace a `SimulatedProvider` subclass with real SDK calls, such as AWS SDK for Java v2
   `Ec2Client.runInstances` with a `clientToken` for idempotency.
-- Add an approval step for prod VMs: an update from someone other than the requester,
-  like `confirmSpec`, with a validator that checks the approver's role.
 - Send the EXPIRY_WARNING audit events as email or chat messages.
-- Add a tools-install step (from MinIO) after the build, with its own undo in the saga.
+- Point the catalog's file actions at the real SSH servers and MinIO instead of the local
+  file store (`catalog/TargetStore.java`), and replace the placeholder classification codes.
 - Change `legacy/LegacyVmDefinition.java` to match your real legacy JSON format.
   The current fields are placeholders.

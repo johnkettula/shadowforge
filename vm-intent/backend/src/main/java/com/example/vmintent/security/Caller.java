@@ -27,6 +27,20 @@ public final class Caller {
         return claimed == null || claimed.isBlank() ? fallback : claimed;
     }
 
+    /** The signed-in caller's roles (without ROLE_), or an empty list. */
+    public static java.util.List<String> roles() {
+        Authentication a = SecurityContextHolder.getContext().getAuthentication();
+        if (a == null || a instanceof AnonymousAuthenticationToken) return java.util.List.of();
+        return a.getAuthorities().stream().map(g -> g.getAuthority())
+                .filter(r -> r.startsWith("ROLE_")).map(r -> r.substring(5)).sorted().toList();
+    }
+
+    /** True if the signed-in caller has any of the roles (directly, not through the hierarchy). */
+    public static boolean hasAnyRole(ApiAccessRules.Role... roles) {
+        for (ApiAccessRules.Role r : roles) if (hasRole(r)) return true;
+        return false;
+    }
+
     /** True if the signed-in caller has the role (directly, not through the hierarchy). */
     public static boolean hasRole(ApiAccessRules.Role role) {
         Authentication a = SecurityContextHolder.getContext().getAuthentication();

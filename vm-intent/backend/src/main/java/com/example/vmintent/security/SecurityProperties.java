@@ -64,7 +64,7 @@ public record SecurityProperties(String mode, Entra entra, Pki pki) {
      *                   Application ID URI, e.g. ["11111111-...", "api://vm-intent"]
      * @param issuers    accepted "iss" values; empty = the tenant's v2.0 and v1.0 issuers
      * @param jwkSetUri  where the signing keys are; empty = the tenant's standard keys URL
-     * @param roleMap    Entra app role or scope value -> vm-intent role (ADMIN, BATCH, REQUESTER,
+     * @param roleMap    Entra app role or scope value -> vm-intent role (ADMIN, OPERATOR, AUDITOR, BATCH, REQUESTER,
      *                   READER); empty = the defaults in {@link EntraRoleConverter}
      */
     public record Entra(String tenantId, List<String> audiences, List<String> issuers,

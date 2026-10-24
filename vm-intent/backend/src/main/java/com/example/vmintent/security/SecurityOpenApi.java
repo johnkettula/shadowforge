@@ -107,7 +107,7 @@ public class SecurityOpenApi {
                 + "allowlist, which gives the certificate its role";
         if (props.entraEnabled() && props.pkiEnabled()) b.append(token).append(", or ").append(cert);
         else b.append(props.entraEnabled() ? token : cert);
-        return b.append(". Each operation lists its **Required role**: ADMIN, BATCH, REQUESTER or READER. ")
+        return b.append(". Each operation lists its **Required role**: ADMIN, OPERATOR, AUDITOR, BATCH, REQUESTER or READER. ")
                 .append("A missing or refused credential gets 401; a missing role gets 403.\n").toString();
     }
 

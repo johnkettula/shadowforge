@@ -104,6 +104,15 @@ button.danger:hover { border-color: var(--bad); }
 .actions .label { width: 72px; color: var(--quiet); font-size: 13px; }
 .actions input[type="number"] { width: 72px; flex: none; min-width: 0; }
 .actions input:not([type]) { flex: 0 1 200px; min-width: 120px; }
+/* Catalog runs and compliance */
+.s-AWAITING_RECOVERY, .s-AWAITING_APPROVAL, .s-TEARING_DOWN, .s-TEARDOWN_INCOMPLETE, .s-UNDO_FAILED { color: var(--warn); }
+.s-TORN_DOWN, .s-UNDONE, .s-SKIPPED, .s-PENDING { color: var(--quiet); }
+.s-DONE, .s-ALLOW { color: var(--good); }
+.s-DENY { color: var(--bad); }
+.inputs { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-top: 12px; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--quiet); }
+.field input, .field select { width: 100%; }
+td, .grid dd { overflow-wrap: anywhere; }
 @media (max-width: 600px) {
   table { font-size: 13px; }
   .hide-narrow { display: none; }

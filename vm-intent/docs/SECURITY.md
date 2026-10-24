@@ -33,14 +33,21 @@ Each role includes the ones below it.
 
 | vm-intent role | Entra app role (value) | Can |
 |---|---|---|
-| `ADMIN` | `VmIntent.Admin` | Everything, including changing anyone's request or VM, and running the inventory check |
+| `ADMIN` | `VmIntent.Admin` | Everything, including changing anyone's request or VM, and running the inventory check and archive sweep |
+| `OPERATOR` | `VmIntent.Operator` | Technical operators: publish and retire catalog definitions ([DEFINITIONS.md](DEFINITIONS.md)), resume or tear down **anyone's** catalog run; plus REQUESTER |
+| `AUDITOR` | `VmIntent.Auditor` | The decision log, the history archive and audit replays ([AUDIT.md](AUDIT.md)); plus READER |
 | `BATCH` | `VmIntent.Batch` | `POST /api/v2/batches`, `POST /api/v1/vms` (legacy), plus everything READER can |
-| `REQUESTER` | `VmIntent.Request` | Interpret, create, answer, confirm and cancel **their own** requests; renew, resize, power, snapshot and remove **their own** VMs; plus READER |
-| `READER` | `VmIntent.Read` | All `GET`s: inventory, stats, audit, request and batch status |
+| `REQUESTER` | `VmIntent.Request` | Interpret, create, answer, confirm and cancel **their own** requests; renew, resize, power, snapshot and remove **their own** VMs; start catalog runs, resume or tear down **their own**, approve **someone else's**; plus READER |
+| `READER` | `VmIntent.Read` | `GET`s: inventory, stats, audit trail, request, batch, definition and run status (not the decision log or archive) |
 
 - With Entra ID, roles come from the token's `roles` claim (app roles) and `scp` claim (delegated scopes with
   the same names). With client certificates, the allowlist gives each certificate its role.
 - **Only the requester** (or an ADMIN) can answer, confirm or cancel a request, or change the VM it built. Anyone else gets 403.
+- **Catalog runs:** the person who started a run, or an OPERATOR, can resume or tear it down. An approval step
+  can be answered by anyone **except** the person who started the run (four-eyes), and only by the step's
+  `approvers` if it lists them. If `VMINTENT_OPA_URL` is set, OPA must allow these too.
+- **Every authorization decision is logged**, allowed or refused, with the rule that decided
+  (`GET /api/v2/compliance/decisions`, AUDITOR). See [AUDIT.md](AUDIT.md).
 - **The audit trail records the signed-in caller**: a person's sign-in name, `app:<client-id>` for a service
   with an Entra token, or `pki:<name>` for a client certificate (the name from the allowlist).
   Any `userId` or `requestedBy` in the request body is ignored when sign-in is on.

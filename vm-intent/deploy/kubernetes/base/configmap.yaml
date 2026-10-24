@@ -1,0 +1,24 @@
+# Settings shared by the API and every worker. Secrets (database password, API keys) are in the
+# vm-intent-secrets Secret, made by the overlay.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vm-intent-config
+data:
+  TEMPORAL_ADDRESS: temporal-frontend.temporal.svc.cluster.local:7233
+  TEMPORAL_NAMESPACE: default
+  VMINTENT_DB_EMBEDDED: "false"
+  VMINTENT_DB_URL: jdbc:postgresql://postgres.vm-intent.svc.cluster.local:5432/vmintent
+  VMINTENT_DB_USER: vmintent
+  VMINTENT_DB_POOL: "20"
+  # Probes: /healthz/live and /healthz/ready on this port, in API and worker pods alike.
+  VMINTENT_HEALTH_PORT: "8081"
+  # Shared folders, on the vm-intent-shared volume (every worker must see the same ones).
+  VMINTENT_FILES_DIR: /data/files
+  VMINTENT_TARGETS_DIR: /data/targets
+  VMINTENT_LINK_OUTBOX: /data/link/outbox
+  VMINTENT_LINK_INBOX: /data/link/inbox
+  # The write-once history archive, on its own volume that is kept if the namespace goes.
+  VMINTENT_ARCHIVE_DIR: /archive
+  VMINTENT_SECURITY_MODE: none
+  JAVA_OPTS: "-XX:MaxRAMPercentage=70 -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError"

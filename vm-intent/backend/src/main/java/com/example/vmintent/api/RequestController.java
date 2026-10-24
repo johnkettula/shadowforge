@@ -67,10 +67,12 @@ public class RequestController {
     private final VmRegistry registry;
     private final AuditLog audit;
     private final SearchAttributesSetup search;
+    private final com.example.vmintent.audit.DecisionLog decisions;
 
     public RequestController(WorkflowClient client, IntentInterpreter interpreter,
                              LegacySpecTranslator legacy, VmRegistry registry, AuditLog audit,
-                             SearchAttributesSetup search) {
+                             SearchAttributesSetup search, com.example.vmintent.audit.DecisionLog decisions) {
+        this.decisions = decisions;
         this.client = client;
         this.interpreter = interpreter;
         this.legacy = legacy;
@@ -310,7 +312,10 @@ public class RequestController {
             Thread.currentThread().interrupt();
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Interrupted; try again.");
         }
-        if (s.requestedBy() != null && !s.requestedBy().equals(me)) {
+        boolean allowed = s.requestedBy() == null || s.requestedBy().equals(me);
+        decisions.record(me, String.join(",", Caller.roles()), "request.change", id, allowed, "request owner or ADMIN",
+                allowed ? "their own request" : "the request belongs to " + s.requestedBy(), null);
+        if (!allowed) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                     "Only the person who made this request, or an admin, can change it.");
         }

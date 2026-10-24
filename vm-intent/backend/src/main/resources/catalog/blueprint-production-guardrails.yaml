@@ -1,0 +1,14 @@
+# A blueprint with appliesWhen applies to every catalog VM for which the condition is true,
+# whether or not the definition names it.
+kind: Blueprint
+name: production-guardrails
+version: 1
+description: Extra rules for every production VM built from the catalog.
+appliesWhen: "spec.env == 'prod'"
+rules:
+  - name: ssd-in-prod
+    check: "spec.diskTier == 'ssd'"
+    message: Production VMs use SSD disks.
+  - name: approved-os-in-prod
+    check: "spec.os in ['ubuntu', 'rhel']"
+    message: Production VMs run Ubuntu or RHEL.

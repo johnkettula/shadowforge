@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { CatalogCard, ComplianceCard } from "./Catalog";
 import {
   api,
   AuditEvent,
@@ -359,6 +360,10 @@ export default function App() {
       </section>
 
       <InventoryCheckCard />
+
+      <CatalogCard />
+
+      <ComplianceCard />
     </div>
   );
 }

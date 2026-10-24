@@ -1,0 +1,23 @@
+# Two volumes, both ReadWriteMany because several pods use them at once:
+#  - vm-intent-shared   the file store, the VMs' simulated disks and the one-way link folders
+#  - vm-intent-archive  the write-once archive of workflow histories, kept 1-5 years. Use a storage
+#                       class whose reclaim policy is Retain, so deleting the claim keeps the data.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vm-intent-shared
+spec:
+  accessModes: [ReadWriteMany]
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vm-intent-archive
+spec:
+  accessModes: [ReadWriteMany]
+  resources:
+    requests:
+      storage: 50Gi

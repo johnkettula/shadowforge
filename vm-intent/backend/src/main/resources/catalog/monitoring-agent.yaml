@@ -1,0 +1,33 @@
+kind: Provisioning
+name: monitoring-agent
+version: 1
+description: Adds the monitoring agent to a VM that is already running.
+owner: observability-team
+classification: C1
+inputs:
+  vm:
+    type: string
+    required: true
+    description: The VM's spec hash (from the inventory).
+steps:
+  - id: agent
+    action: tools.stage
+    title: Install node-exporter
+    with:
+      vm: ${ params.vm }
+      bundle: node-exporter
+      version: "1.8"
+  - id: settings
+    action: config.apply
+    with:
+      vm: ${ params.vm }
+      settings:
+        monitoring: enabled
+        metrics_port: 9100
+  - id: ready
+    action: check.until
+    with:
+      vm: ${ params.vm }
+      until: "'node-exporter' in probe.tools && probe.config.monitoring == 'enabled'"
+      everySeconds: 5
+      timeoutMinutes: 5

@@ -29,6 +29,8 @@ public class EntraRoleConverter implements Converter<Jwt, AbstractAuthentication
 
     public static final Map<String, String> DEFAULT_ROLE_MAP = Map.of(
             "VmIntent.Admin", "ADMIN",
+            "VmIntent.Operator", "OPERATOR",
+            "VmIntent.Auditor", "AUDITOR",
             "VmIntent.Batch", "BATCH",
             "VmIntent.Request", "REQUESTER",
             "VmIntent.Read", "READER");

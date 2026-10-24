@@ -1,0 +1,55 @@
+# Production: three API pods, workers that scale, Entra ID sign-in, the archive on a Retain volume,
+# and the web app behind an Ingress with TLS.
+#   cp secrets.env.example secrets.env   # then put the real password in it (never commit it)
+#   kubectl apply -k deploy/kubernetes/overlays/prod
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: vm-intent
+resources:
+  - ../../base
+  - ingress.yaml
+secretGenerator:
+  - name: vm-intent-secrets
+    envs:
+      - secrets.env
+configMapGenerator:
+  - name: vm-intent-config
+    behavior: merge
+    literals:
+      - VMINTENT_DB_POOL=30
+      - VMINTENT_SECURITY_MODE=entra
+      - VMINTENT_ENTRA_TENANT_ID=00000000-0000-0000-0000-000000000000
+      - VMINTENT_ENTRA_AUDIENCES=api://vm-intent
+      - VMINTENT_LINK_PROVIDERS=*
+      - VMINTENT_OPA_URL=http://opa.opa.svc.cluster.local:8181/v1/data/vmintent/allow
+      - VMINTENT_API_SERVER_URLS=https://vm-intent.example.com
+replicas:
+  - name: vm-intent-api
+    count: 3
+  - name: vm-intent-web
+    count: 2
+patches:
+  # The archive keeps 1-5 years of audit data: put it on storage that outlives the claim.
+  - target:
+      kind: PersistentVolumeClaim
+      name: vm-intent-archive
+    patch: |-
+      - op: add
+        path: /spec/storageClassName
+        value: rwx-retain
+  - target:
+      kind: Deployment
+      name: vm-intent-worker-workflows
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests: { cpu: "1", memory: 2Gi }
+          limits: { memory: 3Gi }
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: vm-intent-worker-workflows
+    patch: |-
+      - op: replace
+        path: /spec/maxReplicas
+        value: 20

@@ -1,0 +1,107 @@
+# Workers for the workflows (requests, builds, lifecycles, catalog runs, checks, the archive sweep) and
+# their database and file activities: task queue intent-q.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vm-intent-worker-workflows
+  labels:
+    app.kubernetes.io/name: vm-intent-worker-workflows
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vm-intent-worker-workflows
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vm-intent-worker-workflows
+        app.kubernetes.io/component: worker
+        app.kubernetes.io/part-of: vm-intent
+    spec:
+      serviceAccountName: vm-intent
+      # Running tasks finish before the pod goes (see GracefulWorkerShutdown); anything left is retried elsewhere.
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: vm-intent-worker-workflows
+      containers:
+        - name: backend
+          image: vm-intent-backend
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: vm-intent-config
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "worker"
+            - name: VMINTENT_WORKER_QUEUES
+              value: "intent-q"
+            - name: VMINTENT_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vm-intent-secrets
+                  key: db-password
+          ports:
+            - name: health
+              containerPort: 8081
+          startupProbe:
+            httpGet:
+              path: /healthz/live
+              port: health
+            periodSeconds: 5
+            failureThreshold: 36       # up to 3 minutes to start
+          livenessProbe:
+            httpGet:
+              path: /healthz/live
+              port: health
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz/ready
+              port: health
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              memory: 1536Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: shared
+              mountPath: /data
+            - name: archive
+              mountPath: /archive
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: shared
+          persistentVolumeClaim:
+            claimName: vm-intent-shared
+        - name: archive
+          persistentVolumeClaim:
+            claimName: vm-intent-archive

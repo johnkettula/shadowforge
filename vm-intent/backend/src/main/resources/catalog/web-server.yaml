@@ -1,0 +1,95 @@
+# A provisioning definition: the inputs it takes and the steps it runs, in order.
+# See docs/DEFINITIONS.md. Values written ${ ... } are CEL expressions, worked out when the step runs.
+kind: Provisioning
+name: web-server
+version: 1
+description: A web server with nginx, the site's files and its settings, checked before it's handed over.
+owner: platform-team
+classification: C3           # data classification code: decides how long the run is kept
+blueprint: standard-vm
+recovery:
+  waitHours: 72              # a failed run waits this long for Resume or Tear down, then tears itself down
+
+inputs:
+  app:
+    type: string
+    required: true
+    description: The application's short name, used for the VM's name.
+  env:
+    type: string
+    default: dev
+    allowed: [dev, test, staging, prod]
+  provider:
+    type: string
+    default: aws
+    allowed: [aws, azure, gcp, vsphere]
+  region:
+    type: string
+    default: us-east
+  size:
+    type: string
+    default: small
+    allowed: [small, medium, large]
+  site:
+    type: string
+    default: web
+    description: Folder in the file store with the site's files.
+
+steps:
+  - id: approve
+    action: approval.wait
+    title: Approval for production
+    when: "params.env == 'prod'"
+    with:
+      message: "${ 'Production web server for ' + params.app + ', asked for by ' + run.requestedBy }"
+      timeoutHours: 24
+
+  - id: create
+    action: vm.create
+    title: Build the VM
+    with:
+      name: "${ params.app + '-web-' + params.env }"
+      provider: ${ params.provider }
+      region: "${ params.provider == 'vsphere' ? 'dc1' : params.region }"   # vSphere uses datacenters
+      os: ubuntu
+      size: ${ params.size }
+      env: ${ params.env }
+      diskTier: "${ params.env == 'prod' ? 'ssd' : 'standard' }"
+    attempts: 2
+    timeoutMinutes: 60
+
+  - id: nginx
+    action: tools.stage
+    title: Install nginx
+    with:
+      vm: ${ steps.create.specHash }
+      bundle: nginx
+      version: "1.27"
+
+  - id: site
+    action: files.copy
+    title: Copy the site's files
+    with:
+      vm: ${ steps.create.specHash }
+      files: ["${ params.site }"]
+      to: /srv/www
+
+  - id: settings
+    action: config.apply
+    title: Set the web server's settings
+    with:
+      vm: ${ steps.create.specHash }
+      settings:
+        app: ${ params.app }
+        listen: 80
+        environment: ${ params.env }
+        server_name: "${ params.app + '.' + params.env + '.example.internal' }"
+
+  - id: ready
+    action: check.until
+    title: Check it's ready
+    with:
+      vm: ${ steps.create.specHash }
+      until: "probe.reachable && 'nginx' in probe.tools && probe.files >= 1 && probe.config.app == params.app"
+      everySeconds: 10
+      timeoutMinutes: 10

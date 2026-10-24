@@ -1,0 +1,16 @@
+# A blueprint: rules that every VM built by a definition naming it must pass.
+# Each check is a CEL condition (https://cel.dev) on the VM's spec, the run's params and the run.
+kind: Blueprint
+name: standard-vm
+version: 1
+description: The house rules for any VM built from the catalog.
+rules:
+  - name: prod-needs-two-cpus
+    check: "spec.env != 'prod' || spec.vcpu >= 2"
+    message: Production VMs need at least 2 vCPU.
+  - name: no-public-ip-in-prod
+    check: "!(spec.env == 'prod' && spec.publicIp)"
+    message: Production VMs can't have a public IP address; put them behind the load balancer.
+  - name: non-prod-expires
+    check: "spec.env == 'prod' || (spec.ttlDays > 0 && spec.ttlDays <= 90)"
+    message: VMs outside production must expire within 90 days.

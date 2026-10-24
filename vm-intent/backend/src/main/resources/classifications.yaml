@@ -1,0 +1,17 @@
+# Data classifications: a code, the text mapped to it, and how many years runs with that code
+# (their Temporal histories and their access decisions) are kept.
+#
+# These three codes are PLACEHOLDERS for the real classification scheme. To use your own, copy this
+# file, change it and point VMINTENT_CLASSIFICATIONS_FILE at the copy. Codes already used by
+# definitions or runs should be kept, or those runs' retention can't be worked out.
+default: C1
+classifications:
+  - code: C1
+    label: Placeholder - kept 1 year
+    retentionYears: 1
+  - code: C3
+    label: Placeholder - kept 3 years
+    retentionYears: 3
+  - code: C5
+    label: Placeholder - kept 5 years
+    retentionYears: 5

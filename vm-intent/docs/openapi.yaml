@@ -1,49 +1,34 @@
-# Snapshot of the vm-intent OpenAPI document (sign-in off). The running server's /v3/api-docs is the source of truth.
 openapi: 3.0.1
 info:
   title: vm-intent API
-  description: 'Request virtual machines on vSphere, AWS, Azure or Google Cloud, in plain English or as an exact spec.
+  description: |
+    Request virtual machines on vSphere, AWS, Azure or Google Cloud, in plain English or as an exact spec.
 
-
-    **How it works.** Every request becomes one canonical, cloud-neutral spec with a SHA-256 hash. The same spec can''t
-    be built twice at once: the hash is the build''s identity. A Temporal workflow builds each VM and rolls it back (deletes
-    it) if anything fails.
-
+    **How it works.** Every request becomes one canonical, cloud-neutral spec with a SHA-256 hash. The same spec can't be built twice at once: the hash is the build's identity. A Temporal workflow builds each VM and rolls it back (deletes it) if anything fails.
 
     **Typical flows**
-
-    - *One VM, with a human in the loop:* `POST /api/v2/requests`, poll `GET /api/v2/requests/{id}`, then `/clarify`
-    if it asks a question and `/confirm` to build.
-
-    - *Many VMs from a service:* `POST /api/v2/batches` with specs or text, then poll `GET /api/v2/batches/{id}`. No
-    confirmation step per VM.
-
+    - *One VM, with a human in the loop:* `POST /api/v2/requests`, poll `GET /api/v2/requests/{id}`, then `/clarify` if it asks a question and `/confirm` to build.
+    - *Many VMs from a service:* `POST /api/v2/batches` with specs or text, then poll `GET /api/v2/batches/{id}`. No confirmation step per VM.
     - *Check first:* `POST /api/v2/interpret` shows what a text would become, without building anything.
-
 
     **Optional fields.** Fields with no value are left out of responses rather than sent as null.
 
-
     **Errors.** Every 4xx and 5xx response has the body `{"error": "..."}`.
 
-
-    **Sign-in.** Off on this server: restrict access at the network level. See the "Required role" on each operation
-    for what applies when sign-in is on.
-
-    '
+    **Sign-in.** Off on this server: restrict access at the network level. See the "Required role" on each operation for what applies when sign-in is on.
   license:
     name: Internal use
-  version: 2.0.0
+  version: 2.1.0
 servers:
 - url: http://localhost:8080
   description: Local development. Replace with your deployment's address, or fetch /v3/api-docs from the running server.
 tags:
 - name: Requests
-  description: 'One VM at a time: interpret, clarify, confirm, build'
+  description: "One VM at a time: interpret, clarify, confirm, build"
 - name: Batches
-  description: Many VMs at once, no confirmation per VM
+  description: "Many VMs at once, no confirmation per VM"
 - name: Inventory
-  description: VMs, counts and the audit trail
+  description: "VMs, counts and the audit trail"
 - name: Legacy
   description: The old universal JSON format (v1)
 paths:
@@ -52,10 +37,10 @@ paths:
       tags:
       - VM lifecycle
       summary: Snapshot a VM
-      description: 'Up to 20 snapshots per VM.
+      description: |-
+        Up to 20 snapshots per VM.
 
-
-        **Required role:** REQUESTER (when sign-in is on; it is currently off)'
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)
       operationId: snapshotVm
       parameters:
       - name: specHash
@@ -67,42 +52,43 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SnapshotBody'
+              $ref: "#/components/schemas/SnapshotBody"
         required: true
       responses:
-        '200':
+        "200":
           description: Snapshot taken; the new lifecycle
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/VmLifecycle'
-        '409':
-          description: 'Refused: the VM isn''t in a state that allows this (the message says why)'
+                $ref: "#/components/schemas/VmLifecycle"
+        "409":
+          description: "Refused: the VM isn't in a state that allows this (the message\
+            \ says why)"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-        '400':
+                $ref: "#/components/schemas/ApiError"
+        "400":
           description: Invalid request body
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-        '500':
+                $ref: "#/components/schemas/ApiError"
+        "500":
           description: Unexpected server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
+                $ref: "#/components/schemas/ApiError"
   /api/v2/vms/{specHash}/resize:
     post:
       tags:
       - VM lifecycle
       summary: Resize a VM
-      description: 'Changes vCPU and memory. If the cloud refuses, nothing changes and the reason comes back (409).
+      description: |-
+        Changes vCPU and memory. If the cloud refuses, nothing changes and the reason comes back (409).
 
-
-        **Required role:** REQUESTER (when sign-in is on; it is currently off)'
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)
       operationId: resizeVm
       parameters:
       - name: specHash
@@ -114,43 +100,43 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ResizeBody'
+              $ref: "#/components/schemas/ResizeBody"
         required: true
       responses:
-        '200':
+        "200":
           description: Resized; the new lifecycle
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/VmLifecycle'
-        '409':
-          description: 'Refused: the VM isn''t in a state that allows this (the message says why)'
+                $ref: "#/components/schemas/VmLifecycle"
+        "409":
+          description: "Refused: the VM isn't in a state that allows this (the message\
+            \ says why)"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-        '400':
+                $ref: "#/components/schemas/ApiError"
+        "400":
           description: Invalid request body
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-        '500':
+                $ref: "#/components/schemas/ApiError"
+        "500":
           description: Unexpected server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
+                $ref: "#/components/schemas/ApiError"
   /api/v2/vms/{specHash}/renew:
     post:
       tags:
       - VM lifecycle
       summary: Renew a VM
-      description: 'Pushes the expiry back by 1 to 90 days (at most 365 days from today). A VM that never expires can''t
-        be renewed.
+      description: |-
+        Pushes the expiry back by 1 to 90 days (at most 365 days from today). A VM that never expires can't be renewed.
 
-
-        **Required role:** REQUESTER (when sign-in is on; it is currently off)'
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)
       operationId: renewVm
       parameters:
       - name: specHash
@@ -162,42 +148,43 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RenewBody'
+              $ref: "#/components/schemas/RenewBody"
         required: true
       responses:
-        '200':
+        "200":
           description: Renewed; the new lifecycle
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/VmLifecycle'
-        '409':
-          description: 'Refused: the VM isn''t in a state that allows this (the message says why)'
+                $ref: "#/components/schemas/VmLifecycle"
+        "409":
+          description: "Refused: the VM isn't in a state that allows this (the message\
+            \ says why)"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-        '400':
+                $ref: "#/components/schemas/ApiError"
+        "400":
           description: Invalid request body
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-        '500':
+                $ref: "#/components/schemas/ApiError"
+        "500":
           description: Unexpected server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
+                $ref: "#/components/schemas/ApiError"
   /api/v2/vms/{specHash}/power:
     post:
       tags:
       - VM lifecycle
       summary: Power a VM on or off
-      description: 'Power a VM on or off
+      description: |-
+        Power a VM on or off
 
-
-        **Required role:** REQUESTER (when sign-in is on; it is currently off)'
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)
       operationId: powerVm
       parameters:
       - name: specHash
@@ -209,42 +196,43 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PowerBody'
+              $ref: "#/components/schemas/PowerBody"
         required: true
       responses:
-        '200':
+        "200":
           description: Done; the new lifecycle
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/VmLifecycle'
-        '409':
-          description: 'Refused: the VM isn''t in a state that allows this (the message says why)'
+                $ref: "#/components/schemas/VmLifecycle"
+        "409":
+          description: "Refused: the VM isn't in a state that allows this (the message\
+            \ says why)"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-        '400':
+                $ref: "#/components/schemas/ApiError"
+        "400":
           description: Invalid request body
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-        '500':
+                $ref: "#/components/schemas/ApiError"
+        "500":
           description: Unexpected server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
+                $ref: "#/components/schemas/ApiError"
   /api/v2/vms/{specHash}/decommission:
     post:
       tags:
       - VM lifecycle
       summary: Remove a VM now
-      description: 'Deletes the VM from its cloud and marks it DELETED. This can''t be undone.
+      description: |-
+        Deletes the VM from its cloud and marks it DELETED. This can't be undone.
 
-
-        **Required role:** REQUESTER (when sign-in is on; it is currently off)'
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)
       operationId: decommissionVm
       parameters:
       - name: specHash
@@ -256,43 +244,261 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DecommissionBody'
+              $ref: "#/components/schemas/DecommissionBody"
       responses:
-        '200':
+        "200":
           description: Removed; the final lifecycle
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/VmLifecycle'
-        '409':
-          description: 'Refused: the VM isn''t in a state that allows this (the message says why)'
+                $ref: "#/components/schemas/VmLifecycle"
+        "409":
+          description: "Refused: the VM isn't in a state that allows this (the message\
+            \ says why)"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-        '400':
+                $ref: "#/components/schemas/ApiError"
+        "400":
           description: Invalid request body
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-        '500':
+                $ref: "#/components/schemas/ApiError"
+        "500":
           description: Unexpected server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
+                $ref: "#/components/schemas/ApiError"
+  /api/v2/runs:
+    get:
+      tags:
+      - Catalog runs
+      summary: Recent runs
+      description: |-
+        Newest first, from the run records.
+
+        **Required role:** READER (when sign-in is on; it is currently off)
+      operationId: listRuns
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 50
+      - name: definition
+        in: query
+        description: Only this definition
+        required: false
+        schema:
+          type: string
+      - name: state
+        in: query
+        description: Only this state
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RunRow"
+        "500":
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      tags:
+      - Catalog runs
+      summary: Start a run of a definition
+      description: |-
+        Checks the inputs, fills in defaults and starts the run. The run's ID comes from the definition version and the inputs, so sending the same thing again finds the run already going (200, existing=true) instead of starting a second one.
+
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)
+      operationId: startRun
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RunBody"
+        required: true
+      responses:
+        "201":
+          description: Started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunStarted"
+        "200":
+          description: A run with the same definition version and inputs is already
+            going
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunStarted"
+        "400":
+          description: Bad inputs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No such definition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/v2/runs/{runId}/teardown:
+    post:
+      tags:
+      - Catalog runs
+      summary: Tear a run down
+      description: |-
+        Undoes everything the run did, newest step first (including the failed step's partial work). For a run stopped after a failure or waiting for an approval. The run's requester or an operator.
+
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)
+      operationId: teardownRun
+      parameters:
+      - name: runId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TeardownBody"
+      responses:
+        "409":
+          description: Not in a state that can be torn down
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/v2/runs/{runId}/resume:
+    post:
+      tags:
+      - Catalog runs
+      summary: Resume a stopped run
+      description: |-
+        Runs the failed step again (it picks up whatever its last try did), then carries on. The run's requester or an operator. 409 if the run isn't stopped after a failure.
+
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)
+      operationId: resumeRun
+      parameters:
+      - name: runId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResumeBody"
+      responses:
+        "409":
+          description: Not stopped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/v2/runs/{runId}/approve:
+    post:
+      tags:
+      - Catalog runs
+      summary: Approve or reject a waiting step
+      description: |-
+        Anyone but the run's requester, and only someone on the step's approvers list if it has one.
+
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)
+      operationId: approveRun
+      parameters:
+      - name: runId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApproveBody"
+        required: true
+      responses:
+        "403":
+          description: Not allowed to answer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Not waiting for an approval
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /api/v2/requests:
     get:
       tags:
       - Requests
       summary: List requests
-      description: 'Newest first, filtered by any of: requester, state, provider, env. Uses Temporal search attributes;
-        if the Temporal server doesn''t have them, filters are refused (400) and only the unfiltered list works. The
-        state is the last one the request reported.
+      description: |-
+        Newest first, filtered by any of: requester, state, provider, env. Uses Temporal search attributes; if the Temporal server doesn't have them, filters are refused (400) and only the unfiltered list works. The state is the last one the request reported.
 
-
-        **Required role:** READER (when sign-in is on; it is currently off)'
+        **Required role:** READER (when sign-in is on; it is currently off)
       operationId: listRequests
       parameters:
       - name: requester
@@ -303,19 +509,19 @@ paths:
           type: string
       - name: state
         in: query
-        description: e.g. AWAITING_CONFIRMATION, COMPLETED
+        description: "e.g. AWAITING_CONFIRMATION, COMPLETED"
         required: false
         schema:
           type: string
       - name: provider
         in: query
-        description: vsphere, aws, azure or gcp
+        description: "vsphere, aws, azure or gcp"
         required: false
         schema:
           type: string
       - name: env
         in: query
-        description: dev, test, staging or prod
+        description: "dev, test, staging or prod"
         required: false
         schema:
           type: string
@@ -328,66 +534,63 @@ paths:
           format: int32
           default: 50
       responses:
-        '200':
+        "200":
           description: OK
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/RequestSummary'
-        '500':
+                  $ref: "#/components/schemas/RequestSummary"
+        "500":
           description: Unexpected server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
+                $ref: "#/components/schemas/ApiError"
     post:
       tags:
       - Requests
       summary: Start a request
-      description: 'Starts a request workflow for one VM. Poll GET /api/v2/requests/{id}: when state is AWAITING_CLARIFICATION,
-        answer the question; when AWAITING_CONFIRMATION, confirm or cancel. Both waits time out after 24 hours.
+      description: |-
+        Starts a request workflow for one VM. Poll GET /api/v2/requests/{id}: when state is AWAITING_CLARIFICATION, answer the question; when AWAITING_CONFIRMATION, confirm or cancel. Both waits time out after 24 hours.
 
-
-        **Required role:** REQUESTER (when sign-in is on; it is currently off)'
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)
       operationId: createRequest
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TextBody'
+              $ref: "#/components/schemas/TextBody"
         required: true
       responses:
-        '200':
+        "200":
           description: Started
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SubmitResponse'
-        '400':
+                $ref: "#/components/schemas/SubmitResponse"
+        "400":
           description: Invalid request body
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-        '500':
+                $ref: "#/components/schemas/ApiError"
+        "500":
           description: Unexpected server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
+                $ref: "#/components/schemas/ApiError"
   /api/v2/requests/{id}/confirm:
     post:
       tags:
       - Requests
       summary: Confirm and build
-      description: 'Use when state is AWAITING_CONFIRMATION, after the requester has checked the spec. Send the specHash
-        you were shown to make sure it''s the spec being built. Answers with the request''s new status (PROVISIONING,
-        or DUPLICATE if the VM already exists).
+      description: |-
+        Use when state is AWAITING_CONFIRMATION, after the requester has checked the spec. Send the specHash you were shown to make sure it's the spec being built. Answers with the request's new status (PROVISIONING, or DUPLICATE if the VM already exists).
 
-
-        **Required role:** REQUESTER (when sign-in is on; it is currently off)'
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)
       operationId: confirmRequest
       parameters:
       - name: id
@@ -399,53 +602,53 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ConfirmBody'
+              $ref: "#/components/schemas/ConfirmBody"
       responses:
-        '200':
+        "200":
           description: Confirmed; the build has started
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RequestStatus'
-        '409':
-          description: Not waiting for confirmation, or a different spec
+                $ref: "#/components/schemas/RequestStatus"
+        "409":
+          description: "Not waiting for confirmation, or a different spec"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-        '404':
+                $ref: "#/components/schemas/ApiError"
+        "404":
           description: No such request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-        '403':
-          description: Not your request (sign-in on, not an admin)
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "Not your request (sign-in on, not an admin)"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-        '400':
+                $ref: "#/components/schemas/ApiError"
+        "400":
           description: Invalid request body
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-        '500':
+                $ref: "#/components/schemas/ApiError"
+        "500":
           description: Unexpected server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
+                $ref: "#/components/schemas/ApiError"
   /api/v2/requests/{id}/clarify:
     post:
       tags:
       - Requests
       summary: Answer the request's question
-      description: 'Use when state is AWAITING_CLARIFICATION.
+      description: |-
+        Use when state is AWAITING_CLARIFICATION.
 
-
-        **Required role:** REQUESTER (when sign-in is on; it is currently off)'
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)
       operationId: clarifyRequest
       parameters:
       - name: id
@@ -457,44 +660,44 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AnswerBody'
+              $ref: "#/components/schemas/AnswerBody"
         required: true
       responses:
-        '204':
+        "204":
           description: Answer delivered
-        '404':
+        "404":
           description: No such request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-        '403':
-          description: Not your request (sign-in on, not an admin)
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "Not your request (sign-in on, not an admin)"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-        '400':
+                $ref: "#/components/schemas/ApiError"
+        "400":
           description: Invalid request body
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-        '500':
+                $ref: "#/components/schemas/ApiError"
+        "500":
           description: Unexpected server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
+                $ref: "#/components/schemas/ApiError"
   /api/v2/requests/{id}/cancel:
     post:
       tags:
       - Requests
       summary: Cancel a waiting request
-      description: 'Has no effect once the build has started.
+      description: |-
+        Has no effect once the build has started.
 
-
-        **Required role:** REQUESTER (when sign-in is on; it is currently off)'
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)
       operationId: cancelRequest
       parameters:
       - name: id
@@ -503,37 +706,35 @@ paths:
         schema:
           type: string
       responses:
-        '204':
+        "204":
           description: Cancelled
-        '404':
+        "404":
           description: No such request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-        '403':
-          description: Not your request (sign-in on, not an admin)
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "Not your request (sign-in on, not an admin)"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-        '500':
+                $ref: "#/components/schemas/ApiError"
+        "500":
           description: Unexpected server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
+                $ref: "#/components/schemas/ApiError"
   /api/v2/inventory-checks:
     get:
       tags:
       - Inventory
       summary: Latest inventory checks
-      description: 'Results of the nightly check (and any run by hand), newest first: VMs that disappeared from their
-        cloud (now MISSING) and VMs in a cloud that nobody recorded (orphans; never deleted automatically). Clouds behind
-        the one-way link are skipped.
+      description: |-
+        Results of the nightly check (and any run by hand), newest first: VMs that disappeared from their cloud (now MISSING) and VMs in a cloud that nobody recorded (orphans; never deleted automatically). Clouds behind the one-way link are skipped.
 
-
-        **Required role:** READER (when sign-in is on; it is currently off)'
+        **Required role:** READER (when sign-in is on; it is currently off)
       operationId: listInventoryChecks
       parameters:
       - name: limit
@@ -545,193 +746,433 @@ paths:
           format: int32
           default: 10
       responses:
-        '200':
+        "200":
           description: OK
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/InventoryReport'
-        '500':
+                  $ref: "#/components/schemas/InventoryReport"
+        "500":
           description: Unexpected server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
+                $ref: "#/components/schemas/ApiError"
     post:
       tags:
       - Inventory
       summary: Run the inventory check now
-      description: 'Starts it straight away instead of waiting for the night. The result appears in GET /api/v2/inventory-checks
-        when it finishes, usually within a minute.
+      description: |-
+        Starts it straight away instead of waiting for the night. The result appears in GET /api/v2/inventory-checks when it finishes, usually within a minute.
 
-
-        **Required role:** ADMIN (when sign-in is on; it is currently off)'
+        **Required role:** ADMIN (when sign-in is on; it is currently off)
       operationId: runInventoryCheck
       responses:
-        '202':
+        "202":
           description: Started
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CheckStarted'
-        '500':
+                $ref: "#/components/schemas/CheckStarted"
+        "500":
           description: Unexpected server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
+                $ref: "#/components/schemas/ApiError"
   /api/v2/interpret:
     post:
       tags:
       - Requests
       summary: Preview how a request is understood
-      description: 'Turns plain English into the canonical spec and its hash, or returns the question it would ask. Starts
-        nothing and builds nothing. Many wordings of the same VM give the same specHash.
+      description: |-
+        Turns plain English into the canonical spec and its hash, or returns the question it would ask. Starts nothing and builds nothing. Many wordings of the same VM give the same specHash.
 
-
-        **Required role:** REQUESTER (when sign-in is on; it is currently off)'
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)
       operationId: interpretRequest
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TextBody'
+              $ref: "#/components/schemas/TextBody"
         required: true
       responses:
-        '200':
+        "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Interpretation'
-        '400':
+                $ref: "#/components/schemas/Interpretation"
+        "400":
           description: Invalid request body
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-        '500':
+                $ref: "#/components/schemas/ApiError"
+        "500":
           description: Unexpected server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-  /api/v2/batches:
-    post:
-      tags:
-      - Batches
-      summary: Build many VMs at once
-      description: 'Every item is checked before anything starts. Items that need a clarifying answer, or break policy,
-        are returned in `rejected`; the rest are built with no confirmation step. An item identical to another (same
-        spec hash) is built once. Poll GET /api/v2/batches/{id}.
-
-
-        **Required role:** BATCH (when sign-in is on; it is currently off)'
-      operationId: createBatch
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/BatchBody'
-        required: true
-      responses:
-        '202':
-          description: Accepted; the batch has started
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BatchSubmitResponse'
-        '400':
-          description: Empty, too large, or no item could be built
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '500':
-          description: Unexpected server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-  /api/v1/vms:
-    post:
-      tags:
-      - Legacy
-      summary: Create a VM from the legacy JSON format
-      description: 'The old universal JSON definition. Skips interpretation and confirmation and goes straight to the
-        build. Kept for existing callers; new callers should use /api/v2.
-
-
-        **Required role:** BATCH (when sign-in is on; it is currently off)'
-      operationId: createLegacyVm
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/LegacyVmDefinition'
-        required: true
-      responses:
-        '202':
-          description: Accepted; the build has started
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LegacyAccepted'
-        '400':
-          description: Missing or invalid fields
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '409':
-          description: An identical VM already exists or is being built
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-        '500':
-          description: Unexpected server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
-  /api/v2/vms:
+                $ref: "#/components/schemas/ApiError"
+  /api/v2/definitions:
     get:
       tags:
-      - Inventory
-      summary: List VMs
-      description: 'The 200 most recently changed VMs, newest first.
+      - Catalog
+      summary: List definitions and blueprints
+      description: |-
+        The newest version of each, or every version with all=true.
 
-
-        **Required role:** READER (when sign-in is on; it is currently off)'
-      operationId: listVms
+        **Required role:** READER (when sign-in is on; it is currently off)
+      operationId: listDefinitions
+      parameters:
+      - name: all
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
       responses:
-        '200':
+        "200":
           description: OK
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/VmRecord'
-        '500':
+                  $ref: "#/components/schemas/Entry"
+        "500":
           description: Unexpected server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
+                $ref: "#/components/schemas/ApiError"
+    post:
+      tags:
+      - Catalog
+      summary: Publish a definition sent as JSON
+      description: |-
+        Operators only. A published version never changes: publish a higher version to change it. Publishing the same version with the same content again does nothing (UNCHANGED), so a pipeline can publish every file on every merge.
+
+        **Required role:** OPERATOR (when sign-in is on; it is currently off)
+      operationId: publishDefinitionJson
+      requestBody:
+        content:
+          application/yaml:
+            schema:
+              type: string
+          text/yaml:
+            schema:
+              type: string
+          text/plain:
+            schema:
+              type: string
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YamlBody"
+        required: true
+      responses:
+        "201":
+          description: Published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublishResult"
+        "200":
+          description: "Already published, unchanged"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublishResult"
+        "422":
+          description: "Refused: the problems are listed"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublishResult"
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/v2/definitions/{kind}/{name}/{version}/retire:
+    post:
+      tags:
+      - Catalog
+      summary: Retire a version
+      description: |-
+        No new runs of it; runs already going carry on. retired=false brings it back.
+
+        **Required role:** OPERATOR (when sign-in is on; it is currently off)
+      operationId: retireDefinition
+      parameters:
+      - name: kind
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: version
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RetireBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DefinitionView"
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/v2/definitions/validate:
+    post:
+      tags:
+      - Catalog
+      summary: Check a definition sent as JSON
+      description: |-
+        Send the YAML (Content-Type: application/yaml or text/plain), or JSON {"yaml": "..."}. Every problem is listed at once: names, actions and their settings, every CEL expression, and that steps only read earlier steps. Used by the Git pipeline before a merge.
+
+        **Required role:** REQUESTER (when sign-in is on; it is currently off)
+      operationId: validateDefinitionJson
+      requestBody:
+        content:
+          application/yaml:
+            schema:
+              type: string
+          text/yaml:
+            schema:
+              type: string
+          text/plain:
+            schema:
+              type: string
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YamlBody"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationResult"
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/v2/compliance/sweeps:
+    post:
+      tags:
+      - Compliance
+      summary: Run the archive sweep now
+      description: |-
+        Copies closed histories to the archive and removes what is past its retention. It also runs every hour on the vm-archive-sweep schedule.
+
+        **Required role:** ADMIN (when sign-in is on; it is currently off)
+      operationId: runArchiveSweep
+      responses:
+        "202":
+          description: Started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SweepStarted"
+        "500":
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/v2/compliance/replays:
+    post:
+      tags:
+      - Compliance
+      summary: Replay a recorded workflow for audit
+      description: |-
+        Runs today's code against the recorded history without doing anything again: no cloud calls, no files, no database writes. matches=true shows the recorded run is exactly what this code does. Uses the archive (SHA-256 checked) or, if it isn't archived yet, Temporal.
+
+        **Required role:** AUDITOR (when sign-in is on; it is currently off)
+      operationId: replayWorkflow
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplayBody"
+        required: true
+      responses:
+        "200":
+          description: The result (matches true or false)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReplayResult"
+        "404":
+          description: No such workflow in the archive or Temporal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/v2/batches:
+    post:
+      tags:
+      - Batches
+      summary: Build many VMs at once
+      description: |-
+        Every item is checked before anything starts. Items that need a clarifying answer, or break policy, are returned in `rejected`; the rest are built with no confirmation step. An item identical to another (same spec hash) is built once. Poll GET /api/v2/batches/{id}.
+
+        **Required role:** BATCH (when sign-in is on; it is currently off)
+      operationId: createBatch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchBody"
+        required: true
+      responses:
+        "202":
+          description: Accepted; the batch has started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchSubmitResponse"
+        "400":
+          description: "Empty, too large, or no item could be built"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/v1/vms:
+    post:
+      tags:
+      - Legacy
+      summary: Create a VM from the legacy JSON format
+      description: |-
+        The old universal JSON definition. Skips interpretation and confirmation and goes straight to the build. Kept for existing callers; new callers should use /api/v2.
+
+        **Required role:** BATCH (when sign-in is on; it is currently off)
+      operationId: createLegacyVm
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LegacyVmDefinition"
+        required: true
+      responses:
+        "202":
+          description: Accepted; the build has started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyAccepted"
+        "400":
+          description: Missing or invalid fields
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: An identical VM already exists or is being built
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/v2/vms:
+    get:
+      tags:
+      - Inventory
+      summary: List VMs
+      description: |-
+        The 200 most recently changed VMs, newest first.
+
+        **Required role:** READER (when sign-in is on; it is currently off)
+      operationId: listVms
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VmRecord"
+        "500":
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /api/v2/vms/{specHash}/lifecycle:
     get:
       tags:
       - VM lifecycle
       summary: Get a VM's lifecycle
-      description: 'Expiry date, whether the warning was sent, power, current size, snapshots and recent events. Live
-        from the lifecycle workflow while the VM exists; from the inventory after it''s removed.
+      description: |-
+        Expiry date, whether the warning was sent, power, current size, snapshots and recent events. Live from the lifecycle workflow while the VM exists; from the inventory after it's removed.
 
-
-        **Required role:** READER (when sign-in is on; it is currently off)'
+        **Required role:** READER (when sign-in is on; it is currently off)
       operationId: getVmLifecycle
       parameters:
       - name: specHash
@@ -741,58 +1182,85 @@ paths:
         schema:
           type: string
       responses:
-        '200':
+        "200":
           description: The lifecycle
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/VmLifecycle'
-        '404':
-          description: No such VM, or one built before lifecycles existed
+                $ref: "#/components/schemas/VmLifecycle"
+        "404":
+          description: "No such VM, or one built before lifecycles existed"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-        '500':
+                $ref: "#/components/schemas/ApiError"
+        "500":
           description: Unexpected server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
+                $ref: "#/components/schemas/ApiError"
   /api/v2/stats:
     get:
       tags:
       - Inventory
       summary: Count VMs by state
-      description: 'Count VMs by state
+      description: |-
+        Count VMs by state
 
-
-        **Required role:** READER (when sign-in is on; it is currently off)'
+        **Required role:** READER (when sign-in is on; it is currently off)
       operationId: getStats
       responses:
-        '200':
+        "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StatsResponse'
-        '500':
+                $ref: "#/components/schemas/StatsResponse"
+        "500":
           description: Unexpected server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
+                $ref: "#/components/schemas/ApiError"
+  /api/v2/runs/{runId}:
+    get:
+      tags:
+      - Catalog runs
+      summary: Get a run
+      description: |-
+        Live from the run's workflow: every step, what it produced, and what the run is waiting for.
+
+        **Required role:** READER (when sign-in is on; it is currently off)
+      operationId: getRun
+      parameters:
+      - name: runId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "404":
+          description: No such run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /api/v2/requests/{id}:
     get:
       tags:
       - Requests
       summary: Get a request's status
-      description: 'state is one of STARTING, INTERPRETING, AWAITING_CLARIFICATION, AWAITING_CONFIRMATION, PROVISIONING,
-        COMPLETED, FAILED, CANCELLED, DUPLICATE, or BUSY (workers didn''t answer within 5 seconds; try again). The last
-        four of the first list are final.
+      description: |-
+        state is one of STARTING, INTERPRETING, AWAITING_CLARIFICATION, AWAITING_CONFIRMATION, PROVISIONING, COMPLETED, FAILED, CANCELLED, DUPLICATE, or BUSY (workers didn't answer within 5 seconds; try again). The last four of the first list are final.
 
-
-        **Required role:** READER (when sign-in is on; it is currently off)'
+        **Required role:** READER (when sign-in is on; it is currently off)
       operationId: getRequest
       parameters:
       - name: id
@@ -802,33 +1270,237 @@ paths:
         schema:
           type: string
       responses:
-        '200':
+        "200":
           description: Current status
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RequestStatus'
-        '404':
+                $ref: "#/components/schemas/RequestStatus"
+        "404":
           description: No such request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-        '500':
+                $ref: "#/components/schemas/ApiError"
+        "500":
           description: Unexpected server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
+                $ref: "#/components/schemas/ApiError"
+  /api/v2/definitions/{kind}/{name}:
+    get:
+      tags:
+      - Catalog
+      summary: Get one definition or blueprint
+      description: |-
+        kind = Provisioning or Blueprint. version 0 (the default) = the newest.
+
+        **Required role:** READER (when sign-in is on; it is currently off)
+      operationId: getDefinition
+      parameters:
+      - name: kind
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: version
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      responses:
+        "200":
+          description: The definition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DefinitionView"
+        "404":
+          description: Not published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/v2/compliance/decisions:
+    get:
+      tags:
+      - Compliance
+      summary: The decision log
+      description: |-
+        Every authorization decision, newest first: who asked to do what, ALLOW or DENY, and the rule that decided. Each is kept for its classification's retention.
+
+        **Required role:** AUDITOR (when sign-in is on; it is currently off)
+      operationId: listDecisions
+      parameters:
+      - name: actor
+        in: query
+        description: Only this person or service
+        required: false
+        schema:
+          type: string
+      - name: resource
+        in: query
+        description: "Only resources starting with this, e.g. a run ID"
+        required: false
+        schema:
+          type: string
+      - name: decision
+        in: query
+        description: ALLOW or DENY
+        required: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 100
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Decision"
+        "500":
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/v2/compliance/archive:
+    get:
+      tags:
+      - Compliance
+      summary: Archived histories
+      description: |-
+        Newest first.
+
+        **Required role:** AUDITOR (when sign-in is on; it is currently off)
+      operationId: listArchive
+      parameters:
+      - name: workflowId
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: classification
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 100
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ArchiveRow"
+        "500":
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/v2/compliance/archive/{workflowId}/{runId}:
+    get:
+      tags:
+      - Compliance
+      summary: Download an archived history
+      description: |-
+        The history JSON, as "temporal workflow show --output json" writes it. Its SHA-256 is checked first.
+
+        **Required role:** AUDITOR (when sign-in is on; it is currently off)
+      operationId: downloadArchivedHistory
+      parameters:
+      - name: workflowId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: runId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The history
+          content:
+            application/json: {}
+        "404":
+          description: "Not archived, or past its retention"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/v2/classifications:
+    get:
+      tags:
+      - Catalog
+      summary: Data classifications
+      description: |-
+        Each code, its text, and how many years runs with it are kept. The first one marked default applies when neither the run nor its definition gives one.
+
+        **Required role:** READER (when sign-in is on; it is currently off)
+      operationId: listClassifications
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+        "500":
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /api/v2/batches/{id}:
     get:
       tags:
       - Batches
       summary: Get a batch's progress
-      description: 'Counted from the audit trail, so it answers immediately even while workers restart.
+      description: |-
+        Counted from the audit trail, so it answers immediately even while workers restart.
 
-
-        **Required role:** READER (when sign-in is on; it is currently off)'
+        **Required role:** READER (when sign-in is on; it is currently off)
       operationId: getBatch
       parameters:
       - name: id
@@ -838,34 +1510,33 @@ paths:
         schema:
           type: string
       responses:
-        '200':
+        "200":
           description: Current progress
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BatchStatus'
-        '404':
+                $ref: "#/components/schemas/BatchStatus"
+        "404":
           description: No such batch
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
-        '500':
+                $ref: "#/components/schemas/ApiError"
+        "500":
           description: Unexpected server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
+                $ref: "#/components/schemas/ApiError"
   /api/v2/audit:
     get:
       tags:
       - Inventory
       summary: Read the audit trail
-      description: 'Events for one request, batch or VM (spec hash or its first characters), oldest first. With no filter,
-        the latest events overall.
+      description: |-
+        Events for one request, batch or VM (spec hash or its first characters), oldest first. With no filter, the latest events overall.
 
-
-        **Required role:** READER (when sign-in is on; it is currently off)'
+        **Required role:** READER (when sign-in is on; it is currently off)
       operationId: getAuditTrail
       parameters:
       - name: requestId
@@ -876,7 +1547,7 @@ paths:
           type: string
       - name: specHash
         in: query
-        description: Spec hash, or its first 8+ characters
+        description: "Spec hash, or its first 8+ characters"
         required: false
         schema:
           type: string
@@ -889,20 +1560,20 @@ paths:
           format: int32
           default: 50
       responses:
-        '200':
+        "200":
           description: OK
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/AuditEvent'
-        '500':
+                  $ref: "#/components/schemas/AuditEvent"
+        "500":
           description: Unexpected server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiError'
+                $ref: "#/components/schemas/ApiError"
 components:
   schemas:
     SnapshotBody:
@@ -912,7 +1583,7 @@ components:
       properties:
         label:
           type: string
-          description: Lowercase letters, digits and dashes, up to 40.
+          description: "Lowercase letters, digits and dashes, up to 40."
           example: before-upgrade
       description: Take a snapshot of a VM.
     ApiError:
@@ -920,16 +1591,16 @@ components:
       properties:
         error:
           type: string
-          description: What went wrong, in plain words.
+          description: "What went wrong, in plain words."
           example: No batch batch-123
         workflowId:
           type: string
-          description: The workflow involved, when there is one.
+          description: "The workflow involved, when there is one."
         rejected:
           type: array
-          description: Rejected batch items, when a whole batch was refused.
+          description: "Rejected batch items, when a whole batch was refused."
           items:
-            $ref: '#/components/schemas/Rejected'
+            $ref: "#/components/schemas/Rejected"
       description: Error body returned with every 4xx and 5xx response.
     Rejected:
       type: object
@@ -941,8 +1612,9 @@ components:
           example: 2
         reason:
           type: string
-          description: Why, or the question that would need answering.
-          example: 'Needs an answer: Which platform should this run on: vSphere (on-prem), AWS, Azure or Google Cloud?'
+          description: "Why, or the question that would need answering."
+          example: "Needs an answer: Which platform should this run on: vSphere (on-prem),\
+            \ AWS, Azure or Google Cloud?"
       description: A batch item that was not accepted.
     VmLifecycle:
       type: object
@@ -956,10 +1628,10 @@ components:
           - MISSING
         expiresAt:
           type: string
-          description: When the VM is removed (ISO-8601), or empty if it never expires.
+          description: "When the VM is removed (ISO-8601), or empty if it never expires."
         expiresAtMs:
           type: integer
-          description: Same as expiresAt, in epoch milliseconds; 0 = never.
+          description: "Same as expiresAt, in epoch milliseconds; 0 = never."
           format: int64
         warned:
           type: boolean
@@ -967,8 +1639,8 @@ components:
         power:
           type: string
           enum:
-          - 'ON'
-          - 'OFF'
+          - "ON"
+          - "OFF"
         vcpu:
           type: integer
           description: Current vCPU (after any resize).
@@ -979,20 +1651,20 @@ components:
           format: int32
         snapshots:
           type: array
-          description: Snapshots taken, newest last.
+          description: "Snapshots taken, newest last."
           items:
             type: string
-            description: Snapshots taken, newest last.
+            description: "Snapshots taken, newest last."
         owner:
           type: string
-          description: 'Who owns the VM: the person who asked for it.'
+          description: "Who owns the VM: the person who asked for it."
         history:
           type: array
-          description: Timestamped lifecycle events, newest last (the last 50).
+          description: "Timestamped lifecycle events, newest last (the last 50)."
           items:
             type: string
-            description: Timestamped lifecycle events, newest last (the last 50).
-      description: 'A running VM''s life after the build: expiry, power, size, snapshots.'
+            description: "Timestamped lifecycle events, newest last (the last 50)."
+      description: "A running VM's life after the build: expiry, power, size, snapshots."
     ResizeBody:
       required:
       - memoryGiB
@@ -1019,18 +1691,19 @@ components:
       properties:
         days:
           type: integer
-          description: Days to add (1-90). The new expiry can't be more than 365 days from today.
+          description: Days to add (1-90). The new expiry can't be more than 365 days
+            from today.
           format: int32
           example: 14
       description: Push a VM's expiry back.
     PowerBody:
       required:
-      - 'on'
+      - "on"
       type: object
       properties:
-        'on':
+        "on":
           type: boolean
-          description: true = on, false = off.
+          description: "true = on, false = off."
           example: false
       description: Power a VM on or off.
     DecommissionBody:
@@ -1038,9 +1711,193 @@ components:
       properties:
         reason:
           type: string
-          description: Why, for the audit trail.
+          description: "Why, for the audit trail."
           example: Project finished
       description: Remove a VM now.
+    RunBody:
+      required:
+      - definition
+      type: object
+      properties:
+        definition:
+          type: string
+          example: web-server
+        version:
+          type: integer
+          description: A version; empty = the newest that isn't retired.
+          format: int32
+          example: 1
+        params:
+          type: object
+          additionalProperties:
+            type: object
+            description: The definition's inputs.
+            example:
+              app: shop
+              env: dev
+          description: The definition's inputs.
+          example:
+            app: shop
+            env: dev
+        classification:
+          type: string
+          description: "Data classification code; empty = the definition's. Can raise\
+            \ the definition's retention, not lower it."
+          example: C3
+        requestedBy:
+          type: string
+          description: "Who is asking, when sign-in is off."
+          example: jdoe
+      description: Start a run of a definition.
+    Approval:
+      type: object
+      properties:
+        step:
+          type: string
+        message:
+          type: string
+        approvers:
+          type: array
+          items:
+            type: string
+        deadline:
+          type: string
+      description: An approval step that is waiting.
+    Classification:
+      type: object
+      properties:
+        code:
+          type: string
+          example: C3
+        label:
+          type: string
+          example: Confidential
+        retentionYears:
+          type: integer
+          description: Years to keep histories and decision logs (1-5).
+          format: int32
+          example: 3
+      description: "A data classification: a code with its text. The code decides\
+        \ how long the run, its history and its access decisions are kept."
+    RunStarted:
+      type: object
+      properties:
+        runId:
+          type: string
+        existing:
+          type: boolean
+          description: true = a run with these inputs already existed
+        status:
+          $ref: "#/components/schemas/RunStatus"
+      description: "A run that has started, or the one already running with the same\
+        \ inputs."
+    RunStatus:
+      type: object
+      properties:
+        runId:
+          type: string
+          example: run-web-server-3f2a9c41d07e5b18
+        definition:
+          type: string
+        version:
+          type: integer
+          format: int32
+        state:
+          type: string
+          enum:
+          - RUNNING
+          - AWAITING_RECOVERY
+          - AWAITING_APPROVAL
+          - TEARING_DOWN
+          - COMPLETED
+          - TORN_DOWN
+          - TEARDOWN_INCOMPLETE
+        message:
+          type: string
+        requestedBy:
+          type: string
+        classification:
+          $ref: "#/components/schemas/Classification"
+        params:
+          type: object
+          additionalProperties:
+            type: object
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/StepState"
+        failedStep:
+          type: string
+          description: "The step that failed, while waiting for a decision."
+        recoveryDeadline:
+          type: string
+          description: When the run tears itself down if nobody decides (ISO-8601).
+        approval:
+          $ref: "#/components/schemas/Approval"
+        history:
+          type: array
+          items:
+            type: string
+      description: Where one catalog run is.
+    StepState:
+      type: object
+      properties:
+        id:
+          type: string
+        action:
+          type: string
+        title:
+          type: string
+        state:
+          type: string
+          enum:
+          - PENDING
+          - RUNNING
+          - DONE
+          - SKIPPED
+          - FAILED
+          - UNDONE
+          - UNDO_FAILED
+        attempts:
+          type: integer
+          description: "Tries so far, counting every resume."
+          format: int32
+        output:
+          type: object
+          additionalProperties:
+            type: object
+            description: What the step produced; later steps read it as steps.<id>.
+          description: What the step produced; later steps read it as steps.<id>.
+        error:
+          type: string
+        startedAt:
+          type: string
+        finishedAt:
+          type: string
+      description: One step of a run.
+    TeardownBody:
+      type: object
+      properties:
+        reason:
+          type: string
+          example: not needed any more
+    ResumeBody:
+      type: object
+      properties:
+        note:
+          type: string
+          description: "Why, or what was fixed."
+          example: the site files are in the store now
+    ApproveBody:
+      required:
+      - approved
+      type: object
+      properties:
+        approved:
+          type: boolean
+        note:
+          type: string
+          example: change ticket CHG-1234
     TextBody:
       required:
       - text
@@ -1048,8 +1905,8 @@ components:
       properties:
         text:
           type: string
-          description: What you want, in your own words.
-          example: Ubuntu box, 4 cores, 16 gigs, us-east on AWS
+          description: "What you want, in your own words."
+          example: "Ubuntu box, 4 cores, 16 gigs, us-east on AWS"
         userId:
           type: string
           description: Who is asking. Recorded in the audit trail.
@@ -1068,8 +1925,9 @@ components:
       properties:
         specHash:
           type: string
-          description: The specHash you were shown. If given and it doesn't match, the confirmation is refused (409),
-            so nobody confirms a spec they didn't see.
+          description: "The specHash you were shown. If given and it doesn't match,\
+            \ the confirmation is refused (409), so nobody confirms a spec they didn't\
+            \ see."
           example: 3af19a4e8492dc7edd60f92413fe0567546acd258f9c214eaebca7c4dd0d5d72
       description: Confirm the spec a request is waiting on.
     Interpretation:
@@ -1083,7 +1941,7 @@ components:
           description: Which interpreter was used.
           example: rules
         spec:
-          $ref: '#/components/schemas/VmSpec'
+          $ref: "#/components/schemas/VmSpec"
         specHash:
           type: string
           description: SHA-256 of the canonical spec.
@@ -1100,13 +1958,15 @@ components:
         question:
           type: string
           description: Set when something must be answered before a spec can be built.
-          example: 'Which platform should this run on: vSphere (on-prem), AWS, Azure or Google Cloud?'
+          example: "Which platform should this run on: vSphere (on-prem), AWS, Azure\
+            \ or Google Cloud?"
         count:
           type: integer
           description: How many identical VMs were asked for. Left out when it's one.
           format: int32
           example: 3
-      description: What a request was understood to mean. Either spec/specHash are set, or question is.
+      description: "What a request was understood to mean. Either spec/specHash are\
+        \ set, or question is."
     RequestStatus:
       type: object
       properties:
@@ -1128,11 +1988,11 @@ components:
           - BUSY
         message:
           type: string
-          description: Human-readable status, or the question being asked.
+          description: "Human-readable status, or the question being asked."
         interpretation:
-          $ref: '#/components/schemas/Interpretation'
+          $ref: "#/components/schemas/Interpretation"
         vm:
-          $ref: '#/components/schemas/VmResult'
+          $ref: "#/components/schemas/VmResult"
         history:
           type: array
           description: Timestamped steps so far.
@@ -1145,10 +2005,10 @@ components:
           example: jdoe@example.com
         vms:
           type: array
-          description: Every VM of a request for more than one (count > 1), in order.
+          description: "Every VM of a request for more than one (count > 1), in order."
           items:
-            $ref: '#/components/schemas/VmResult'
-      description: Where a request is, and what it understood.
+            $ref: "#/components/schemas/VmResult"
+      description: "Where a request is, and what it understood."
     VmResult:
       type: object
       properties:
@@ -1169,8 +2029,8 @@ components:
           example: m6i.xlarge
         nativeImage:
           type: string
-          example: 'AMI lookup: ubuntu 24.04'
-      description: The built VM, in the provider's own terms.
+          example: "AMI lookup: ubuntu 24.04"
+      description: "The built VM, in the provider's own terms."
     VmSpec:
       type: object
       properties:
@@ -1188,7 +2048,8 @@ components:
           - gcp
         region:
           type: string
-          description: 'Cloud regions: us-east, us-west, us-central, eu-west. vSphere datacenters: dc1, dc2.'
+          description: "Cloud regions: us-east, us-west, us-central, eu-west. vSphere\
+            \ datacenters: dc1, dc2."
           example: us-east
           enum:
           - us-east
@@ -1220,7 +2081,7 @@ components:
           - rocky
         osVersion:
           type: string
-          example: '24.04'
+          example: "24.04"
         diskGiB:
           maximum: 4096
           minimum: 10
@@ -1252,7 +2113,8 @@ components:
         publicIp:
           type: boolean
           example: false
-      description: The canonical, cloud-neutral VM spec. Its SHA-256 (specHash) is the VM's identity.
+      description: "The canonical, cloud-neutral VM spec. Its SHA-256 (specHash) is\
+        \ the VM's identity."
     AnswerBody:
       required:
       - answer
@@ -1260,7 +2122,7 @@ components:
       properties:
         answer:
           type: string
-          description: The answer, in plain words.
+          description: "The answer, in plain words."
           example: azure
       description: An answer to the question a request is waiting on.
     CheckStarted:
@@ -1270,6 +2132,290 @@ components:
           type: string
           example: inventory-check-manual-1792800000000
       description: An inventory check was started.
+    PublishResult:
+      type: object
+      properties:
+        outcome:
+          type: string
+          enum:
+          - PUBLISHED
+          - UNCHANGED
+          - REFUSED
+        kind:
+          type: string
+        name:
+          type: string
+        version:
+          type: integer
+          format: int32
+        problems:
+          type: array
+          description: "Why it was refused: every problem found, each as 'where: what'."
+          items:
+            type: string
+            description: "Why it was refused: every problem found, each as 'where:\
+              \ what'."
+      description: What publishing did.
+    YamlBody:
+      required:
+      - yaml
+      type: object
+      properties:
+        yaml:
+          type: string
+      description: "A definition as YAML, for clients that can only send JSON."
+    RetireBody:
+      type: object
+      properties:
+        retired:
+          type: boolean
+          default: true
+      description: Stop (or allow again) new runs of one version.
+    Blueprint:
+      type: object
+      properties:
+        name:
+          type: string
+          example: standard-vm
+        version:
+          type: integer
+          format: int32
+        description:
+          type: string
+        appliesWhen:
+          type: string
+          description: "CEL condition: the blueprint also applies to every catalog\
+            \ VM for which this is true. Empty = only to definitions that name it."
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/BlueprintRule"
+        sourceSha256:
+          type: string
+      description: "A blueprint: rules (CEL conditions) that a VM spec must pass before\
+        \ it's built."
+    BlueprintRule:
+      type: object
+      properties:
+        name:
+          type: string
+          example: prod-needs-two-cpus
+        check:
+          type: string
+          description: CEL condition that must be true.
+          example: spec.env != 'prod' || spec.vcpu >= 2
+        message:
+          type: string
+          example: Production VMs need at least 2 vCPU.
+    Definition:
+      type: object
+      properties:
+        name:
+          type: string
+          example: web-server
+        version:
+          type: integer
+          description: Goes up by one each time it's published.
+          format: int32
+          example: 3
+        description:
+          type: string
+        owner:
+          type: string
+          description: Who looks after this definition (team or person).
+          example: platform-team
+        classification:
+          type: string
+          description: Default data classification code for its runs.
+          example: C3
+        blueprint:
+          type: string
+          description: "Blueprint whose rules every VM it builds must pass, or empty."
+          example: standard-vm
+        inputs:
+          type: array
+          items:
+            $ref: "#/components/schemas/InputDef"
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/StepDef"
+        recoveryWaitHours:
+          type: integer
+          description: Hours a failed run waits for Resume or Tear down before it
+            tears itself down (1-72).
+          format: int32
+          example: 72
+        sourceSha256:
+          type: string
+          description: SHA-256 of the YAML it was read from.
+      description: "A provisioning definition: the inputs it takes and the steps it\
+        \ runs, in order."
+    DefinitionView:
+      type: object
+      properties:
+        entry:
+          $ref: "#/components/schemas/Entry"
+        definition:
+          $ref: "#/components/schemas/Definition"
+        blueprint:
+          $ref: "#/components/schemas/Blueprint"
+        yaml:
+          type: string
+      description: "A published version, as data and as the YAML it was published\
+        \ from."
+    Entry:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+          - Provisioning
+          - Blueprint
+        name:
+          type: string
+        version:
+          type: integer
+          format: int32
+        description:
+          type: string
+        sha256:
+          type: string
+        publishedBy:
+          type: string
+        publishedAt:
+          type: string
+        retired:
+          type: boolean
+      description: One published version.
+    InputDef:
+      type: object
+      properties:
+        name:
+          type: string
+          example: size
+        type:
+          type: string
+          enum:
+          - string
+          - int
+          - bool
+          - list
+        description:
+          type: string
+        required:
+          type: boolean
+        defaultValue:
+          type: object
+          description: Used when the input isn't given.
+        allowed:
+          type: array
+          description: "If set, the value must be one of these."
+          items:
+            type: object
+            description: "If set, the value must be one of these."
+      description: One input a definition takes.
+    StepDef:
+      type: object
+      properties:
+        id:
+          type: string
+          example: create
+        action:
+          type: string
+          example: vm.create
+        title:
+          type: string
+          description: Shown in the run's step list.
+          example: Build the VM
+        when:
+          type: string
+          description: CEL condition; the step is skipped when it's false.
+        with:
+          type: object
+          additionalProperties:
+            type: object
+        attempts:
+          type: integer
+          description: Tries before the run stops and waits for a decision (1-10).
+          format: int32
+          example: 3
+        timeoutMinutes:
+          type: integer
+          description: "Longest one try may take, in minutes."
+          format: int32
+          example: 30
+      description: One step of a definition.
+    ValidationResult:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        kind:
+          type: string
+        name:
+          type: string
+        version:
+          type: integer
+          format: int32
+        problems:
+          type: array
+          description: "Every problem, each as 'where: what'."
+          items:
+            type: string
+            description: "Every problem, each as 'where: what'."
+      description: What checking a definition found.
+    SweepStarted:
+      type: object
+      properties:
+        workflowId:
+          type: string
+    ReplayBody:
+      required:
+      - workflowId
+      type: object
+      properties:
+        workflowId:
+          type: string
+          example: run-web-server-3f2a9c41d07e
+        runId:
+          type: string
+          description: "A run; empty = the newest archived one, else the newest in\
+            \ Temporal."
+      description: Replay a recorded workflow.
+    ReplayResult:
+      type: object
+      properties:
+        workflowId:
+          type: string
+        runId:
+          type: string
+        workflowType:
+          type: string
+        source:
+          type: string
+          enum:
+          - archive
+          - temporal
+        events:
+          type: integer
+          description: Events in the history.
+          format: int32
+        sha256:
+          type: string
+          description: "SHA-256 of the archived file, checked before the replay."
+        matches:
+          type: boolean
+          description: true = today's code makes exactly the decisions recorded in
+            the history.
+        problem:
+          type: string
+          description: "Where and why it differs, if it does."
+        replayedAt:
+          type: string
+        replayedBy:
+          type: string
+      description: What an audit replay found.
     BatchBody:
       required:
       - items
@@ -1277,9 +2423,9 @@ components:
       properties:
         items:
           type: array
-          description: 1 to 10,000 items.
+          description: "1 to 10,000 items."
           items:
-            $ref: '#/components/schemas/BatchItemBody'
+            $ref: "#/components/schemas/BatchItemBody"
         shardSize:
           type: integer
           description: VMs per shard workflow (1-1000).
@@ -1300,11 +2446,13 @@ components:
       properties:
         text:
           type: string
-          description: Plain-English request. Rejected if it would need a clarifying question.
+          description: Plain-English request. Rejected if it would need a clarifying
+            question.
           example: small rhel 9 box on prem in dc1 for 2 weeks
         spec:
-          $ref: '#/components/schemas/VmSpec'
-      description: 'One VM in a batch: either plain text or an exact spec (give one of the two).'
+          $ref: "#/components/schemas/VmSpec"
+      description: "One VM in a batch: either plain text or an exact spec (give one\
+        \ of the two)."
     BatchSubmitResponse:
       type: object
       properties:
@@ -1318,14 +2466,15 @@ components:
           example: 1998
         sameInBatch:
           type: integer
-          description: Items identical to an earlier item in the same batch (built once).
+          description: Items identical to an earlier item in the same batch (built
+            once).
           format: int32
           example: 0
         rejected:
           type: array
-          description: Items not accepted, with the reason.
+          description: "Items not accepted, with the reason."
           items:
-            $ref: '#/components/schemas/Rejected'
+            $ref: "#/components/schemas/Rejected"
         shards:
           type: integer
           description: Shard workflows the batch was split into.
@@ -1350,7 +2499,7 @@ components:
           example: Debian
         version:
           type: string
-          example: '12'
+          example: "12"
     LegacyVmDefinition:
       type: object
       properties:
@@ -1359,7 +2508,7 @@ components:
           example: legacy-web-01
         cloud:
           type: string
-          description: AWS, Azure, GCP or vSphere.
+          description: "AWS, Azure, GCP or vSphere."
           example: GCP
         location:
           type: string
@@ -1374,9 +2523,9 @@ components:
           format: int32
           example: 8
         image:
-          $ref: '#/components/schemas/Image'
+          $ref: "#/components/schemas/Image"
         disk:
-          $ref: '#/components/schemas/Disk'
+          $ref: "#/components/schemas/Disk"
         environment:
           type: string
           example: test
@@ -1387,18 +2536,19 @@ components:
         publicIp:
           type: boolean
           example: false
-      description: The legacy universal VM definition (v1). Provider-native names are accepted.
+      description: The legacy universal VM definition (v1). Provider-native names
+        are accepted.
     LegacyAccepted:
       type: object
       properties:
         workflowId:
           type: string
-          description: 'Temporal workflow ID: vm- plus the spec hash.'
+          description: "Temporal workflow ID: vm- plus the spec hash."
         specHash:
           type: string
           description: SHA-256 of the canonical spec.
         spec:
-          $ref: '#/components/schemas/VmSpec'
+          $ref: "#/components/schemas/VmSpec"
         summary:
           type: string
           description: One-line summary of the spec.
@@ -1409,7 +2559,7 @@ components:
         specHash:
           type: string
         spec:
-          $ref: '#/components/schemas/VmSpec'
+          $ref: "#/components/schemas/VmSpec"
         state:
           type: string
           enum:
@@ -1420,14 +2570,14 @@ components:
           - MISSING
         detail:
           type: string
-          description: Provider plan, or why it failed.
+          description: "Provider plan, or why it failed."
         result:
-          $ref: '#/components/schemas/VmResult'
+          $ref: "#/components/schemas/VmResult"
         updatedAt:
           type: string
           description: ISO-8601 time of the last change.
         lifecycle:
-          $ref: '#/components/schemas/VmLifecycle'
+          $ref: "#/components/schemas/VmLifecycle"
       description: One VM in the inventory.
     StatsResponse:
       type: object
@@ -1443,6 +2593,31 @@ components:
             RUNNING: 1980
             FAILED: 20
       description: Inventory counts.
+    RunRow:
+      type: object
+      properties:
+        runId:
+          type: string
+        temporalRunId:
+          type: string
+        definition:
+          type: string
+        version:
+          type: integer
+          format: int32
+        classification:
+          type: string
+        requestedBy:
+          type: string
+        state:
+          type: string
+        startedAt:
+          type: string
+        updatedAt:
+          type: string
+        finishedAt:
+          type: string
+      description: "A run, as recorded (also after Temporal has removed it)."
     RequestSummary:
       type: object
       properties:
@@ -1469,10 +2644,11 @@ components:
           description: ISO-8601 start time.
         closedAt:
           type: string
-          description: ISO-8601 end time, or empty while it runs.
+          description: "ISO-8601 end time, or empty while it runs."
         workflowStatus:
           type: string
-          description: 'Temporal''s own status: RUNNING, COMPLETED, FAILED, TIMED_OUT, ...'
+          description: "Temporal's own status: RUNNING, COMPLETED, FAILED, TIMED_OUT,\
+            \ ..."
           example: RUNNING
       description: One request in a list.
     InventoryFinding:
@@ -1511,13 +2687,84 @@ components:
           format: int32
         orphanCount:
           type: integer
-          description: VMs in a cloud with no record here (reported, not deleted).
+          description: "VMs in a cloud with no record here (reported, not deleted)."
           format: int32
         findings:
           type: array
           items:
-            $ref: '#/components/schemas/InventoryFinding'
+            $ref: "#/components/schemas/InventoryFinding"
       description: The result of one inventory check.
+    Decision:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        at:
+          type: string
+          description: ISO-8601 time.
+        actor:
+          type: string
+          example: jdoe@example.com
+        roles:
+          type: string
+          example: REQUESTER
+        action:
+          type: string
+          example: POST /api/v2/runs/run-web-server-3f2a9c41d07e/resume
+        resource:
+          type: string
+        decision:
+          type: string
+          enum:
+          - ALLOW
+          - DENY
+        policy:
+          type: string
+          description: The rule that decided.
+          example: "role rule: REQUESTER"
+        reason:
+          type: string
+        classification:
+          type: string
+          example: C3
+        keepUntil:
+          type: string
+          description: Removed after this time (ISO-8601).
+      description: One authorization decision.
+    ArchiveRow:
+      type: object
+      properties:
+        workflowId:
+          type: string
+        runId:
+          type: string
+        workflowType:
+          type: string
+        classification:
+          type: string
+        retentionYears:
+          type: integer
+          format: int32
+        closedAt:
+          type: string
+        archivedAt:
+          type: string
+        keepUntil:
+          type: string
+          description: Removed after this time.
+        sha256:
+          type: string
+        sizeBytes:
+          type: integer
+          format: int64
+        events:
+          type: integer
+          format: int32
+        expiredAt:
+          type: string
+          description: Set when the file was removed at the end of its retention.
+      description: One archived workflow history.
     BatchStatus:
       type: object
       properties:
@@ -1553,7 +2800,8 @@ components:
           format: int64
         duplicate:
           type: integer
-          description: Not built because an identical VM already exists or is being built.
+          description: Not built because an identical VM already exists or is being
+            built.
           format: int64
         p50Seconds:
           type: number
@@ -1565,7 +2813,7 @@ components:
           format: double
         maxSeconds:
           type: number
-          description: Slowest VM, seconds from submit to running.
+          description: "Slowest VM, seconds from submit to running."
           format: double
         startedAtMs:
           type: integer
@@ -1573,7 +2821,7 @@ components:
           format: int64
         finishedAtMs:
           type: integer
-          description: When the batch finished (epoch milliseconds), or null.
+          description: "When the batch finished (epoch milliseconds), or null."
           format: int64
         failures:
           type: array
@@ -1581,7 +2829,7 @@ components:
           items:
             type: string
             description: Up to 20 failure reasons.
-      description: Live progress of a batch, counted from the audit trail.
+      description: "Live progress of a batch, counted from the audit trail."
     AuditEvent:
       type: object
       properties:
@@ -1598,13 +2846,14 @@ components:
           type: string
         event:
           type: string
-          description: REQUESTED, QUESTION_ASKED, ANSWERED, INTERPRETED, CONFIRMED, PROVISIONING, VM_CREATED, RUNNING,
-            ROLLED_BACK, DUPLICATE, COMPLETED, FAILED, CANCELLED, BATCH_STARTED, BATCH_COMPLETED
+          description: "REQUESTED, QUESTION_ASKED, ANSWERED, INTERPRETED, CONFIRMED,\
+            \ PROVISIONING, VM_CREATED, RUNNING, ROLLED_BACK, DUPLICATE, COMPLETED,\
+            \ FAILED, CANCELLED, BATCH_STARTED, BATCH_COMPLETED"
           example: RUNNING
         actor:
           type: string
-          description: A user ID, system, or legacy-api.
+          description: "A user ID, system, or legacy-api."
           example: system
         detail:
           type: string
-      description: One thing that happened, in order.
+      description: "One thing that happened, in order."

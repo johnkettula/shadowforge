@@ -147,6 +147,33 @@ Every night at 02:00 UTC the app compares each cloud with its inventory. The *In
 
 Press **Run now** to check straight away (admins only when sign-in is on). Clouds reached over the one-way link to domain 3 are skipped. To change the time or pause it, use the Temporal UI's **Schedules** page.
 
+## Catalog runs: ready-made jobs from operators
+
+The **Catalog** card runs jobs that technical operators have written in YAML: build a VM, install tools, copy files, set its configuration, check it's ready. Each job is a *definition*; how to write one is in `docs/DEFINITIONS.md`.
+
+1. Pick a definition at the top right of the card, for example **web-server**. Its steps and data classification are shown.
+2. Fill in its inputs (a `*` means required) and press **Start run**. The run opens below with every step and its state.
+3. Starting the same definition with the same inputs again opens the run that is already going instead of starting a second one.
+
+A production web server (`env` = prod) first waits for an **approval**: someone other than you must press **Approve** (or **Reject**) on the run, with a note such as a change ticket.
+
+**When a step fails**, the run doesn't start again from the beginning. It stops, shows the reason, and waits for a decision:
+
+- Fix the cause (for example, put the missing file in the file store), then press **Resume step …**. Only the failed step runs again, and it picks up what it already did: files already copied are skipped.
+- Or press **Tear down…** and confirm: everything the run did is undone, newest first, including the VM.
+- If nobody decides by the time shown under *Decide by* (72 hours at most), the run tears itself down.
+
+The person who started a run, or an operator, can resume or tear it down. A VM built by a run is also in the Inventory, where it can be renewed or changed like any other.
+
+## Compliance: decisions, archive and replay
+
+The **Compliance** card is for auditors.
+
+- **Decision log:** every permission decision, newest first: who asked to do what, whether it was allowed, and the rule that decided. Type a run ID to see only that run's decisions.
+- **Archive:** every finished workflow's history is copied here every hour, write-once, and kept for 1 to 5 years depending on its data classification (a code such as C3, with its text). **Replay** runs the recorded workflow against today's code without doing anything again, and shows **matches** if the code makes exactly the recorded decisions. **Archive now** copies new histories straight away.
+
+The classification codes C1, C3 and C5 are placeholders until the real scheme is set (`docs/AUDIT.md`).
+
 ## Building many VMs at once
 
 A **batch** builds up to 10,000 VMs in one call, with no confirmation step per VM. Batches are sent through the API, not the web app. The easiest way to try one is Swagger UI.
@@ -184,13 +211,15 @@ Sign-in is **off** by default, so anyone who can reach the server can use it. Ke
 - **Microsoft Entra ID.** Callers send an Entra access token. Their role comes from the Entra app role they were given.
 - **Client certificates (PKI).** Callers connect over HTTPS (port 8443) with a certificate from a trusted CA. An allowlist on the server names each permitted certificate and its role.
 
-Every caller has one of four roles. Each role includes the ones below it.
+Every caller has one of six roles. Each role includes the ones below it.
 
 | Role | Can |
 | --- | --- |
 | ADMIN | Everything, including cancelling anyone's request, changing anyone's VM and running the inventory check |
+| OPERATOR | Publish catalog definitions, and resume or tear down anyone's run, plus everything REQUESTER can |
+| AUDITOR | The decision log, the archive and replays, plus everything READER can |
 | BATCH | Start batches and use the legacy JSON endpoint, plus everything READER can |
-| REQUESTER | Preview, create, answer, confirm and cancel **their own** requests, look after **their own** VMs (renew, resize, power, snapshot, remove), plus everything READER can |
+| REQUESTER | Preview, create, answer, confirm and cancel **their own** requests, look after **their own** VMs (renew, resize, power, snapshot, remove), start catalog runs and resume or tear down **their own**, approve **someone else's**, plus everything READER can |
 | READER | Look only: inventory, stats, audit trail, request and batch status |
 
 With sign-in on, the audit trail records the real caller: a person's sign-in name, `app:<id>` for a service, or `pki:<name>` for a certificate. A missing or refused sign-in gets a 401 error, and a missing role gets 403. The message says why.

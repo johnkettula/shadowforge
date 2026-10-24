@@ -42,6 +42,23 @@ addresses instead, set `VMINTENT_API_SERVER_URLS` (comma-separated).
 | `listInventoryChecks` | `GET /api/v2/inventory-checks` | Results of the nightly drift and orphan check |
 | `runInventoryCheck` | `POST /api/v2/inventory-checks` | Run the check now (ADMIN) |
 | `createLegacyVm` | `POST /api/v1/vms` | The old universal JSON format |
+| `listDefinitions` | `GET /api/v2/definitions` | Catalog definitions and blueprints ([DEFINITIONS.md](DEFINITIONS.md)) |
+| `getDefinition` | `GET /api/v2/definitions/{kind}/{name}` | One, as data and as its YAML |
+| `validateDefinition` | `POST /api/v2/definitions/validate` | Check YAML (`application/yaml`, or JSON `{"yaml": ...}`); every problem listed |
+| `publishDefinition` | `POST /api/v2/definitions` | Publish (OPERATOR). 201 published, 200 unchanged, 422 refused with the problems |
+| `retireDefinition` | `POST /api/v2/definitions/{kind}/{name}/{version}/retire` | No new runs of that version (OPERATOR) |
+| `listClassifications` | `GET /api/v2/classifications` | Data classification codes, their text and retention |
+| `startRun` | `POST /api/v2/runs` | `{"definition": "web-server", "params": {"app": "shop"}}`. 201 started; 200 with `existing: true` if the same inputs are already running |
+| `listRuns` | `GET /api/v2/runs` | Recent catalog runs |
+| `getRun` | `GET /api/v2/runs/{runId}` | Every step, what it produced, what the run waits for |
+| `resumeRun` | `POST /api/v2/runs/{runId}/resume` | Run the failed step again (it picks up its own partial work) |
+| `teardownRun` | `POST /api/v2/runs/{runId}/teardown` | Undo everything the run did |
+| `approveRun` | `POST /api/v2/runs/{runId}/approve` | `{"approved": true, "note": "..."}`; not by the run's requester |
+| `listDecisions` | `GET /api/v2/compliance/decisions` | The decision log (AUDITOR) |
+| `listArchive` | `GET /api/v2/compliance/archive` | Archived workflow histories (AUDITOR) |
+| `downloadArchivedHistory` | `GET /api/v2/compliance/archive/{workflowId}/{runId}` | One history; SHA-256 in `X-Content-SHA256` |
+| `replayWorkflow` | `POST /api/v2/compliance/replays` | Replay a recorded workflow for audit: nothing is done again ([AUDIT.md](AUDIT.md)) |
+| `runArchiveSweep` | `POST /api/v2/compliance/sweeps` | Archive closed histories now (ADMIN) |
 
 ## Conventions
 
@@ -90,7 +107,7 @@ curl -s http://localhost:8080/api/v2/batches/batch-...
 Point any OpenAPI generator at `/v3/api-docs` (or `docs/openapi.yaml`):
 
 ```bash
-# TypeScript types (checked: generates all 21 operations)
+# TypeScript types (checked: generates all 38 operations)
 npx openapi-typescript http://localhost:8080/v3/api-docs -o vmintent-api.d.ts
 
 # Java, C#, Python, Go... with OpenAPI Generator
