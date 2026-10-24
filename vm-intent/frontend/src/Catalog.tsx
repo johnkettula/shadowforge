@@ -99,7 +99,7 @@ export function CatalogCard() {
           <p>{d.description}</p>
           <p className="sub">
             {d.steps.length} steps: {d.steps.map((s) => s.id).join(" → ")} · classification {d.classification ?? "default"}
-            {own && ` (${own.label})`} · waits {d.recoveryWaitHours} h after a failure
+            {own && ` (${own.label})`} · waits {d.recoveryWaitHours % 24 === 0 ? `${d.recoveryWaitHours / 24} days` : `${d.recoveryWaitHours} h`} after a failure
             {d.blueprint && <> · blueprint {d.blueprint}</>}
           </p>
           <div className="inputs">

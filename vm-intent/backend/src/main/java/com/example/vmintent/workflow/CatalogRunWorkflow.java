@@ -16,7 +16,7 @@ import io.temporal.workflow.WorkflowMethod;
  * never started again from the beginning: it stops in AWAITING_RECOVERY and waits for a person to
  *  - resume: the failed step runs again, and copes with whatever it already did, then the run carries on;
  *  - teardown: every step that did something is undone, newest first.
- * If nobody decides within the definition's recovery wait (72 hours at most), it tears itself down.
+ * If nobody decides within the definition's recovery wait (30 days at most), it tears itself down.
  */
 @WorkflowInterface
 public interface CatalogRunWorkflow {

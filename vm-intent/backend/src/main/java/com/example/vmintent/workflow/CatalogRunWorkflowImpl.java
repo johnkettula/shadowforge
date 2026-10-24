@@ -9,6 +9,7 @@ import com.example.vmintent.catalog.CatalogModels.RunRequest;
 import com.example.vmintent.catalog.CatalogModels.RunStatus;
 import com.example.vmintent.catalog.CatalogModels.StepDef;
 import com.example.vmintent.catalog.CatalogModels.StepState;
+import com.example.vmintent.catalog.DefinitionParser;
 import com.example.vmintent.catalog.Templates;
 import com.example.vmintent.cel.Cel;
 import com.example.vmintent.workflow.Models.ReconcileRequest;
@@ -114,7 +115,7 @@ public class CatalogRunWorkflowImpl implements CatalogRunWorkflow {
             }
             StepState failed = steps.get(i);
             failedStep = failed.id();
-            int hours = Math.max(1, Math.min(72, def.recoveryWaitHours()));
+            int hours = Math.max(1, Math.min(DefinitionParser.MAX_RECOVERY_HOURS, def.recoveryWaitHours()));
             recoveryDeadlineMs = Workflow.currentTimeMillis() + Duration.ofHours(hours).toMillis();
             if (decision == null) {
                 setState("AWAITING_RECOVERY", "Step '" + failed.id() + "' failed: " + failed.error()
@@ -126,7 +127,7 @@ public class CatalogRunWorkflowImpl implements CatalogRunWorkflow {
                 if (!decided) {
                     decision = "teardown";
                     decisionBy = "system";
-                    decisionNote = "nobody resumed or tore down the run within " + hours + " hours";
+                    decisionNote = "nobody resumed or tore down the run within " + span(hours);
                 }
             }
             failedStep = null;
@@ -501,6 +502,12 @@ public class CatalogRunWorkflowImpl implements CatalogRunWorkflow {
 
     private static boolean blank(String s) {
         return s == null || s.isBlank();
+    }
+
+    /** "30 days", "36 hours". */
+    static String span(int hours) {
+        if (hours % 24 == 0) return hours / 24 + (hours == 24 ? " day" : " days");
+        return hours + (hours == 1 ? " hour" : " hours");
     }
 
     private static String iso(long ms) {

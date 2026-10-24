@@ -40,6 +40,8 @@ public final class DefinitionParser {
     static final Pattern INPUT_NAME = Pattern.compile("[a-z][a-zA-Z0-9_]{0,30}");
     static final Set<String> INPUT_TYPES = Set.of("string", "int", "bool", "list");
     static final int MAX_STEPS = 50;
+    /** The longest a failed run waits for a decision: 30 days. */
+    public static final int MAX_RECOVERY_HOURS = 30 * 24;
     static final int MAX_YAML_BYTES = 256 * 1024;
 
     /** definition or blueprint is set when there are no problems. */
@@ -105,13 +107,20 @@ public final class DefinitionParser {
         if (blueprint != null && !ctx.blueprintExists().test(blueprint)) {
             p.add("blueprint: there's no published blueprint called '" + blueprint + "'");
         }
-        int waitHours = 72;
+        // R-02: a failed run waits up to 30 days for Resume or Tear down, then tears itself down.
+        int waitHours = MAX_RECOVERY_HOURS;
         if (doc.get("recovery") instanceof Map<?, ?> r) {
             Map<String, Object> rec = strMap(r);
-            known(rec, "recovery", Set.of("waitHours"), p);
-            waitHours = intIn(rec.get("waitHours"), "recovery.waitHours", 1, 72, 72, p);
+            known(rec, "recovery", Set.of("waitDays", "waitHours"), p);
+            if (rec.containsKey("waitDays") && rec.containsKey("waitHours")) {
+                p.add("recovery: give waitDays or waitHours, not both");
+            } else if (rec.containsKey("waitDays")) {
+                waitHours = 24 * intIn(rec.get("waitDays"), "recovery.waitDays", 1, MAX_RECOVERY_HOURS / 24, 30, p);
+            } else if (rec.containsKey("waitHours")) {
+                waitHours = intIn(rec.get("waitHours"), "recovery.waitHours", 1, MAX_RECOVERY_HOURS, MAX_RECOVERY_HOURS, p);
+            }
         } else if (doc.get("recovery") != null) {
-            p.add("recovery: must be a map, like  recovery: { waitHours: 24 }");
+            p.add("recovery: must be a map, like  recovery: { waitDays: 7 }");
         }
 
         List<InputDef> inputs = inputs(doc.get("inputs"), p);

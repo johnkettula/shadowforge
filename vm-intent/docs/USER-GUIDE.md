@@ -161,7 +161,7 @@ A production web server (`env` = prod) first waits for an **approval**: someone 
 
 - Fix the cause (for example, put the missing file in the file store), then press **Resume step …**. Only the failed step runs again, and it picks up what it already did: files already copied are skipped.
 - Or press **Tear down…** and confirm: everything the run did is undone, newest first, including the VM.
-- If nobody decides by the time shown under *Decide by* (72 hours at most), the run tears itself down.
+- If nobody decides by the time shown under *Decide by* (30 days at most), the run tears itself down.
 
 The person who started a run, or an operator, can resume or tear it down. A VM built by a run is also in the Inventory, where it can be renewed or changed like any other.
 

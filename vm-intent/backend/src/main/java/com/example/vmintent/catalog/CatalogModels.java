@@ -26,8 +26,8 @@ public final class CatalogModels {
             String blueprint,
             List<InputDef> inputs,
             List<StepDef> steps,
-            @Schema(description = "Hours a failed run waits for Resume or Tear down before it tears itself down (1-72).",
-                    example = "72") int recoveryWaitHours,
+            @Schema(description = "Hours a failed run waits for Resume or Tear down before it tears itself down "
+                    + "(1-720, i.e. up to 30 days; 720 when the definition doesn't say).", example = "720") int recoveryWaitHours,
             @Schema(description = "SHA-256 of the YAML it was read from.") String sourceSha256) {}
 
     @Schema(description = "One input a definition takes.")

@@ -24,7 +24,8 @@ owner: platform-team
 classification: C3             # data classification code: how long runs are kept (see AUDIT.md)
 blueprint: standard-vm         # every VM it builds must pass these rules
 recovery:
-  waitHours: 72                # after a failed step: wait this long for a decision (1-72)
+  waitDays: 30                 # after a failed step: wait this long for a decision (1-30 days;
+                               # or waitHours: 1-720). Default 30 days
 
 inputs:
   app:  { type: string, required: true, description: Short name, used for the VM's name. }
@@ -135,7 +136,7 @@ run stops in **AWAITING_RECOVERY** and waits for a person:
 - **Tear down** undoes every step that did something, newest first, including what the failed step
   had already done. The run ends **TORN_DOWN**, or **TEARDOWN_INCOMPLETE** if an undo failed (the
   step is marked UNDO_FAILED for someone to look at).
-- **Nobody decides** within `recovery.waitHours` (72 hours at most): the run tears itself down, and
+- **Nobody decides** within `recovery.waitDays` (30 days, the default and the longest): the run tears itself down, and
   the audit trail says "system".
 
 Who may decide: the person who started the run, or an OPERATOR (or ADMIN). An approval can be

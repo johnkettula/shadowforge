@@ -171,7 +171,7 @@ temporal workflow show --workflow-id intent-... --output json > backend/src/test
 
 A catalog run ([DEFINITIONS.md](DEFINITIONS.md)) runs a definition's steps in order. When a step
 fails, the workflow doesn't fail: it stops in AWAITING_RECOVERY and waits with
-`Workflow.await(72 hours, () -> decision != null)`. A waiting run costs nothing.
+`Workflow.await(30 days, () -> decision != null)`. A waiting run costs nothing.
 
 - **`resume`** and **`teardown`** are updates. Their validators refuse them straight away (409) unless
   the run is waiting. Resume runs only the failed step again; teardown undoes the finished steps,
@@ -219,5 +219,5 @@ One thing to know: it only skips ahead while a timer is waiting. To wait for a w
 | `IntentWorkflowTest` | Confirm update, several VMs at once, search attributes |
 | `InventoryCheckTest` | Missing VMs and orphans |
 | `ReplayTest` | Old histories against new code, including real catalog runs (resumed, torn down, approved) |
-| `CatalogRunWorkflowTest` | Steps in order, resume with partial work, teardown, 72-hour auto teardown, approvals, blueprints |
+| `CatalogRunWorkflowTest` | Steps in order, resume with partial work, teardown, 30-day auto teardown, approvals, blueprints |
 | `CountPhrasingTest` | "3 web servers" vs "a RHEL 9 server" |

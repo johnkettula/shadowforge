@@ -206,14 +206,28 @@ class CatalogRunWorkflowTest {
 
     @Test
     void nobodyDecidingWithinTheWaitTearsItDown() throws Exception {
-        CatalogRunWorkflow run = start(webServer(), Map.of("app", "idle", "extra", "never.txt"));
+        // The VM lives longer than the wait, so only the run's own 30-day timer matters here.
+        Definition def = parse("""
+                kind: Provisioning
+                name: idle
+                version: 1
+                steps:
+                  - id: create
+                    action: vm.create
+                    with: { provider: aws, region: us-east, os: ubuntu, env: test, ttlDays: 90 }
+                  - id: site
+                    action: files.copy
+                    attempts: 1
+                    with: { vm: "${ steps.create.specHash }", files: [never.txt], to: /srv }
+                """);
+        CatalogRunWorkflow run = start(def, Map.of());
         waitFor(run, "AWAITING_RECOVERY");
-        env.sleep(Duration.ofHours(71));
-        assertEquals("AWAITING_RECOVERY", run.status().state(), "still waiting after 71 hours");
-        RunStatus s = waitForEnd(run);   // lets the clock run on past 72 hours
+        env.sleep(Duration.ofDays(29));
+        assertEquals("AWAITING_RECOVERY", run.status().state(), "still waiting after 29 days");
+        RunStatus s = waitForEnd(run);   // lets the clock run on past 30 days
         assertEquals("TORN_DOWN", s.state());
         assertTrue(s.message().contains("system"), s.message());
-        assertTrue(records.has("RUN_TEARDOWN_STARTED system nobody resumed or tore down the run within 72 hours"));
+        assertTrue(records.has("RUN_TEARDOWN_STARTED system nobody resumed or tore down the run within 30 days"));
     }
 
     @Test

@@ -35,7 +35,7 @@ class DefinitionParserTest {
         assertEquals("web-server", web.definition().name());
         assertEquals(6, web.definition().steps().size());
         assertEquals("C3", web.definition().classification());
-        assertEquals(72, web.definition().recoveryWaitHours());
+        assertEquals(30 * 24, web.definition().recoveryWaitHours());
         assertEquals(64, web.definition().sourceSha256().length());
     }
 
@@ -47,7 +47,7 @@ class DefinitionParserTest {
                 version: 0
                 classification: SECRET
                 blueprint: nope
-                recovery: { waitHours: 100 }
+                recovery: { waitDays: 31 }
                 inputs:
                   size: { type: string, default: 3 }
                 steps:
@@ -71,7 +71,7 @@ class DefinitionParserTest {
         DefinitionParser.Result r = DefinitionParser.parse(yaml, CTX);
         assertFalse(r.ok());
         String all = String.join("\n", r.problems());
-        for (String expected : List.of("name:", "version:", "classification: 'SECRET'", "blueprint:", "recovery.waitHours",
+        for (String expected : List.of("name:", "version:", "classification: 'SECRET'", "blueprint:", "recovery.waitDays",
                 "inputs.size.default", "vm.creat", "reads steps.later", "has no setting 'mode'", "used by an earlier step",
                 "reads params.sise", "without a closing", "with.until")) {
             assertTrue(all.contains(expected), "expected a problem about " + expected + " in:\n" + all);
