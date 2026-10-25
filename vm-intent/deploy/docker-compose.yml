@@ -98,8 +98,16 @@ services:
       VMINTENT_PKI_CRL_FILE: ${VMINTENT_PKI_CRL_FILE:-}
       VMINTENT_PKI_HEADER: ${VMINTENT_PKI_HEADER:-}
       VMINTENT_PKI_TRUSTED_PROXIES: ${VMINTENT_PKI_TRUSTED_PROXIES:-}
+      # Folders every backend container must share (catalog file store, simulated VM disks,
+      # one-way link, history archive): one named volume, mounted at /data in all of them.
+      VMINTENT_FILES_DIR: /data/files
+      VMINTENT_TARGETS_DIR: /data/targets
+      VMINTENT_LINK_OUTBOX: /data/link/outbox
+      VMINTENT_LINK_INBOX: /data/link/inbox
+      VMINTENT_ARCHIVE_DIR: /data/archive
     volumes:
       - ./pki:/etc/vm-intent/pki:ro
+      - vmintent-data:/data
     ports:
       - "8080:8080"
       - "8443:8443"
@@ -113,6 +121,8 @@ services:
       <<: *backend-env
       SPRING_PROFILES_ACTIVE: worker
       VMINTENT_DB_POOL: 30
+    volumes:
+      - vmintent-data:/data
     deploy:
       replicas: ${WORKERS:-3}
       resources:
@@ -143,3 +153,4 @@ services:
 volumes:
   pgdata:
   ollama:
+  vmintent-data:

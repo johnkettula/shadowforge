@@ -9,7 +9,10 @@ COPY src ./src
 RUN mvn -q -B -DskipTests package && cp target/vm-intent-*.jar /app.jar
 
 FROM eclipse-temurin:21-jre
-RUN useradd --system --uid 10001 vmintent
+RUN useradd --system --uid 10001 vmintent \
+ && mkdir -p /data && chown vmintent /data
+# Shared folders (file store, VM disks, link, archive) live under /data; mount a volume there.
+VOLUME /data
 USER vmintent
 COPY --from=build /app.jar /app/app.jar
 # Use most of the container's memory for the heap; leave room for threads and off-heap buffers.
