@@ -36,7 +36,8 @@ services:
   temporal:
     # auto-setup creates Temporal's tables on first start. Fine for a sandbox; for
     # production use temporalio/server and run the schema tool yourself.
-    image: temporalio/auto-setup:${TEMPORAL_VERSION:-1.30.2}
+    # Temporal stopped publishing auto-setup after 1.29.x, so this stays on 1.29.7.
+    image: temporalio/auto-setup:${TEMPORAL_VERSION:-1.29.7}
     depends_on:
       postgres: { condition: service_healthy }
     environment:
@@ -114,7 +115,8 @@ services:
     restart: unless-stopped
 
   worker:
-    image: vm-intent-backend:latest
+    image: vm-intent-backend:latest   # built by the api service; never pulled
+    pull_policy: never
     depends_on:
       api: { condition: service_started }   # the api runs the database migrations first
     environment:
