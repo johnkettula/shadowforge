@@ -41,7 +41,8 @@ import java.util.Set;
 @WorkflowImpl(taskQueues = TaskQueues.INTENT)
 public class CatalogRunWorkflowImpl implements CatalogRunWorkflow {
 
-    static final Set<String> NEEDS_UNDO = Set.of("vm.create", "vm.resize", "vm.power", "tools.stage", "files.copy", "config.apply");
+    static final Set<String> NEEDS_UNDO = Set.of("vm.create", "vm.resize", "vm.power", "tools.stage", "files.copy", "config.apply",
+            "blueprint.deploy");
     static final Duration VM_BUSY_CHECK = Duration.ofSeconds(30);
     static final Duration VM_BUSY_LIMIT = Duration.ofMinutes(60);
     static final int HISTORY_KEPT = 200;
@@ -202,6 +203,7 @@ public class CatalogRunWorkflowImpl implements CatalogRunWorkflow {
             case "config.apply" -> act.applyConfig(with);
             case "check.until" -> checkUntil(d, with);
             case "approval.wait" -> approvalWait(d, with);
+            case "blueprint.deploy" -> deployBlueprint(with, act);
             default -> throw ApplicationFailure.newNonRetryableFailure("Unknown action " + d.action(), "InvalidStep");
         };
     }
@@ -278,6 +280,38 @@ public class CatalogRunWorkflowImpl implements CatalogRunWorkflow {
             if (Workflow.currentTimeMillis() + every * 1000L > deadline) {
                 throw ApplicationFailure.newNonRetryableFailure("Still not true after " + minutes + " minutes ("
                         + checks + " checks): " + untilText + ". Last look: " + probe, "CheckTimeout");
+            }
+            Workflow.sleep(Duration.ofSeconds(every));
+        }
+    }
+
+    /**
+     * Asks VCF Automation for a blueprint deployment, then looks at it now and then until it's done.
+     * The waiting is a workflow timer, so a deployment that takes an hour holds no worker thread.
+     */
+    private ActionResult deployBlueprint(Map<String, Object> with, CatalogActivities act) {
+        Map<String, Object> started = act.startBlueprint(with, req.requestedBy());
+        String id = String.valueOf(started.get("deploymentId"));
+        int every = clamp(with.get("everySeconds"), 10, 600, 30);
+        int minutes = clamp(with.get("timeoutMinutes"), 5, 1440, 90);
+        long deadline = Workflow.currentTimeMillis() + Duration.ofMinutes(minutes).toMillis();
+        while (true) {
+            Map<String, Object> st = records.blueprintStatus(id);
+            String s = String.valueOf(st.get("state"));
+            if ("SUCCESSFUL".equals(s)) {
+                Map<String, Object> out = new LinkedHashMap<>(st);
+                out.put("blueprint", started.getOrDefault("blueprint", with.get("blueprint")));
+                out.put("version", started.getOrDefault("version", with.getOrDefault("version", "")));
+                out.put("reused", started.getOrDefault("reused", false));
+                return new ActionResult(out, "deployment " + st.get("name") + " " + st.get("status") + " " + st.get("addresses"));
+            }
+            if ("FAILED".equals(s)) {
+                throw ApplicationFailure.newNonRetryableFailure("Deployment " + id + " failed: " + st.getOrDefault("detail", st.get("status")),
+                        "DeploymentFailed");
+            }
+            if (Workflow.currentTimeMillis() + every * 1000L > deadline) {
+                throw ApplicationFailure.newNonRetryableFailure("Deployment " + id + " still " + st.get("status") + " after " + minutes + " minutes",
+                        "DeploymentTimeout");
             }
             Workflow.sleep(Duration.ofSeconds(every));
         }

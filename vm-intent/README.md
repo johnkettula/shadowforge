@@ -42,6 +42,9 @@ Stack: **React + TypeScript (Vite)** front end, **Spring Boot 3 + Temporal Java 
 The Temporal features used, and how to try each one, are explained in
 [docs/TEMPORAL-FEATURES.md](docs/TEMPORAL-FEATURES.md). Clouds behind a one-way
 link (domain 2 to domain 3) are covered in [docs/ONE-WAY-LINK.md](docs/ONE-WAY-LINK.md).
+vSphere can be real: each datacenter can go to **vCenter 9** directly (templates from a content
+library) or to **VCF Automation 9 blueprints**, and catalog definitions can deploy any blueprint with
+`blueprint.deploy`. See [docs/VSPHERE.md](docs/VSPHERE.md).
 
 ## One-time setup (Windows)
 
@@ -89,7 +92,8 @@ backend/src/main/java/com/example/vmintent/
               Vocabulary (synonyms), PolicyDefaults (size catalog and defaults)
   workflow/   IntentWorkflow (interpret, clarify, confirm) and
               VmReconcileWorkflow (plan, create, verify, saga rollback)
-  provider/   ProviderActivities interface + simulated AWS/Azure/GCP/vSphere adapters
+  provider/   ProviderActivities interface + simulated AWS/Azure/GCP/vSphere adapters;
+              provider/vsphere: real vCenter 9 and VCF Automation 9 clients (docs/VSPHERE.md)
               (SimCloud keeps the pretend clouds in Postgres), each on its own task queues,
               and the VM inventory (VmRegistry)
   workflow/   also BatchProvisionWorkflow -> BatchShardWorkflow -> one VmReconcileWorkflow per VM

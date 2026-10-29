@@ -66,6 +66,8 @@ public final class ApiAccessRules {
             new Rule(HttpMethod.GET, "/api/v2/compliance/**", Role.AUDITOR),
             new Rule(HttpMethod.POST, "/api/v2/compliance/sweeps", Role.ADMIN),
             new Rule(HttpMethod.POST, "/api/v2/compliance/**", Role.AUDITOR),
+            // What vCenter and VCF Automation hold (templates, blueprints): for the people who set it up.
+            new Rule(HttpMethod.GET, "/api/v2/vsphere/**", Role.OPERATOR),
             new Rule(HttpMethod.GET, "/api/**", Role.READER));
 
     /** Always open, so callers can discover the API before they have a token. */

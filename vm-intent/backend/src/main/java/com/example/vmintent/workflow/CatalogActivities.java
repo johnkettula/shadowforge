@@ -38,6 +38,12 @@ public interface CatalogActivities {
     /** check.until: what the VM looks like now (reachable, power, vcpu, memoryGiB, tools, files, config). */
     Map<String, Object> probe(String specHash);
 
+    /** blueprint.deploy: asks VCF Automation for a deployment of a blueprint (or finds the one already asked for). */
+    Map<String, Object> startBlueprint(Map<String, Object> with, String actor);
+
+    /** blueprint.deploy: where that deployment is (state IN_PROGRESS, SUCCESSFUL or FAILED) and what it built. */
+    Map<String, Object> blueprintStatus(String deploymentId);
+
     /** Undoes one step. output = what the step produced, or null if it failed part way. Returns a note. */
     String undo(String action, Map<String, Object> with, Map<String, Object> output, String actor);
 

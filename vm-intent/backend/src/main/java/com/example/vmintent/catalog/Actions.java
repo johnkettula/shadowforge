@@ -44,6 +44,10 @@ public final class Actions {
                 "Puts the old values back", "Only values that differ are written"));
         add(new Action("check.until", "Look at a VM until a CEL condition on 'probe' is true",
                 Set.of("vm", "until"), Set.of("everySeconds", "timeoutMinutes"), "None", "Only looks"));
+        add(new Action("blueprint.deploy", "Deploy a VCF Automation blueprint (cloud template) and wait until it's done",
+                Set.of("blueprint", "name"), Set.of("version", "inputs", "everySeconds", "timeoutMinutes"),
+                "Removes the deployment (and everything it built)",
+                "The deployment is found by its name: one already running or done is used; a failed one is removed and asked for again"));
         add(new Action("approval.wait", "Wait for someone to approve", Set.of("message"),
                 Set.of("approvers", "timeoutHours"), "None",
                 "Waits again; the requester can't approve their own run"));

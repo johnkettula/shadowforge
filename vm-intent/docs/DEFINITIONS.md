@@ -114,6 +114,9 @@ so expressions stay valid if it's swapped for cel-java later.
 | `config.apply` | `vm`, `settings` (a map) | putting the old values back | only values that differ are written |
 | `check.until` | `vm`, `until`; optional `everySeconds` (30), `timeoutMinutes` (30) | nothing (it only looks) | looks again |
 | `approval.wait` | `message`; optional `approvers` (a list of names), `timeoutHours` (24) | nothing | waits again |
+| `blueprint.deploy` | `blueprint`, `name` (the deployment's name); optional `version` (default: newest released), `inputs` (a map), `timeoutMinutes` (90), `everySeconds` (30) | removing the deployment | a deployment with that name that is running or done is used; a failed one is removed and asked for again |
+
+`blueprint.deploy` requests a VCF Automation 9 blueprint (cloud template) and waits until the deployment is done; its output has `deploymentId`, `resources` and `addresses`. See [VSPHERE.md](VSPHERE.md).
 
 `vm.create` uses the same build workflow as plain-English requests, so the VM gets the same rollback,
 the one-way link when its cloud is behind it, and a lifecycle workflow (expiry, renewal, day-2 changes).

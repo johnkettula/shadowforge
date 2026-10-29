@@ -16,12 +16,8 @@
   ],
   "tags": [
     {
-      "name": "Requests",
-      "description": "One VM at a time: interpret, clarify, confirm, build"
-    },
-    {
-      "name": "Batches",
-      "description": "Many VMs at once, no confirmation per VM"
+      "name": "vSphere",
+      "description": "vCenter 9 and VCF Automation 9: routes, templates and blueprints"
     },
     {
       "name": "Inventory",
@@ -30,6 +26,14 @@
     {
       "name": "Legacy",
       "description": "The old universal JSON format (v1)"
+    },
+    {
+      "name": "Batches",
+      "description": "Many VMs at once, no confirmation per VM"
+    },
+    {
+      "name": "Requests",
+      "description": "One VM at a time: interpret, clarify, confirm, build"
     }
   ],
   "paths": {
@@ -1690,6 +1694,156 @@
         }
       }
     },
+    "/api/v2/vsphere/templates": {
+      "get": {
+        "tags": [
+          "vSphere"
+        ],
+        "summary": "The VM templates in vCenter's content library (vmintent.vsphere.vcenter.content-library)",
+        "description": "The VM templates in vCenter's content library (vmintent.vsphere.vcenter.content-library)\n\n**Required role:** OPERATOR (when sign-in is on; it is currently off)",
+        "operationId": "templates",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LibraryItem"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/vsphere/status": {
+      "get": {
+        "tags": [
+          "vSphere"
+        ],
+        "summary": "How each datacenter is routed, and whether vCenter and VCF Automation answer",
+        "description": "How each datacenter is routed, and whether vCenter and VCF Automation answer\n\n**Required role:** OPERATOR (when sign-in is on; it is currently off)",
+        "operationId": "status",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/vsphere/blueprints": {
+      "get": {
+        "tags": [
+          "vSphere"
+        ],
+        "summary": "The blueprints (cloud templates) in the VCF Automation project",
+        "description": "The blueprints (cloud templates) in the VCF Automation project\n\n**Required role:** OPERATOR (when sign-in is on; it is currently off)",
+        "operationId": "blueprints",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Blueprint"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/vsphere/blueprints/{nameOrId}": {
+      "get": {
+        "tags": [
+          "vSphere"
+        ],
+        "summary": "One blueprint: its released versions and the inputs it takes",
+        "description": "One blueprint: its released versions and the inputs it takes\n\n**Required role:** OPERATOR (when sign-in is on; it is currently off)",
+        "operationId": "blueprint",
+        "parameters": [
+          {
+            "name": "nameOrId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v2/vms": {
       "get": {
         "tags": [
@@ -3203,9 +3357,9 @@
           },
           "recoveryWaitHours": {
             "type": "integer",
-            "description": "Hours a failed run waits for Resume or Tear down before it tears itself down (1-72).",
+            "description": "Hours a failed run waits for Resume or Tear down before it tears itself down (1-720, i.e. up to 30 days; 720 when the definition doesn't say).",
             "format": "int32",
-            "example": 72
+            "example": 720
           },
           "sourceSha256": {
             "type": "string",
@@ -3620,6 +3774,23 @@
           }
         },
         "description": "A legacy JSON definition was accepted and its build started."
+      },
+      "LibraryItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
       },
       "VmRecord": {
         "type": "object",

@@ -8,6 +8,7 @@ import com.example.vmintent.catalog.CatalogModels.PreparedVm;
 import com.example.vmintent.cel.Cel;
 import com.example.vmintent.intent.PolicyDefaults;
 import com.example.vmintent.provider.VmRegistry;
+import com.example.vmintent.provider.vsphere.VsphereRoutes;
 import com.example.vmintent.spec.SpecCanonicalizer;
 import com.example.vmintent.spec.SpecValidator;
 import com.example.vmintent.spec.VmSpec;
@@ -24,6 +25,7 @@ import io.temporal.client.WorkflowNotFoundException;
 import io.temporal.client.WorkflowUpdateException;
 import io.temporal.failure.ApplicationFailure;
 import io.temporal.spring.boot.ActivityImpl;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 
@@ -64,15 +66,47 @@ public class CatalogActivitiesImpl implements CatalogActivities {
     private final WorkflowClient client;
     private final DecisionLog decisions;
     private final JdbcClient jdbc;
+    /** For blueprint.deploy (VCF Automation). Null when vSphere isn't set up (tests). */
+    private final VsphereRoutes vsphere;
     private final ObjectMapper json = new ObjectMapper();
 
     public CatalogActivitiesImpl(TargetStore store, VmRegistry registry, WorkflowClient client, DecisionLog decisions,
                                  JdbcClient jdbc) {
+        this(store, registry, client, decisions, jdbc, null);
+    }
+
+    @Autowired
+    public CatalogActivitiesImpl(TargetStore store, VmRegistry registry, WorkflowClient client, DecisionLog decisions,
+                                 JdbcClient jdbc, VsphereRoutes vsphere) {
         this.store = store;
         this.registry = registry;
         this.client = client;
         this.decisions = decisions;
         this.jdbc = jdbc;
+        this.vsphere = vsphere;
+    }
+
+    // ------------------------------------------------------------------ blueprint.deploy
+
+    private com.example.vmintent.provider.vsphere.VcfaBackend automation() {
+        if (vsphere == null) throw ApplicationFailure.newNonRetryableFailure("VCF Automation isn't set up", "InvalidStep");
+        return vsphere.automation();
+    }
+
+    @Override
+    public Map<String, Object> startBlueprint(Map<String, Object> with, String actor) {
+        String blueprint = text(with.get("blueprint"));
+        String name = text(with.get("name"));
+        if (blueprint == null || name == null) throw ApplicationFailure.newNonRetryableFailure("blueprint.deploy needs blueprint and name", "InvalidStep");
+        Map<String, Object> inputs = new LinkedHashMap<>();
+        if (with.get("inputs") instanceof Map<?, ?> m) m.forEach((k, v) -> inputs.put(String.valueOf(k), v));
+        String reason = "vm-intent catalog run " + text(with.get(STEP_KEY)) + " for " + actor;
+        return automation().startBlueprint(blueprint, text(with.get("version")), name, inputs, reason);
+    }
+
+    @Override
+    public Map<String, Object> blueprintStatus(String deploymentId) {
+        return automation().blueprintStatus(deploymentId);
     }
 
     // ------------------------------------------------------------------ vm.create
@@ -496,6 +530,32 @@ public class CatalogActivitiesImpl implements CatalogActivities {
                     store.writeConfig(hash, current);
                     dropJournal(hash, with);
                     return "put back " + previous.keySet();
+                }
+                case "blueprint.deploy" -> {
+                    String id = output == null ? null : text(output.get("deploymentId"));
+                    if (id == null) {
+                        // Failed before the request was answered: look it up by name in case it was made.
+                        id = automation().client().findDeployment(text(with.get("name"))).orElse(null);
+                        if (id == null) return "nothing was deployed";
+                    }
+                    automation().client().deleteDeployment(id);
+                    for (int i = 0; i < 120; i++) {
+                        Map<String, Object> st = automation().blueprintStatus(id);
+                        if ("FAILED".equals(st.get("state")) && String.valueOf(st.get("detail")).contains("has no deployment")) {
+                            return "removed deployment " + id;
+                        }
+                        if ("DELETE_FAILED".equals(st.get("status"))) {
+                            throw ApplicationFailure.newFailure("VCF Automation couldn't remove deployment " + id + ": " + st.get("detail"), "UndoFailed");
+                        }
+                        Activity.getExecutionContext().heartbeat(st.get("status"));
+                        try {
+                            Thread.sleep(15_000);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                    }
+                    throw ApplicationFailure.newFailure("Deployment " + id + " is still being removed after 30 minutes", "UndoFailed");
                 }
                 default -> {
                     return "nothing to undo";

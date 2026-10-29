@@ -88,6 +88,43 @@ vmintent:
     api-latency-ms: ${VMINTENT_SIM_LATENCY_MS:250}
     throttle-rate: ${VMINTENT_SIM_THROTTLE:0.02}   # share of cloud calls refused as "throttled"
 
+  # vSphere: simulated (the default), vCenter 9 directly, or VCF Automation 9 blueprints. See docs/VSPHERE.md.
+  vsphere:
+    # simulated | vcenter | vcf-automation, for every datacenter without its own route below.
+    route: ${VMINTENT_VSPHERE_ROUTE:simulated}
+    vcenter:
+      url: ${VMINTENT_VCENTER_URL:}                 # https://vcenter.example.com
+      username: ${VMINTENT_VCENTER_USER:}           # e.g. svc-vmintent@vsphere.local
+      password: ${VMINTENT_VCENTER_PASSWORD:}
+      ca-file: ${VMINTENT_VCENTER_CA_FILE:}         # PEM with vCenter's CA; empty = the JVM's trusted CAs
+      content-library: ${VMINTENT_VCENTER_LIBRARY:vm-intent-templates}
+      tag-category: vm-intent                      # VMs vm-intent builds are tagged vm-intent/managed
+      tag: managed
+      timeout-seconds: 20
+    automation:
+      url: ${VMINTENT_VCFA_URL:}                    # https://vcfa.example.com
+      org: ${VMINTENT_VCFA_ORG:}                    # the VM Apps organization (tenant) name
+      api-token: ${VMINTENT_VCFA_API_TOKEN:}        # My Account > API Tokens
+      auth: ${VMINTENT_VCFA_AUTH:tenant-oauth}      # tenant-oauth (VCF Automation 9) | iaas-login (Aria Automation 8.x)
+      ca-file: ${VMINTENT_VCFA_CA_FILE:}
+      project: ${VMINTENT_VCFA_PROJECT:}            # project name or ID
+      api-version: "2019-09-12"
+    # One entry per vm-intent datacenter (the spec's region). Examples (fill in your own names):
+    # datacenters:
+    #   dc1:
+    #     route: vcenter
+    #     datacenter: Datacenter-1
+    #     cluster: Cluster-A                         # or resource-pool: / host:
+    #     folder: vm-intent
+    #     datastores: { ssd: vsanDatastore, standard: nfs-datastore-01 }
+    #     templates: { ubuntu-24.04: tpl-ubuntu-2404, rhel-9: tpl-rhel-9, windows-2022: tpl-win2022 }
+    #     customization-specs: { ubuntu: linux-dhcp, rhel: linux-dhcp, windows: windows-dhcp }
+    #   dc2:
+    #     route: vcf-automation
+    #     blueprint: vm-intent-standard              # or per OS: blueprints: { windows: win-server }
+    #     blueprint-version: ""                      # empty = the newest released version
+    #     blueprint-inputs: { cpuCount: "{vcpu}", totalMemoryMB: "{memoryMiB}", image: "{os}-{osVersion}", diskGB: "{diskGiB}", env: "{env}" }
+
   # The one-way link to domain 3. See docs/ONE-WAY-LINK.md.
   link:
     # Clouds reached over the link instead of directly: comma-separated (aws,azure), or * for all.
