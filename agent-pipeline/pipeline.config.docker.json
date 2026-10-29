@@ -1,0 +1,49 @@
+{
+  "_comment": "Docker deploy mode: staging and live run as Docker Compose stacks. Copy to pipeline.config.json to use it. Needs Docker Desktop.",
+  "staging": {
+    "mode": "commands",
+    "start": [
+      {
+        "name": "docker compose up (staging)",
+        "cmd": "docker compose -p {composeProject} -f deploy/docker-compose.yml -f \"{pipelineDir}/docker/stack.override.yml\" up -d --build",
+        "timeoutMinutes": 30,
+        "env": {
+          "AP_PORT_API": "{port.api}", "AP_PORT_TEMPORAL": "{port.temporal}", "AP_PORT_TEMPORAL_UI": "{port.temporalUi}", "AP_PORT_WEB": "{port.web}",
+          "TEMPORAL_DB_PASSWORD": "staging-only", "VMINTENT_DB_PASSWORD": "staging-only", "WORKERS": "1"
+        }
+      }
+    ],
+    "stop": [
+      {
+        "name": "docker compose down (staging)",
+        "cmd": "docker compose -p {composeProject} -f deploy/docker-compose.yml -f \"{pipelineDir}/docker/stack.override.yml\" down -v",
+        "timeoutMinutes": 10,
+        "env": {
+          "AP_PORT_API": "{port.api}", "AP_PORT_TEMPORAL": "{port.temporal}", "AP_PORT_TEMPORAL_UI": "{port.temporalUi}", "AP_PORT_WEB": "{port.web}",
+          "TEMPORAL_DB_PASSWORD": "staging-only", "VMINTENT_DB_PASSWORD": "staging-only"
+        }
+      }
+    ],
+    "apiUrl": "http://127.0.0.1:{port.api}",
+    "healthUrl": "http://127.0.0.1:{port.api}/api/v2/requests",
+    "healthTimeoutSeconds": 300
+  },
+  "live": {
+    "mode": "commands",
+    "start": [
+      {
+        "name": "docker compose up (live)",
+        "cmd": "docker compose -p vmintent-live -f deploy/docker-compose.yml -f \"{pipelineDir}/docker/stack.override.yml\" up -d --build",
+        "timeoutMinutes": 30,
+        "env": {
+          "AP_PORT_API": "{port.api}", "AP_PORT_TEMPORAL": "{port.temporal}", "AP_PORT_TEMPORAL_UI": "{port.temporalUi}", "AP_PORT_WEB": "{port.web}",
+          "TEMPORAL_DB_PASSWORD": "live-sandbox", "VMINTENT_DB_PASSWORD": "live-sandbox", "WORKERS": "3"
+        }
+      }
+    ],
+    "stop": [],
+    "apiUrl": "http://127.0.0.1:{port.api}",
+    "healthUrl": "http://127.0.0.1:{port.api}/api/v2/requests",
+    "healthTimeoutSeconds": 300
+  }
+}

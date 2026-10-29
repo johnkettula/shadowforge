@@ -1,0 +1,13 @@
+{
+  "_comment": "Copy to pipeline.config.json and change what you need. Anything left out uses the defaults in src/config.ts.",
+  "push": true,
+  "agent": { "mode": "claude", "effort": "high" },
+  "limits": {
+    "maxCyclesPerDay": 6,
+    "maxUsdPerDay": 25,
+    "maxUsdPerCycle": 8,
+    "minutesBetweenCycles": 30,
+    "redesignEvery": 5
+  },
+  "goals": "Make vm-intent more reliable and complete: fix anything that fails, close gaps between the docs and the code, add missing tests, and make small improvements users would notice. Leave sign-in and security, the Azure and Terraform files, and this pipeline alone."
+}

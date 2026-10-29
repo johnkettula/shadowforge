@@ -1,0 +1,16 @@
+# Used by the Docker deploy mode (pipeline.config.docker.json): runs a second copy of the
+# vm-intent stack next to any other, on its own host ports. The ports come from the environment
+# the pipeline sets (AP_PORT_*). Needs Docker Compose 2.24 or newer (for !override).
+services:
+  temporal:
+    ports: !override
+      - "127.0.0.1:${AP_PORT_TEMPORAL}:7233"
+  temporal-ui:
+    ports: !override
+      - "127.0.0.1:${AP_PORT_TEMPORAL_UI}:8080"
+  api:
+    ports: !override
+      - "127.0.0.1:${AP_PORT_API}:8080"
+  web:
+    ports: !override
+      - "127.0.0.1:${AP_PORT_WEB}:80"
