@@ -13,3 +13,7 @@ set TEMPORAL_ADDRESS=127.0.0.1:7233
 
 REM Full path to temporal.exe if it isn't on PATH (staging starts its own Temporal with it).
 REM set TEMPORAL_CLI=C:\tools\temporal.exe
+
+REM Portable Git (install-tools.cmd puts it here): for the pipeline's git, and the agents' Bash shell.
+if exist "%USERPROFILE%\tools\git\cmd\git.exe" set "PATH=%USERPROFILE%\tools\git\cmd;%PATH%"
+if exist "%USERPROFILE%\tools\git\bin\bash.exe" set "CLAUDE_CODE_GIT_BASH_PATH=%USERPROFILE%\tools\git\bin\bash.exe"
