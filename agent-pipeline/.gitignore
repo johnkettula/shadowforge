@@ -4,3 +4,4 @@ settings.cmd
 pipeline.config.json
 check-tools.txt
 install-tools.log
+check-key.txt
