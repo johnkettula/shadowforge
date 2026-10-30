@@ -24,10 +24,10 @@ addresses instead, set `VMINTENT_API_SERVER_URLS` (comma-separated).
 | `interpretRequest` | `POST /api/v2/interpret` | Preview: text to spec, hash and defaults, or the question it would ask. Builds nothing. |
 | `createRequest` | `POST /api/v2/requests` | Start a one-VM request (asks questions, waits for confirmation) |
 | `getRequest` | `GET /api/v2/requests/{id}` | State, interpretation, VM details, history |
-| `clarifyRequest` | `POST /api/v2/requests/{id}/clarify` | Answer the question (state `AWAITING_CLARIFICATION`) |
+| `clarifyRequest` | `POST /api/v2/requests/{id}/clarify` | Answer the question (state `AWAITING_CLARIFICATION`). 409 if the request has already finished |
 | `confirmRequest` | `POST /api/v2/requests/{id}/confirm` | Build it (state `AWAITING_CONFIRMATION`). Send `{"specHash": ...}` to make sure it's the spec you saw. 200 with the new status; 409 with the reason if it can't be confirmed |
 | `listRequests` | `GET /api/v2/requests` | Recent requests, filtered by `requester` (`me` = you), `state`, `provider`, `env` |
-| `cancelRequest` | `POST /api/v2/requests/{id}/cancel` | Cancel while waiting |
+| `cancelRequest` | `POST /api/v2/requests/{id}/cancel` | Cancel while waiting. 409 if the request has already finished |
 | `createBatch` | `POST /api/v2/batches` | Build up to 10,000 VMs, no per-VM confirmation |
 | `getBatch` | `GET /api/v2/batches/{id}` | Live counts and p50/p95 build times |
 | `listVms` | `GET /api/v2/vms` | The 200 most recently changed VMs |
@@ -71,7 +71,7 @@ addresses instead, set `VMINTENT_API_SERVER_URLS` (comma-separated).
   required as optional.
 - **Errors** (every 4xx and 5xx) have the body `{"error": "...", "workflowId"?: "...", "rejected"?: [...]}`.
   `400` is a bad body, `404` an unknown ID, `409` a change that can't be made now (the `error` says why:
-  a request not waiting for confirmation, a VM already off, an identical VM already built), `500` an
+  a request not waiting for confirmation or already finished, a VM already off, an identical VM already built), `500` an
   unexpected error, `502` a backend (vCenter, VCF Automation) that refused vm-intent's sign-in, and `503` a
   backend that isn't set up on this server or didn't answer.
 - **Idempotency.** A VM's identity is the SHA-256 of its canonical spec (`specHash`). Sending the same
@@ -156,7 +156,7 @@ python tests/api_contract_test.py http://localhost:8080
 With sign-in on, give it an ADMIN credential: `VMINTENT_TOKEN=<token>`, or `VMINTENT_CLIENT_CERT`,
 `VMINTENT_CLIENT_KEY` and `VMINTENT_CA` for a certificate.
 
-It runs 39 checks: every operation, the full question, confirm and cancel flows, a VM's day-2 changes, a
+It runs 42 checks: every operation, the full question, confirm and cancel flows, a VM's day-2 changes, a
 batch, the inventory check, the vSphere endpoints, and the 400, 404, 409 and 503 error cases (vSphere
 calls expect 503, so run it against a server without vCenter or VCF Automation set up). Each request and response is validated against the live document. Run it in CI
 after any API change.

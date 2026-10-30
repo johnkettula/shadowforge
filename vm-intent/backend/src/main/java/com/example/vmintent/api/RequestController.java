@@ -187,6 +187,8 @@ public class RequestController {
     @Tag(name = "Requests")
     @Operation(operationId = "clarifyRequest", summary = "Answer the request's question", description = "Use when state is AWAITING_CLARIFICATION.")
     @ApiResponse(responseCode = "204", description = "Answer delivered")
+    @ApiResponse(responseCode = "409", description = "The request has already finished",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "404", description = "No such request",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "403", description = "Not your request (sign-in on, not an admin)",
@@ -195,7 +197,11 @@ public class RequestController {
     @PostMapping("/v2/requests/{id}/clarify")
     public void clarify(@PathVariable String id, @RequestBody AnswerBody body) {
         requireOwner(id);
-        stub(id).clarify(body.answer());
+        try {
+            stub(id).clarify(body.answer());
+        } catch (WorkflowNotFoundException e) {
+            throw finishedOr404(id, e);
+        }
     }
 
     @Tag(name = "Requests")
@@ -224,6 +230,8 @@ public class RequestController {
     @Tag(name = "Requests")
     @Operation(operationId = "cancelRequest", summary = "Cancel a waiting request", description = "Has no effect once the build has started.")
     @ApiResponse(responseCode = "204", description = "Cancelled")
+    @ApiResponse(responseCode = "409", description = "The request has already finished",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "404", description = "No such request",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "403", description = "Not your request (sign-in on, not an admin)",
@@ -232,7 +240,11 @@ public class RequestController {
     @PostMapping("/v2/requests/{id}/cancel")
     public void cancel(@PathVariable String id) {
         requireOwner(id);
-        stub(id).cancel();
+        try {
+            stub(id).cancel();
+        } catch (WorkflowNotFoundException e) {
+            throw finishedOr404(id, e);
+        }
     }
 
     // ------------------------------------------------------------------ inventory and audit
@@ -321,7 +333,7 @@ public class RequestController {
         }
     }
 
-    /** An update to a request that has already finished: say so (409) instead of "not found". */
+    /** A signal or update to a request that has already finished: say so (409) instead of "not found". */
     private RuntimeException finishedOr404(String id, WorkflowNotFoundException e) {
         try {
             var d = client.newUntypedWorkflowStub(id).describe();

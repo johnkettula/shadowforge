@@ -99,6 +99,9 @@ call("POST", f"/api/v2/requests/{r['requestId']}/clarify", 204, {"answer": "azur
 wait_request(r["requestId"], {"AWAITING_CONFIRMATION"})
 call("POST", f"/api/v2/requests/{r['requestId']}/cancel", 204, name="cancelRequest")
 wait_request(r["requestId"], {"CANCELLED"})
+call("POST", f"/api/v2/requests/{r['requestId']}/cancel", 409, name="cancelRequest: already finished -> 409")
+call("POST", f"/api/v2/requests/{r['requestId']}/clarify", 409, {"answer": "azure"},
+     name="clarifyRequest: already finished -> 409")
 
 # --- Requests: full flow to a running VM
 r = call("POST", "/api/v2/requests", 200,
@@ -131,6 +134,7 @@ call("GET", "/api/v2/vms/" + "0" * 64 + "/lifecycle", 404, name="getVmLifecycle:
 # --- Requests: errors
 call("GET", "/api/v2/requests/intent-does-not-exist", 404, name="getRequest: unknown ID -> 404")
 call("POST", "/api/v2/requests/intent-does-not-exist/confirm", 404, name="confirmRequest: unknown ID -> 404")
+call("POST", "/api/v2/requests/intent-does-not-exist/cancel", 404, name="cancelRequest: unknown ID -> 404")
 call("POST", "/api/v2/requests", 400, raw="{not json", name="createRequest: bad JSON -> 400")
 
 # --- Batches

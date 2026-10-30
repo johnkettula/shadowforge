@@ -270,7 +270,7 @@ public final class TestFakes {
      * The one-way link. route() says which clouds are behind it; send() records each order and, if
      * autoAnswer is on, answers it the way domain 3 would, through the linkReply signal.
      */
-    static class FakeLink implements LinkActivities {
+    public static class FakeLink implements LinkActivities {
         final Set<String> oneWay = ConcurrentHashMap.newKeySet();
         final List<LinkOrder> sent = new CopyOnWriteArrayList<>();
         volatile boolean autoAnswer = true;

@@ -982,6 +982,16 @@
           "204": {
             "description": "Answer delivered"
           },
+          "409": {
+            "description": "The request has already finished",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "No such request",
             "content": {
@@ -1046,6 +1056,16 @@
         "responses": {
           "204": {
             "description": "Cancelled"
+          },
+          "409": {
+            "description": "The request has already finished",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "404": {
             "description": "No such request",
