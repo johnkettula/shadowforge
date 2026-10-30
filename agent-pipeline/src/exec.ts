@@ -1,7 +1,7 @@
 // Running commands and processes, the same way on Windows (basement) and Linux.
 
 import { spawn, spawnSync } from 'node:child_process';
-import { createWriteStream, mkdirSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 export interface RunResult {
@@ -147,4 +147,67 @@ export function git(cwd: string, args: string[], allowFail = false): string {
     throw new Error(`git ${args.join(' ')} failed in ${cwd}: ${(r.stderr || r.stdout || '').trim()}`);
   }
   return (r.stdout ?? '').trim();
+}
+
+/** Is this process alive and is its program called something containing `name`? */
+export function processNamed(pid: number, name: string): boolean {
+  try {
+    if (process.platform === 'win32') {
+      const r = spawnSync('tasklist', ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'], { encoding: 'utf8', windowsHide: true });
+      return (r.stdout ?? '').toLowerCase().includes(name.toLowerCase());
+    }
+    return readFileSync(`/proc/${pid}/comm`, 'utf8').toLowerCase().includes(name.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Stops Postgres servers whose data folders are under `dir`. An embedded Postgres (the backend's
+ * own database) starts itself as a separate process, so stopping the backend's process tree leaves
+ * it running, holding the folders open (Windows then refuses to delete them). Its postmaster.pid
+ * says which process it is; it's only stopped if that process really is Postgres.
+ */
+export function killPostgresIn(dir: string): number[] {
+  const killed: number[] = [];
+  const walk = (d: string, depth: number) => {
+    if (depth > 4 || !existsSync(d)) return;
+    let names: string[];
+    try {
+      names = readdirSync(d);
+    } catch {
+      return;
+    }
+    if (names.includes('postmaster.pid')) {
+      try {
+        const pid = Number(readFileSync(path.join(d, 'postmaster.pid'), 'utf8').split(/\r?\n/)[0]);
+        if (pid > 0 && processNamed(pid, 'postgres')) {
+          killTree(pid);
+          killed.push(pid);
+        }
+      } catch {
+        /* unreadable: leave it */
+      }
+    }
+    for (const n of names) {
+      const p = path.join(d, n);
+      try {
+        if (statSync(p).isDirectory()) walk(p, depth + 1);
+      } catch {
+        /* gone meanwhile */
+      }
+    }
+  };
+  walk(dir, 0);
+  return killed;
+}
+
+/** Deletes a folder, retrying while Windows still has files in it open. False if it couldn't. */
+export function removeDir(dir: string): boolean {
+  try {
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+    return !existsSync(dir);
+  } catch {
+    return false;
+  }
 }

@@ -9,7 +9,7 @@ import type { AgentRunner, AgentOutcome, AgentTask } from './agents/runner.js';
 import { checkWrite, type PolicyContext } from './agents/policy.js';
 import { developerPrompt, redesignPrompt, requirementsPrompt, reviewerPrompt, testerPrompt } from './agents/prompts.js';
 import { DEVELOPER_SCHEMA, REDESIGN_SCHEMA, REQUIREMENT_SCHEMA, REVIEW_SCHEMA, TESTER_SCHEMA } from './agents/schemas.js';
-import { fill, fillEnv, git, killTree, run, startService, waitForUrl } from './exec.js';
+import { fill, fillEnv, git, killPostgresIn, killTree, removeDir, run, startService, waitForUrl } from './exec.js';
 import { matchesAny, toPosix } from './glob.js';
 import type {
   AgentUsage,
@@ -107,10 +107,15 @@ export async function prepareCycle(cfg: PipelineConfig, cycle: number, mode: 'fe
   const d = dirs(cfg);
   const repo = ensureRepo(cfg);
   const branch = `agent/cycle-${pad(cycle)}`;
-  const worktree = path.join(d.worktrees, `cycle-${pad(cycle)}`);
+  // Leftovers from a cycle that was stopped hard (a worker restart, a crash): their databases first.
+  killPostgresIn(d.staging);
+  let worktree = path.join(d.worktrees, `cycle-${pad(cycle)}`);
   if (existsSync(worktree)) {
     git(repo, ['worktree', 'remove', '--force', worktree], true);
-    rmSync(worktree, { recursive: true, force: true });
+    if (!removeDir(worktree)) {
+      // Something still holds it open: use a fresh folder rather than fail the cycle.
+      worktree = `${worktree}-${Date.now().toString(36)}`;
+    }
   }
   git(repo, ['worktree', 'prune']);
   mkdirSync(d.worktrees, { recursive: true });
@@ -119,12 +124,17 @@ export async function prepareCycle(cfg: PipelineConfig, cycle: number, mode: 'fe
   return { cycle, mode, branch, worktree, baseSha, context: contextFor(cfg, repo), portOffset: 10 * (cycle % 10) };
 }
 
-export async function cleanupCycle(cfg: PipelineConfig, prep: CyclePrep): Promise<void> {
+/** Best effort: a folder that can't be removed now is removed at the start of a later cycle. */
+export async function cleanupCycle(cfg: PipelineConfig, prep: CyclePrep): Promise<{ left: string[] }> {
   const repo = dirs(cfg).repo;
+  const stateDir = path.join(dirs(cfg).staging, `cycle-${pad(prep.cycle)}`);
+  killPostgresIn(stateDir);
   git(repo, ['worktree', 'remove', '--force', prep.worktree], true);
-  rmSync(prep.worktree, { recursive: true, force: true });
+  const left: string[] = [];
+  if (!removeDir(prep.worktree)) left.push(prep.worktree);
   git(repo, ['worktree', 'prune'], true);
-  rmSync(path.join(dirs(cfg).staging, `cycle-${pad(prep.cycle)}`), { recursive: true, force: true });
+  if (!removeDir(stateDir)) left.push(stateDir);
+  return { left };
 }
 
 function diffFiles(cwd: string, from: string, to = 'HEAD'): { files: string[]; added: number; removed: number } {
@@ -295,12 +305,15 @@ async function stopDeploy(cfg: PipelineConfig, handle: StagingHandle): Promise<v
   for (const s of handle.stopCommands) await runSpec(cfg, s, handle.vars, path.join(handle.logDir, 'stop.log'));
   for (const pid of [...handle.pids].reverse()) killTree(pid);
   await new Promise((r) => setTimeout(r, 1500));
+  // The backend's embedded Postgres runs on its own: stop it too.
+  if (handle.vars.stateDir && killPostgresIn(handle.vars.stateDir).length) await new Promise((r) => setTimeout(r, 1500));
 }
 
 export async function deployStaging(cfg: PipelineConfig, prep: CyclePrep, attempt: number): Promise<{ ok: boolean; handle?: StagingHandle; tail: string }> {
   if (cfg.staging.mode === 'none') return { ok: true, handle: { apiUrl: fill(cfg.staging.apiUrl, vars(cfg, prep)), pids: [], stopCommands: [], vars: {}, logDir: '' }, tail: '' };
   const v = vars(cfg, prep);
-  rmSync(v.stateDir, { recursive: true, force: true });
+  killPostgresIn(v.stateDir);
+  removeDir(v.stateDir);
   const r = await startDeploy(cfg, cfg.staging, v, path.join(dirs(cfg).logs, `cycle-${pad(prep.cycle)}`, `attempt-${attempt}-staging`));
   if (!r.ok) await stopDeploy(cfg, r.handle);
   return r.ok ? r : { ok: false, tail: r.tail };
