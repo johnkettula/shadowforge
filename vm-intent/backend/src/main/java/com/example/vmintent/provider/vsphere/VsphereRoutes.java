@@ -14,6 +14,9 @@ import org.springframework.jdbc.core.simple.JdbcClient;
  */
 public class VsphereRoutes {
 
+    /** Failure type when vCenter or VCF Automation is asked for but isn't set up (the API answers 503). */
+    public static final String NOT_SET_UP = "NotSetUp";
+
     private final VsphereProperties props;
     private final VcenterBackend vcenter;
     private final VcfaBackend automation;
@@ -35,7 +38,7 @@ public class VsphereRoutes {
     public VcenterBackend vcenter() {
         if (vcenter == null) {
             throw ApplicationFailure.newNonRetryableFailure("vCenter isn't set up: set vmintent.vsphere.vcenter.url, username and password "
-                    + "(VMINTENT_VCENTER_URL, VMINTENT_VCENTER_USER, VMINTENT_VCENTER_PASSWORD)", "InvalidSpec");
+                    + "(VMINTENT_VCENTER_URL, VMINTENT_VCENTER_USER, VMINTENT_VCENTER_PASSWORD)", NOT_SET_UP);
         }
         return vcenter;
     }
@@ -43,7 +46,7 @@ public class VsphereRoutes {
     public VcfaBackend automation() {
         if (automation == null) {
             throw ApplicationFailure.newNonRetryableFailure("VCF Automation isn't set up: set vmintent.vsphere.automation.url, org, api-token "
-                    + "and project (VMINTENT_VCFA_URL, VMINTENT_VCFA_ORG, VMINTENT_VCFA_API_TOKEN, VMINTENT_VCFA_PROJECT)", "InvalidSpec");
+                    + "and project (VMINTENT_VCFA_URL, VMINTENT_VCFA_ORG, VMINTENT_VCFA_API_TOKEN, VMINTENT_VCFA_PROJECT)", NOT_SET_UP);
         }
         return automation;
     }

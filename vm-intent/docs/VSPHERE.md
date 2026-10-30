@@ -180,7 +180,9 @@ inventory or lifecycle, so `files.copy` and the other VM steps can't be pointed 
 | `GET /api/v2/vsphere/blueprints` | the project's blueprints |
 | `GET /api/v2/vsphere/blueprints/{name}` | one blueprint's released versions and inputs |
 
-All need the OPERATOR role.
+All need the OPERATOR role. Templates answer 503 when vCenter isn't set up, blueprints 503 when VCF
+Automation isn't (the `error` says which settings are missing); a sign-in the backend refuses is 502, and
+an unknown blueprint 404.
 
 ## How it's tested
 

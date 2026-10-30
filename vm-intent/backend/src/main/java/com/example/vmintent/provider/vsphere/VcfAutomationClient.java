@@ -143,7 +143,7 @@ public class VcfAutomationClient {
 
     public Blueprint blueprint(String nameOrId) {
         for (Blueprint b : blueprints()) if (b.id().equals(nameOrId) || b.name().equals(nameOrId)) return b;
-        throw ApplicationFailure.newNonRetryableFailure("Project '" + cfg.project() + "' has no blueprint '" + nameOrId + "'", "InvalidSpec");
+        throw ApplicationFailure.newNonRetryableFailure("Project '" + cfg.project() + "' has no blueprint '" + nameOrId + "'", "NotFound");
     }
 
     /** Released versions, newest first. */
