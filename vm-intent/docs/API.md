@@ -59,6 +59,10 @@ addresses instead, set `VMINTENT_API_SERVER_URLS` (comma-separated).
 | `downloadArchivedHistory` | `GET /api/v2/compliance/archive/{workflowId}/{runId}` | One history; SHA-256 in `X-Content-SHA256` |
 | `replayWorkflow` | `POST /api/v2/compliance/replays` | Replay a recorded workflow for audit: nothing is done again ([AUDIT.md](AUDIT.md)) |
 | `runArchiveSweep` | `POST /api/v2/compliance/sweeps` | Archive closed histories now (ADMIN) |
+| `getVsphereStatus` | `GET /api/v2/vsphere/status` | How each datacenter is routed, and whether vCenter and VCF Automation answer (OPERATOR) |
+| `listVsphereTemplates` | `GET /api/v2/vsphere/templates` | VM templates in vCenter's content library (OPERATOR). 503 if vCenter isn't set up |
+| `listVsphereBlueprints` | `GET /api/v2/vsphere/blueprints` | Blueprints in the VCF Automation project (OPERATOR). 503 if VCF Automation isn't set up |
+| `getVsphereBlueprint` | `GET /api/v2/vsphere/blueprints/{nameOrId}` | One blueprint's released versions and inputs (OPERATOR). 404 unknown name; 503 if VCF Automation isn't set up |
 
 ## Conventions
 
@@ -67,8 +71,9 @@ addresses instead, set `VMINTENT_API_SERVER_URLS` (comma-separated).
   required as optional.
 - **Errors** (every 4xx and 5xx) have the body `{"error": "...", "workflowId"?: "...", "rejected"?: [...]}`.
   `400` is a bad body, `404` an unknown ID, `409` a change that can't be made now (the `error` says why:
-  a request not waiting for confirmation, a VM already off, an identical VM already built), and `500` an
-  unexpected error.
+  a request not waiting for confirmation, a VM already off, an identical VM already built), `500` an
+  unexpected error, `502` a backend (vCenter, VCF Automation) that refused vm-intent's sign-in, and `503` a
+  backend that isn't set up on this server or didn't answer.
 - **Idempotency.** A VM's identity is the SHA-256 of its canonical spec (`specHash`). Sending the same
   spec again while it's being built, or after it's built, does not create a second VM: a batch counts it
   under `duplicate`, the legacy endpoint returns `409`, and a request finishes as `DUPLICATE`. It is safe
@@ -107,7 +112,7 @@ curl -s http://localhost:8080/api/v2/batches/batch-...
 Point any OpenAPI generator at `/v3/api-docs` (or `docs/openapi.yaml`):
 
 ```bash
-# TypeScript types (checked: generates all 38 operations)
+# TypeScript types (checked: generates all 42 operations)
 npx openapi-typescript http://localhost:8080/v3/api-docs -o vmintent-api.d.ts
 
 # Java, C#, Python, Go... with OpenAPI Generator
@@ -151,6 +156,7 @@ python tests/api_contract_test.py http://localhost:8080
 With sign-in on, give it an ADMIN credential: `VMINTENT_TOKEN=<token>`, or `VMINTENT_CLIENT_CERT`,
 `VMINTENT_CLIENT_KEY` and `VMINTENT_CA` for a certificate.
 
-It runs 35 checks: every operation, the full question, confirm and cancel flows, a VM's day-2 changes, a
-batch, the inventory check, and the 400, 404 and 409 error cases. Each request and response is validated against the live document. Run it in CI
+It runs 39 checks: every operation, the full question, confirm and cancel flows, a VM's day-2 changes, a
+batch, the inventory check, the vSphere endpoints, and the 400, 404, 409 and 503 error cases (vSphere
+calls expect 503, so run it against a server without vCenter or VCF Automation set up). Each request and response is validated against the live document. Run it in CI
 after any API change.

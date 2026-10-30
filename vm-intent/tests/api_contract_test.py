@@ -163,6 +163,12 @@ legacy = {"name": f"legacy-{RUN}", "cloud": "GCP", "location": "us-central1", "c
 call("POST", "/api/v1/vms", 202, legacy, name="createLegacyVm")
 call("POST", "/api/v1/vms", 409, legacy, name="createLegacyVm: same again -> 409")
 
+# --- vSphere (this server isn't set up for vCenter or VCF Automation, so the lookups are 503)
+call("GET", "/api/v2/vsphere/status", 200, name="getVsphereStatus")
+call("GET", "/api/v2/vsphere/templates", 503, name="listVsphereTemplates: vCenter not set up -> 503")
+call("GET", "/api/v2/vsphere/blueprints", 503, name="listVsphereBlueprints: VCF Automation not set up -> 503")
+call("GET", "/api/v2/vsphere/blueprints/anything", 503, name="getVsphereBlueprint: VCF Automation not set up -> 503")
+
 failed = [n for n, p in results if p]
 print(f"\n{len(results) - len(failed)}/{len(results)} checks passed")
 covered = {(m.upper(), p) for p, ops in doc["paths"].items() for m in ops}

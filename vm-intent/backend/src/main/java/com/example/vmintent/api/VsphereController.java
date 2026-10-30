@@ -1,11 +1,16 @@
 package com.example.vmintent.api;
 
+import com.example.vmintent.api.ApiModels.ApiError;
 import com.example.vmintent.provider.vsphere.VcenterClient;
 import com.example.vmintent.provider.vsphere.VcfAutomationClient;
 import com.example.vmintent.provider.vsphere.VsphereProperties;
 import com.example.vmintent.provider.vsphere.VsphereRoutes;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.temporal.failure.ApplicationFailure;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
@@ -23,13 +28,33 @@ import java.util.Map;
 /**
  * What vm-intent can reach in vSphere: is vCenter / VCF Automation set up and answering, which VM
  * templates the content library holds, which blueprints the project has and what inputs they take.
- * Read-only. OPERATOR role (see ApiAccessRules).
+ * Read-only. OPERATOR role (see ApiAccessRules). 503 when the backend asked for isn't set up.
  */
 @RestController
 @ConditionalOnWebApplication
 @RequestMapping("/api/v2/vsphere")
 @Tag(name = "vSphere", description = "vCenter 9 and VCF Automation 9: routes, templates and blueprints")
 public class VsphereController {
+
+    private static final String NOT_SET_UP = "vSphere isn't set up on this server (vCenter for templates, VCF Automation for blueprints), or didn't answer";
+
+    @Schema(description = "How each datacenter is routed, and whether vCenter and VCF Automation answer.")
+    public record VsphereStatusResponse(
+            @Schema(description = "The route for datacenters not listed: simulated, vcenter or vcf-automation.",
+                    requiredMode = Schema.RequiredMode.REQUIRED, example = "simulated") String defaultRoute,
+            @Schema(description = "Each configured datacenter and its route.", requiredMode = Schema.RequiredMode.REQUIRED)
+            Map<String, String> datacenters,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) VsphereBackendStatus vcenter,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) VsphereBackendStatus automation) {}
+
+    @Schema(description = "One vSphere backend. url, ok and detail are only there when it is configured.")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record VsphereBackendStatus(
+            @Schema(description = "Whether its address and credentials are set.", requiredMode = Schema.RequiredMode.REQUIRED)
+            boolean configured,
+            @Schema(description = "Its address.") String url,
+            @Schema(description = "Whether signing in and the check worked.") Boolean ok,
+            @Schema(description = "What the check found, or why it failed.") String detail) {}
 
     private final VsphereRoutes routes;
 
@@ -38,53 +63,54 @@ public class VsphereController {
     }
 
     @GetMapping("/status")
-    @Operation(summary = "How each datacenter is routed, and whether vCenter and VCF Automation answer")
-    public Map<String, Object> status() {
+    @Operation(operationId = "getVsphereStatus", summary = "How each datacenter is routed, and whether vCenter and VCF Automation answer")
+    @ApiResponse(responseCode = "200", description = "The routes and both backends")
+    public VsphereStatusResponse status() {
         VsphereProperties p = routes.props();
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("defaultRoute", p.route());
         Map<String, String> dcs = new LinkedHashMap<>();
         p.datacenters().keySet().forEach(dc -> dcs.put(dc, p.routeFor(dc)));
-        out.put("datacenters", dcs);
-        out.put("vcenter", check(routes.hasVcenter(), p.vcenter().url(), () -> {
-            routes.vcenter().client().ownershipTag();
-            return "signed in; ownership tag " + p.vcenter().tagCategory() + "/" + p.vcenter().tag() + " ready";
-        }));
-        out.put("automation", check(routes.hasAutomation(), p.automation().url(), () ->
-                "signed in; project " + routes.automation().client().projectId()));
-        return out;
+        return new VsphereStatusResponse(p.route(), dcs,
+                check(routes.hasVcenter(), p.vcenter().url(), () -> {
+                    routes.vcenter().client().ownershipTag();
+                    return "signed in; ownership tag " + p.vcenter().tagCategory() + "/" + p.vcenter().tag() + " ready";
+                }),
+                check(routes.hasAutomation(), p.automation().url(), () ->
+                        "signed in; project " + routes.automation().client().projectId()));
     }
 
-    private static Map<String, Object> check(boolean configured, String url, java.util.concurrent.Callable<String> probe) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("configured", configured);
-        if (configured) {
-            m.put("url", url);
-            try {
-                m.put("ok", true);
-                m.put("detail", probe.call());
-            } catch (Exception e) {
-                m.put("ok", false);
-                m.put("detail", e instanceof ApplicationFailure af ? af.getOriginalMessage() : e.getMessage());
-            }
+    private static VsphereBackendStatus check(boolean configured, String url, java.util.concurrent.Callable<String> probe) {
+        if (!configured) return new VsphereBackendStatus(false, null, null, null);
+        try {
+            return new VsphereBackendStatus(true, url, true, probe.call());
+        } catch (Exception e) {
+            return new VsphereBackendStatus(true, url, false, e instanceof ApplicationFailure af ? af.getOriginalMessage() : e.getMessage());
         }
-        return m;
     }
 
     @GetMapping("/templates")
-    @Operation(summary = "The VM templates in vCenter's content library (vmintent.vsphere.vcenter.content-library)")
+    @Operation(operationId = "listVsphereTemplates", summary = "The VM templates in vCenter's content library (vmintent.vsphere.vcenter.content-library)")
+    @ApiResponse(responseCode = "200", description = "The templates")
+    @ApiResponse(responseCode = "502", description = "vCenter refused the sign-in", content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "503", description = NOT_SET_UP, content = @Content(schema = @Schema(implementation = ApiError.class)))
     public List<VcenterClient.LibraryItem> templates() {
         return guard(() -> routes.vcenter().client().libraryItems(routes.props().vcenter().contentLibrary()));
     }
 
     @GetMapping("/blueprints")
-    @Operation(summary = "The blueprints (cloud templates) in the VCF Automation project")
+    @Operation(operationId = "listVsphereBlueprints", summary = "The blueprints (cloud templates) in the VCF Automation project")
+    @ApiResponse(responseCode = "200", description = "The blueprints")
+    @ApiResponse(responseCode = "502", description = "VCF Automation refused the sign-in", content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "503", description = NOT_SET_UP, content = @Content(schema = @Schema(implementation = ApiError.class)))
     public List<VcfAutomationClient.Blueprint> blueprints() {
         return guard(() -> routes.automation().client().blueprints());
     }
 
     @GetMapping("/blueprints/{nameOrId}")
-    @Operation(summary = "One blueprint: its released versions and the inputs it takes")
+    @Operation(operationId = "getVsphereBlueprint", summary = "One blueprint: its released versions and the inputs it takes")
+    @ApiResponse(responseCode = "200", description = "The blueprint")
+    @ApiResponse(responseCode = "404", description = "The project has no blueprint with that name or ID", content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "502", description = "VCF Automation refused the sign-in", content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "503", description = NOT_SET_UP, content = @Content(schema = @Schema(implementation = ApiError.class)))
     public Map<String, Object> blueprint(@PathVariable String nameOrId) {
         return guard(() -> {
             VcfAutomationClient c = routes.automation().client();
@@ -102,13 +128,18 @@ public class VsphereController {
         try {
             return call.get();
         } catch (ApplicationFailure e) {
-            HttpStatus s = switch (e.getType()) {
-                case "NotFound" -> HttpStatus.NOT_FOUND;
-                case "InvalidSpec" -> HttpStatus.NOT_FOUND;
-                case "CloudAuth" -> HttpStatus.BAD_GATEWAY;
-                default -> HttpStatus.SERVICE_UNAVAILABLE;
-            };
-            throw new ResponseStatusException(s, e.getOriginalMessage());
+            throw new ResponseStatusException(statusFor(e.getType()), e.getOriginalMessage());
         }
+    }
+
+    /** The HTTP status for a vSphere failure type: not set up, or anything unexpected, is 503. */
+    static HttpStatus statusFor(String failureType) {
+        if (failureType == null) return HttpStatus.SERVICE_UNAVAILABLE;
+        return switch (failureType) {
+            case VsphereRoutes.NOT_SET_UP -> HttpStatus.SERVICE_UNAVAILABLE;
+            case "NotFound" -> HttpStatus.NOT_FOUND;
+            case "CloudAuth" -> HttpStatus.BAD_GATEWAY;
+            default -> HttpStatus.SERVICE_UNAVAILABLE;
+        };
     }
 }

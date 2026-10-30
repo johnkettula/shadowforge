@@ -1150,16 +1150,29 @@ paths:
         The VM templates in vCenter's content library (vmintent.vsphere.vcenter.content-library)
 
         **Required role:** OPERATOR (when sign-in is on; it is currently off)
-      operationId: templates
+      operationId: listVsphereTemplates
       responses:
         "200":
-          description: OK
+          description: The templates
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: "#/components/schemas/LibraryItem"
+        "502":
+          description: vCenter refused the sign-in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "503":
+          description: "vSphere isn't set up on this server (vCenter for templates,\
+            \ VCF Automation for blueprints), or didn't answer"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "500":
           description: Unexpected server error
           content:
@@ -1176,16 +1189,14 @@ paths:
         How each datacenter is routed, and whether vCenter and VCF Automation answer
 
         **Required role:** OPERATOR (when sign-in is on; it is currently off)
-      operationId: status
+      operationId: getVsphereStatus
       responses:
         "200":
-          description: OK
+          description: The routes and both backends
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties:
-                  type: object
+                $ref: "#/components/schemas/VsphereStatusResponse"
         "500":
           description: Unexpected server error
           content:
@@ -1201,16 +1212,29 @@ paths:
         The blueprints (cloud templates) in the VCF Automation project
 
         **Required role:** OPERATOR (when sign-in is on; it is currently off)
-      operationId: blueprints
+      operationId: listVsphereBlueprints
       responses:
         "200":
-          description: OK
+          description: The blueprints
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: "#/components/schemas/Blueprint"
+        "502":
+          description: VCF Automation refused the sign-in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "503":
+          description: "vSphere isn't set up on this server (vCenter for templates,\
+            \ VCF Automation for blueprints), or didn't answer"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "500":
           description: Unexpected server error
           content:
@@ -1226,7 +1250,7 @@ paths:
         One blueprint: its released versions and the inputs it takes
 
         **Required role:** OPERATOR (when sign-in is on; it is currently off)
-      operationId: blueprint
+      operationId: getVsphereBlueprint
       parameters:
       - name: nameOrId
         in: path
@@ -1235,13 +1259,32 @@ paths:
           type: string
       responses:
         "200":
-          description: OK
+          description: The blueprint
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties:
                   type: object
+        "404":
+          description: The project has no blueprint with that name or ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "502":
+          description: VCF Automation refused the sign-in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "503":
+          description: "vSphere isn't set up on this server (vCenter for templates,\
+            \ VCF Automation for blueprints), or didn't answer"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "500":
           description: Unexpected server error
           content:
@@ -2674,6 +2717,50 @@ components:
           type: string
         description:
           type: string
+    VsphereBackendStatus:
+      required:
+      - configured
+      type: object
+      properties:
+        configured:
+          type: boolean
+          description: Whether its address and credentials are set.
+        url:
+          type: string
+          description: Its address.
+        ok:
+          type: boolean
+          description: Whether signing in and the check worked.
+        detail:
+          type: string
+          description: "What the check found, or why it failed."
+      description: "One vSphere backend. url, ok and detail are only there when it\
+        \ is configured."
+    VsphereStatusResponse:
+      required:
+      - automation
+      - datacenters
+      - defaultRoute
+      - vcenter
+      type: object
+      properties:
+        defaultRoute:
+          type: string
+          description: "The route for datacenters not listed: simulated, vcenter or\
+            \ vcf-automation."
+          example: simulated
+        datacenters:
+          type: object
+          additionalProperties:
+            type: string
+            description: Each configured datacenter and its route.
+          description: Each configured datacenter and its route.
+        vcenter:
+          $ref: "#/components/schemas/VsphereBackendStatus"
+        automation:
+          $ref: "#/components/schemas/VsphereBackendStatus"
+      description: "How each datacenter is routed, and whether vCenter and VCF Automation\
+        \ answer."
     VmRecord:
       type: object
       properties:
