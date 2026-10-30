@@ -1,6 +1,7 @@
 package com.example.vmintent.provider.vsphere;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.temporal.failure.ApplicationFailure;
 
 import java.util.ArrayList;
@@ -130,6 +131,8 @@ public class VcfAutomationClient {
         return out;
     }
 
+    /** Named VsphereBlueprint in the OpenAPI document, so it isn't confused with the catalog's Blueprint. */
+    @Schema(name = "VsphereBlueprint", description = "A VCF Automation blueprint (cloud template).")
     public record Blueprint(String id, String name, String description, String status, String projectId) {}
 
     public List<Blueprint> blueprints() {

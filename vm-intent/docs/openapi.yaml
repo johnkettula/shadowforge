@@ -1233,7 +1233,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Blueprint"
+                  $ref: "#/components/schemas/VsphereBlueprint"
         "502":
           description: VCF Automation refused the sign-in
           content:
@@ -1275,9 +1275,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties:
-                  type: object
+                $ref: "#/components/schemas/VsphereBlueprintResponse"
         "404":
           description: The project has no blueprint with that name or ID
           content:
@@ -2765,6 +2763,43 @@ components:
           $ref: "#/components/schemas/VsphereBackendStatus"
       description: "How each datacenter is routed, and whether vCenter and VCF Automation\
         \ answer."
+    VsphereBlueprint:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+        projectId:
+          type: string
+      description: A VCF Automation blueprint (cloud template).
+    VsphereBlueprintResponse:
+      required:
+      - blueprint
+      - inputs
+      - releasedVersions
+      type: object
+      properties:
+        blueprint:
+          $ref: "#/components/schemas/VsphereBlueprint"
+        releasedVersions:
+          type: array
+          description: The blueprint versions that are released and can be deployed.
+          items:
+            type: string
+            description: The blueprint versions that are released and can be deployed.
+        inputs:
+          type: object
+          additionalProperties: true
+          description: "The inputs it takes: the 'properties' object of its JSON Schema\
+            \ inputs schema, or the whole schema when that has no 'properties'. Free-form,\
+            \ as VCF Automation sends it."
+      description: "One VCF Automation blueprint, its released versions and the inputs\
+        \ it takes."
     VmRecord:
       type: object
       properties:

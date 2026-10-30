@@ -56,6 +56,16 @@ public class VsphereController {
             @Schema(description = "Whether signing in and the check worked.") Boolean ok,
             @Schema(description = "What the check found, or why it failed.") String detail) {}
 
+    @Schema(description = "One VCF Automation blueprint, its released versions and the inputs it takes.")
+    public record VsphereBlueprintResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) VcfAutomationClient.Blueprint blueprint,
+            @Schema(description = "The blueprint versions that are released and can be deployed.",
+                    requiredMode = Schema.RequiredMode.REQUIRED) List<String> releasedVersions,
+            @Schema(description = "The inputs it takes: the 'properties' object of its JSON Schema inputs schema, "
+                    + "or the whole schema when that has no 'properties'. Free-form, as VCF Automation sends it.",
+                    implementation = Map.class, additionalProperties = Schema.AdditionalPropertiesValue.TRUE,
+                    requiredMode = Schema.RequiredMode.REQUIRED) JsonNode inputs) {}
+
     private final VsphereRoutes routes;
 
     public VsphereController(VsphereRoutes routes) {
@@ -111,16 +121,13 @@ public class VsphereController {
     @ApiResponse(responseCode = "404", description = "The project has no blueprint with that name or ID", content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "502", description = "VCF Automation refused the sign-in", content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "503", description = NOT_SET_UP, content = @Content(schema = @Schema(implementation = ApiError.class)))
-    public Map<String, Object> blueprint(@PathVariable String nameOrId) {
+    public VsphereBlueprintResponse blueprint(@PathVariable String nameOrId) {
         return guard(() -> {
             VcfAutomationClient c = routes.automation().client();
             VcfAutomationClient.Blueprint b = c.blueprint(nameOrId);
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("blueprint", b);
-            out.put("releasedVersions", c.releasedVersions(b.id()));
+            List<String> versions = c.releasedVersions(b.id());
             JsonNode schema = c.inputsSchema(b.id());
-            out.put("inputs", schema.has("properties") ? schema.get("properties") : schema);
-            return out;
+            return new VsphereBlueprintResponse(b, versions, schema.has("properties") ? schema.get("properties") : schema);
         });
     }
 

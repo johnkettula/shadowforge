@@ -164,3 +164,8 @@ batch, the inventory check, the vSphere endpoints, the catalog and compliance en
 it publishes nothing and starts no run), and the 400, 404, 409 and 503 error cases (vSphere
 calls expect 503, so run it against a server without vCenter or VCF Automation set up). Each request and response is validated against the live document. Run it in CI
 after any API change.
+
+`mvn test` checks the document too, without a running server: `OpenApiDocumentTest` builds `/v3/api-docs`
+from the controllers and fails the build if any operation's 2xx response is documented as a free-form map or
+an untyped object (a short allow-list in the test names the exceptions and why). So endpoints return named
+record types, not `Map<String,Object>`, which springdoc can't describe and real responses then fail to match.
