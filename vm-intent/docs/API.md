@@ -47,7 +47,7 @@ addresses instead, set `VMINTENT_API_SERVER_URLS` (comma-separated).
 | `validateDefinition` | `POST /api/v2/definitions/validate` | Check YAML (`application/yaml`, or JSON `{"yaml": ...}`); every problem listed |
 | `publishDefinition` | `POST /api/v2/definitions` | Publish (OPERATOR). 201 published, 200 unchanged, 422 refused with the problems |
 | `retireDefinition` | `POST /api/v2/definitions/{kind}/{name}/{version}/retire` | No new runs of that version (OPERATOR) |
-| `listClassifications` | `GET /api/v2/classifications` | Data classification codes, their text and retention |
+| `listClassifications` | `GET /api/v2/classifications` | `{"default": "C2", "classifications": [{"code", "label", "retentionYears"}, ...]}`: the `default` code (one of those listed) applies when neither a run nor its definition gives one, then every code with its text and retention in years |
 | `startRun` | `POST /api/v2/runs` | `{"definition": "web-server", "params": {"app": "shop"}}`. 201 started; 200 with `existing: true` if the same inputs are already running |
 | `listRuns` | `GET /api/v2/runs` | Recent catalog runs |
 | `getRun` | `GET /api/v2/runs/{runId}` | Every step, what it produced, what the run waits for |
@@ -69,6 +69,8 @@ addresses instead, set `VMINTENT_API_SERVER_URLS` (comma-separated).
 - **JSON in and out.** Send `Content-Type: application/json`.
 - **Fields with no value are left out** of responses, never sent as `null`. Treat any field not marked
   required as optional.
+- **Free-form values** (a definition's step settings and input defaults, a run's inputs, a step's output)
+  can be any JSON value, so the document gives them no type.
 - **Errors** (every 4xx and 5xx) have the body `{"error": "...", "workflowId"?: "...", "rejected"?: [...]}`.
   `400` is a bad body, `404` an unknown ID, `409` a change that can't be made now (the `error` says why:
   a request not waiting for confirmation or already finished, a VM already off, an identical VM already built), `500` an
@@ -156,7 +158,9 @@ python tests/api_contract_test.py http://localhost:8080
 With sign-in on, give it an ADMIN credential: `VMINTENT_TOKEN=<token>`, or `VMINTENT_CLIENT_CERT`,
 `VMINTENT_CLIENT_KEY` and `VMINTENT_CA` for a certificate.
 
-It runs 42 checks: every operation, the full question, confirm and cancel flows, a VM's day-2 changes, a
-batch, the inventory check, the vSphere endpoints, and the 400, 404, 409 and 503 error cases (vSphere
+It runs 55 checks: every operation, the full question, confirm and cancel flows, a VM's day-2 changes, a
+batch, the inventory check, the vSphere endpoints, the catalog and compliance endpoints (reading the built-in
+`web-server` definition, validating its YAML, the classifications, runs, the decision log and the archive;
+it publishes nothing and starts no run), and the 400, 404, 409 and 503 error cases (vSphere
 calls expect 503, so run it against a server without vCenter or VCF Automation set up). Each request and response is validated against the live document. Run it in CI
 after any API change.

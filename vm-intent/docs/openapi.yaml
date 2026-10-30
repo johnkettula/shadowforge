@@ -1647,9 +1647,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties:
-                  type: object
+                $ref: "#/components/schemas/ClassificationsResponse"
         "500":
           description: Unexpected server error
           content:
@@ -1894,7 +1892,6 @@ components:
         params:
           type: object
           additionalProperties:
-            type: object
             description: The definition's inputs.
             example:
               app: shop
@@ -1984,8 +1981,7 @@ components:
           $ref: "#/components/schemas/Classification"
         params:
           type: object
-          additionalProperties:
-            type: object
+          additionalProperties: {}
         steps:
           type: array
           items:
@@ -2029,7 +2025,6 @@ components:
         output:
           type: object
           additionalProperties:
-            type: object
             description: What the step produced; later steps read it as steps.<id>.
           description: What the step produced; later steps read it as steps.<id>.
         error:
@@ -2471,13 +2466,11 @@ components:
         required:
           type: boolean
         defaultValue:
-          type: object
           description: Used when the input isn't given.
         allowed:
           type: array
           description: "If set, the value must be one of these."
           items:
-            type: object
             description: "If set, the value must be one of these."
       description: One input a definition takes.
     StepDef:
@@ -2498,8 +2491,7 @@ components:
           description: CEL condition; the step is skipped when it's false.
         with:
           type: object
-          additionalProperties:
-            type: object
+          additionalProperties: {}
         attempts:
           type: integer
           description: Tries before the run stops and waits for a decision (1-10).
@@ -2985,6 +2977,22 @@ components:
           type: string
           description: Set when the file was removed at the end of its retention.
       description: One archived workflow history.
+    ClassificationsResponse:
+      required:
+      - classifications
+      - default
+      type: object
+      properties:
+        default:
+          type: string
+          description: Code of the default classification (one of the codes listed).
+          example: C2
+        classifications:
+          type: array
+          items:
+            $ref: "#/components/schemas/Classification"
+      description: "The data classification codes, and the one used when neither a\
+        \ run nor its definition gives one."
     BatchStatus:
       type: object
       properties:

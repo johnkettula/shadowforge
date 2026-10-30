@@ -76,11 +76,18 @@ public class OpenApiConfig {
 
     /**
      * Every operation lists the shared error body: 400 for any operation that takes a body
-     * (invalid JSON), and 500 for all. Keeps the document true to what the server sends.
+     * (invalid JSON), and 500 for all. A Java Object field (a definition's step settings, an input's
+     * default, a run's inputs) can hold any JSON value, so it is documented without a type rather than
+     * as an object. Keeps the document true to what the server sends.
      */
     @Bean
     public OpenApiCustomizer contractFixes() {
         return openApi -> {
+            if (openApi.getComponents() != null && openApi.getComponents().getSchemas() != null) {
+                for (Schema<?> model : openApi.getComponents().getSchemas().values()) {
+                    if (model.getProperties() != null) model.getProperties().values().forEach(OpenApiConfig::anyJsonValue);
+                }
+            }
             Content errorBody = new Content().addMediaType("application/json",
                     new MediaType().schema(new Schema<>().$ref("#/components/schemas/ApiError")));
             openApi.getPaths().values().forEach(path -> path.readOperations().forEach(op -> {
@@ -94,5 +101,16 @@ public class OpenApiConfig {
                 }
             }));
         };
+    }
+
+    /** A bare {type: object} (no properties, no $ref, no value type) came from java.lang.Object: any JSON value. */
+    static void anyJsonValue(Schema<?> s) {
+        if (s == null) return;
+        if (s.getItems() != null) anyJsonValue(s.getItems());
+        if (s.getAdditionalProperties() instanceof Schema<?> values) anyJsonValue(values);
+        if ("object".equals(s.getType()) && s.get$ref() == null && s.getProperties() == null
+                && s.getAdditionalProperties() == null) {
+            s.setType(null);
+        }
     }
 }

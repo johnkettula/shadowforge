@@ -2423,10 +2423,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "type": "object"
-                  }
+                  "$ref": "#/components/schemas/ClassificationsResponse"
                 }
               }
             }
@@ -2767,7 +2764,6 @@
           "params": {
             "type": "object",
             "additionalProperties": {
-              "type": "object",
               "description": "The definition's inputs.",
               "example": {
                 "app": "shop",
@@ -2887,9 +2883,7 @@
           },
           "params": {
             "type": "object",
-            "additionalProperties": {
-              "type": "object"
-            }
+            "additionalProperties": {}
           },
           "steps": {
             "type": "array",
@@ -2949,7 +2943,6 @@
           "output": {
             "type": "object",
             "additionalProperties": {
-              "type": "object",
               "description": "What the step produced; later steps read it as steps.<id>."
             },
             "description": "What the step produced; later steps read it as steps.<id>."
@@ -3531,14 +3524,12 @@
             "type": "boolean"
           },
           "defaultValue": {
-            "type": "object",
             "description": "Used when the input isn't given."
           },
           "allowed": {
             "type": "array",
             "description": "If set, the value must be one of these.",
             "items": {
-              "type": "object",
               "description": "If set, the value must be one of these."
             }
           }
@@ -3567,9 +3558,7 @@
           },
           "with": {
             "type": "object",
-            "additionalProperties": {
-              "type": "object"
-            }
+            "additionalProperties": {}
           },
           "attempts": {
             "type": "integer",
@@ -4230,6 +4219,27 @@
           }
         },
         "description": "One archived workflow history."
+      },
+      "ClassificationsResponse": {
+        "required": [
+          "classifications",
+          "default"
+        ],
+        "type": "object",
+        "properties": {
+          "default": {
+            "type": "string",
+            "description": "Code of the default classification (one of the codes listed).",
+            "example": "C2"
+          },
+          "classifications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Classification"
+            }
+          }
+        },
+        "description": "The data classification codes, and the one used when neither a run nor its definition gives one."
       },
       "BatchStatus": {
         "type": "object",
