@@ -53,6 +53,8 @@ You need Node 20+, Git, Java 21 + Maven, Python 3 (`pip install openapi-core req
 contract test) and the Temporal CLI. All of those except the Python packages are already there for
 vm-intent. **For the Docker option**, also Docker Desktop.
 
+0. Run `install-tools.cmd` if `0-check-tools.cmd` shows Git missing: it puts Portable Git in
+   `%USERPROFILE%\tools\git` (no admin rights) and the Python packages the contract test needs.
 1. Get the repo onto basement with git, if it isn't yet: `git clone https://github.com/johnkettula/shadowforge.git`
    (Git asks you to sign in to GitHub the first time; that's also what lets the pipeline push).
 2. Run `agent-pipeline\1-install.cmd`. It creates `settings.cmd` and `pipeline.config.json`.
@@ -77,6 +79,9 @@ sections of `pipeline.config.docker.json` into `pipeline.config.json`.
 5-control stop              stop after the current cycle
 5-control reports           every cycle with its outcome and cost
 ```
+
+After changing the pipeline's code (or pulling an update), run `restart-worker.cmd`: it stops the
+running worker and starts a new one; a cycle in progress carries on in the new worker.
 
 - **Reports:** `%USERPROFILE%\agent-pipeline-home\reports\cycle-NNNN.md` (what was built, every attempt,
   every failure). Logs of every build, deploy and check are under `logs\`.
