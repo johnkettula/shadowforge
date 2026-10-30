@@ -5,6 +5,7 @@ import { Context, ApplicationFailure } from '@temporalio/activity';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, appendFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { defaultConfig } from './config.js';
 import type { AgentRunner, AgentOutcome, AgentTask } from './agents/runner.js';
 import { checkWrite, type PolicyContext } from './agents/policy.js';
 import { developerPrompt, redesignPrompt, requirementsPrompt, reviewerPrompt, testerPrompt } from './agents/prompts.js';
@@ -137,16 +138,18 @@ export async function cleanupCycle(cfg: PipelineConfig, prep: CyclePrep): Promis
   return { left };
 }
 
-function diffFiles(cwd: string, from: string, to = 'HEAD'): { files: string[]; added: number; removed: number } {
+function diffFiles(cwd: string, from: string, to = 'HEAD', generated: string[] = []): { files: string[]; added: number; removed: number } {
   const out = git(cwd, ['diff', '--numstat', `${from}..${to}`]);
   let added = 0;
   let removed = 0;
   const files: string[] = [];
   for (const line of out.split('\n').filter(Boolean)) {
     const [a, r, f] = line.split('\t');
+    const file = toPosix(f.includes(' => ') ? f.replace(/\{?([^{]*) => ([^}]*)\}?/, '$2') : f);
+    files.push(file);
+    if (matchesAny(file, generated)) continue;
     added += Number(a) || 0;
     removed += Number(r) || 0;
-    files.push(toPosix(f.includes(' => ') ? f.replace(/\{?([^{]*) => ([^}]*)\}?/, '$2') : f));
   }
   return { files, added, removed };
 }
@@ -177,11 +180,12 @@ export async function commitAndCheck(cfg: PipelineConfig, prep: CyclePrep, role:
     const [status, file] = line.split('\t');
     if (status !== 'A' && matchesAny(file, cfg.appendOnly)) violations.push(`${file} may only be added to, never changed or deleted (status ${status})`);
   }
-  const total = diffFiles(wt, prep.baseSha);
+  // A pipeline started before `generated` existed carries a config without it: use the default then.
+  const total = diffFiles(wt, prep.baseSha, 'HEAD', cfg.generated ?? defaultConfig().generated ?? []);
   if (total.files.length > cfg.limits.maxChangedFiles)
     violations.push(`the change touches ${total.files.length} files; the limit is ${cfg.limits.maxChangedFiles}. Make it smaller.`);
   if (total.added + total.removed > cfg.limits.maxChangedLines)
-    violations.push(`the change is ${total.added + total.removed} lines; the limit is ${cfg.limits.maxChangedLines}. Make it smaller.`);
+    violations.push(`the change is ${total.added + total.removed} lines (not counting generated files); the limit is ${cfg.limits.maxChangedLines}. Make it smaller.`);
   if (violations.length) {
     git(wt, ['reset', '-q', '--hard', `${sha}~1`]);
     return { sha: git(wt, ['rev-parse', 'HEAD']), files: mine.files, added: total.added, removed: total.removed, violations };

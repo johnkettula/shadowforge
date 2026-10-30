@@ -53,6 +53,7 @@ export interface Limits {
   /** Developer → gates → staging → tests → review rounds before a requirement is abandoned. */
   maxDevAttempts: number;
   maxChangedFiles: number;
+  /** Lines added + removed, not counting files matching `generated` (regenerated snapshots). */
   maxChangedLines: number;
   /** This many failed cycles in a row pauses the pipeline until someone resumes it. */
   consecutiveFailuresToPause: number;
@@ -62,6 +63,8 @@ export interface Limits {
 }
 
 export interface PipelineConfig {
+  /** Generated files (OpenAPI snapshots and the like): they count as files, but their lines don't count toward maxChangedLines. */
+  generated?: string[];
   /** Folder the pipeline owns: its clone of the repo, worktrees, staging data, reports, logs. */
   home: string;
   /** Git URL or local path of the repository to improve. */

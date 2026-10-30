@@ -56,6 +56,7 @@ export function defaultConfig(): PipelineConfig {
       `${P}/backend/src/main/resources/application-tls.yml`,
       `${P}/docs/SECURITY.md`,
     ],
+    generated: [`${P}/docs/openapi.json`, `${P}/docs/openapi.yaml`, `${P}/frontend/package-lock.json`],
     appendOnly: [`${P}/backend/src/main/resources/db/migration/**`, `${P}/backend/src/test/resources/histories/**`],
     writableBy: {
       developer: [`${P}/**`],
