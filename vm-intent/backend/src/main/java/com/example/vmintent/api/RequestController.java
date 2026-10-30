@@ -49,6 +49,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -60,6 +61,8 @@ import java.util.concurrent.TimeoutException;
 public class RequestController {
 
     private static final int QUERY_TIMEOUT_SECONDS = 5;
+    /** A request in one of these states is done, even if its workflow is still writing the last audit event. */
+    private static final Set<String> FINAL_STATES = Set.of("COMPLETED", "PARTIAL", "FAILED", "CANCELLED", "DUPLICATE");
 
     private final WorkflowClient client;
     private final IntentInterpreter interpreter;
@@ -197,6 +200,7 @@ public class RequestController {
     @PostMapping("/v2/requests/{id}/clarify")
     public void clarify(@PathVariable String id, @RequestBody AnswerBody body) {
         requireOwner(id);
+        requireNotFinished(id);
         try {
             stub(id).clarify(body.answer());
         } catch (WorkflowNotFoundException e) {
@@ -240,6 +244,7 @@ public class RequestController {
     @PostMapping("/v2/requests/{id}/cancel")
     public void cancel(@PathVariable String id) {
         requireOwner(id);
+        requireNotFinished(id);
         try {
             stub(id).cancel();
         } catch (WorkflowNotFoundException e) {
@@ -330,6 +335,31 @@ public class RequestController {
         if (!allowed) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                     "Only the person who made this request, or an admin, can change it.");
+        }
+    }
+
+    /**
+     * A request reaches its final state a moment before its workflow closes (it still writes the last
+     * audit event), and a signal in between is accepted and ignored. Ask the request itself first, so
+     * that gap gives the same 409 as a closed workflow. If the workers don't answer, send the signal
+     * anyway and let finishedOr404 sort it out.
+     */
+    private void requireNotFinished(String id) {
+        RequestStatus s;
+        try {
+            s = CompletableFuture.supplyAsync(() -> stub(id).status()).get(QUERY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof WorkflowNotFoundException nf) throw finishedOr404(id, nf);
+            return;
+        } catch (TimeoutException e) {
+            return;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return;
+        }
+        if (s != null && FINAL_STATES.contains(s.state())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "This request has already finished (" + s.state().toLowerCase() + ").");
         }
     }
 
