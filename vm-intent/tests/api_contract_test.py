@@ -50,8 +50,9 @@ api = OpenAPI.from_dict(doc)
 results = []
 
 
-def call(method, path, expect, body=None, raw=None, name=None):
-    """Make the call, check the status code, and validate request + response against the document."""
+def call(method, path, expect, body=None, raw=None, name=None, check=None):
+    """Make the call, check the status code, and validate request + response against the document.
+    check(body) may return a problem with the response's content, or None."""
     headers = dict(AUTH)
     if body is not None or raw is not None:
         headers["Content-Type"] = "application/json"
@@ -65,9 +66,17 @@ def call(method, path, expect, body=None, raw=None, name=None):
         api.validate_response(RequestsOpenAPIRequest(resp.request), RequestsOpenAPIResponse(resp))
     except Exception as e:  # noqa: BLE001 - report any validation error
         problems.append(f"response does not match the OpenAPI document: {e}")
+    try:
+        data = resp.json() if resp.content else None
+    except ValueError:
+        data = resp.text
+    if check and not problems:
+        problem = check(data)
+        if problem:
+            problems.append(problem)
     results.append((label, problems))
     print(("PASS " if not problems else "FAIL ") + label + ("" if not problems else "\n     " + "\n     ".join(problems)))
-    return resp.json() if resp.content else None
+    return data
 
 
 def wait_request(rid, states, timeout=180):
@@ -172,6 +181,33 @@ call("GET", "/api/v2/vsphere/status", 200, name="getVsphereStatus")
 call("GET", "/api/v2/vsphere/templates", 503, name="listVsphereTemplates: vCenter not set up -> 503")
 call("GET", "/api/v2/vsphere/blueprints", 503, name="listVsphereBlueprints: VCF Automation not set up -> 503")
 call("GET", "/api/v2/vsphere/blueprints/anything", 503, name="getVsphereBlueprint: VCF Automation not set up -> 503")
+
+# --- Catalog (reads the built-in definitions seeded from backend/src/main/resources/catalog; publishes nothing)
+call("GET", "/api/v2/definitions", 200, name="listDefinitions",
+     check=lambda d: None if any(e["kind"] == "Provisioning" and e["name"] == "web-server" for e in d)
+     else "the list has no Provisioning web-server")
+web = call("GET", "/api/v2/definitions/Provisioning/web-server", 200, name="getDefinition: web-server")
+call("GET", "/api/v2/definitions/Provisioning/does-not-exist", 404, name="getDefinition: unknown -> 404",
+     check=lambda d: None if isinstance(d.get("error"), str) else "no {'error': ...} body")
+call("POST", "/api/v2/definitions/validate", 200, {"yaml": (web or {}).get("yaml", "")},
+     name="validateDefinition (JSON): web-server",
+     check=lambda d: None if d["ok"] is True else f"ok is not true: {d.get('problems')}")
+call("GET", "/api/v2/classifications", 200, name="listClassifications",
+     check=lambda d: None if d["default"] in [c["code"] for c in d["classifications"]]
+     else f"default {d['default']} isn't one of the listed codes")
+
+# --- Catalog runs (no run is started: only the error cases)
+call("GET", "/api/v2/runs?limit=5", 200, name="listRuns")
+call("GET", "/api/v2/runs/run-does-not-exist", 404, name="getRun: unknown ID -> 404")
+call("POST", "/api/v2/runs", 404, {"definition": "does-not-exist"}, name="startRun: unknown definition -> 404")
+call("POST", "/api/v2/runs", 400, {}, name="startRun: no definition -> 400")
+
+# --- Compliance
+call("GET", "/api/v2/compliance/decisions?limit=5", 200, name="listDecisions")
+call("GET", "/api/v2/compliance/archive?limit=5", 200, name="listArchive")
+call("GET", "/api/v2/compliance/archive/wf-does-not-exist/run-does-not-exist", 404,
+     name="downloadArchivedHistory: not archived -> 404")
+call("POST", "/api/v2/compliance/replays", 400, {}, name="replayWorkflow: no workflowId -> 400")
 
 failed = [n for n, p in results if p]
 print(f"\n{len(results) - len(failed)}/{len(results)} checks passed")

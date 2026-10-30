@@ -19,6 +19,7 @@ import com.example.vmintent.security.Caller;
 import com.example.vmintent.workflow.CatalogRunWorkflow;
 import com.example.vmintent.workflow.RequestSearch;
 import com.example.vmintent.workflow.TaskQueues;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -44,7 +45,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -95,6 +95,13 @@ public class CatalogController {
     public record ResumeBody(@Schema(description = "Why, or what was fixed.", example = "the site files are in the store now") String note) {}
 
     public record TeardownBody(@Schema(example = "not needed any more") String reason) {}
+
+    @Schema(description = "The data classification codes, and the one used when neither a run nor its definition gives one.")
+    public record ClassificationsResponse(
+            @JsonProperty("default")
+            @Schema(description = "Code of the default classification (one of the codes listed).",
+                    requiredMode = Schema.RequiredMode.REQUIRED, example = "C2") String defaultClassification,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<Classification> classifications) {}
 
     public record ApproveBody(@Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean approved,
                               @Schema(example = "change ticket CHG-1234") String note) {}
@@ -220,11 +227,8 @@ public class CatalogController {
             description = "Each code, its text, and how many years runs with it are kept. The first one marked default "
                     + "applies when neither the run nor its definition gives one.")
     @GetMapping("/classifications")
-    public Map<String, Object> classifications() {
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("default", classifications.defaultClassification().code());
-        out.put("classifications", classifications.all());
-        return out;
+    public ClassificationsResponse classifications() {
+        return new ClassificationsResponse(classifications.defaultClassification().code(), classifications.all());
     }
 
     // ------------------------------------------------------------------ runs
