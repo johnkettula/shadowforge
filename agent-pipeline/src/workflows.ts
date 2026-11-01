@@ -2,8 +2,9 @@
 //
 //   pipelineWorkflow  runs cycles one after another, within the daily limits, until stopped.
 //                     Signals: pause, resume, stop, runNow. Query: status.
-//   cycleWorkflow     one cycle: requirement → develop → gates → staging → acceptance tests →
-//                     independent review → merge → live deploy → live check → (revert).
+//   cycleWorkflow     one cycle: requirement → (a person approves) → develop → gates → staging →
+//                     acceptance tests → independent review → (a person approves) → merge →
+//                     live deploy → live check → (revert). Signal: decide. Query: stage.
 //                     Every Nth cycle is a redesign review instead.
 //
 // Workflow code must be deterministic: no I/O here, only decisions. All work is in activities.
@@ -23,11 +24,12 @@ import {
 import type { Activities } from './activities.js';
 import type { CycleOutcome, CyclePrep, CycleResult, GateResult, PipelineConfig, Requirement, StagingHandle } from './types.js';
 
-// Agents: long, expensive, not retried automatically (a crash is reported as a failed stage).
+// Agents: long and expensive. An agent that fails is not retried (its failure is non-retryable),
+// but one cut off by a worker restart or crash (a heartbeat timeout) gets one more try.
 const agents = proxyActivities<Activities>({
   startToCloseTimeout: '90 minutes',
   heartbeatTimeout: '10 minutes',
-  retry: { maximumAttempts: 1 },
+  retry: { maximumAttempts: 2, initialInterval: '10 seconds' },
 });
 // Builds, deploys, checks: long, and they report failure as data rather than throwing.
 const work = proxyActivities<Activities>({
@@ -44,7 +46,21 @@ const quick = proxyActivities<Activities>({
 // ---------------------------------------------------------------------------------------------
 // One cycle
 
-export const stageQuery = defineQuery<{ stage: string; attempt: number; requirement?: Requirement; costUsd: number; log: string[] }>('stage');
+/** What a cycle is waiting on, while it waits for a person. */
+export interface Waiting {
+  gate: 'build' | 'merge';
+  since: string;
+  /** For the merge gate: where to look at the change (the pushed branch, its diff stat). */
+  details?: string;
+}
+export const stageQuery = defineQuery<{ stage: string; attempt: number; requirement?: Requirement; costUsd: number; log: string[]; waiting?: Waiting }>('stage');
+
+/** A person's answer at an approval gate. A note on "approve" before building is passed to the developer. */
+export interface Decision {
+  action: 'approve' | 'skip' | 'reject';
+  note?: string;
+}
+export const decideSignal = defineSignal<[Decision]>('decide');
 
 export interface CycleInput {
   cfg: PipelineConfig;
@@ -62,12 +78,32 @@ export async function cycleWorkflow({ cfg, cycle, mode }: CycleInput): Promise<C
   let costUsd = 0;
   let requirement: Requirement | undefined;
   const log: string[] = [];
-  setHandler(stageQuery, () => ({ stage, attempt, requirement, costUsd, log }));
+  let waiting: Waiting | undefined;
+  let decision: Decision | undefined;
+  setHandler(stageQuery, () => ({ stage, attempt, requirement, costUsd, log, waiting }));
+  // Only an answer given while the cycle is actually waiting counts.
+  setHandler(decideSignal, (d: Decision) => {
+    if (waiting && !decision) decision = d;
+  });
   const note = (s: string) => log.push(`${new Date().toISOString().slice(11, 19)} ${s}`);
   const spend = (usd: number) => {
     costUsd += usd;
     if (costUsd > cfg.limits.maxUsdPerCycle) throw ApplicationFailure.nonRetryable(`cycle spent $${costUsd.toFixed(2)}, over its $${cfg.limits.maxUsdPerCycle} limit`, 'OverBudget');
   };
+
+  /** Stops until a person decides. No answer in time counts as skip (build) or reject (merge). */
+  async function askPerson(gate: Waiting['gate'], details?: string): Promise<Decision> {
+    waiting = { gate, since: new Date().toISOString(), details };
+    decision = undefined;
+    stage = gate === 'build' ? 'waiting for your OK to build' : 'waiting for your OK to merge';
+    note(stage);
+    const days = cfg.approval?.waitDays ?? 7;
+    const answered = await condition(() => decision !== undefined, days * 86_400_000);
+    const d: Decision = answered && decision ? decision : { action: gate === 'build' ? 'skip' : 'reject', note: `no answer within ${days} days` };
+    waiting = undefined;
+    note(`person: ${d.action}${d.note ? `: ${d.note.slice(0, 300)}` : ''}`);
+    return d;
+  }
 
   const prep: CyclePrep = await quick.prepareCycle(cfg, cycle, mode);
   let outcome: CycleOutcome = 'error';
@@ -113,6 +149,15 @@ export async function cycleWorkflow({ cfg, cycle, mode }: CycleInput): Promise<C
       outcome = 'parked';
       summary = 'high risk: parked for a person to decide (not built)';
       return await finish();
+    }
+    if (cfg.approval?.beforeBuild) {
+      const d = await askPerson('build');
+      if (d.action !== 'approve') {
+        outcome = 'skipped';
+        summary = `not built: a person said ${d.action}${d.note ? ` (${d.note})` : ''}`;
+        return await finish();
+      }
+      if (d.note) requirement = { ...requirement, rationale: `${requirement.rationale}\n\nNote from the person who approved it: ${d.note}` };
     }
 
     // 2. Develop → gates → staging → acceptance tests → review, until it passes or attempts run out.
@@ -193,7 +238,18 @@ export async function cycleWorkflow({ cfg, cycle, mode }: CycleInput): Promise<C
       return await finish();
     }
 
-    // 3. Merge, deploy live, check live, revert if live breaks.
+    // 3. A person approves the merge, if asked to; then merge, deploy live, check live, revert if live breaks.
+    if (cfg.approval?.beforeMerge) {
+      stage = 'publishing the branch for review';
+      const pub = await quick.publishBranch(cfg, prep);
+      note(pub.note.split('\n')[0]);
+      const d = await askPerson('merge', pub.note);
+      if (d.action !== 'approve') {
+        outcome = 'rejected';
+        summary = `built and checked, but not merged: a person said ${d.action}${d.note ? ` (${d.note})` : ''}`;
+        return await finish();
+      }
+    }
     stage = 'merging';
     await quick.recordRequirement(cfg, prep, requirement, attempt, log.filter((l) => l.includes('developer:') || l.includes('review:')).slice(-2).join('\n'));
     const m = await quick.mergeToMain(cfg, prep, `${requirement.id}: ${requirement.title}`);

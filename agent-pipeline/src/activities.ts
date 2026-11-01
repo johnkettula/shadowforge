@@ -5,6 +5,7 @@ import { Context, ApplicationFailure } from '@temporalio/activity';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, appendFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 import { defaultConfig } from './config.js';
 import type { AgentRunner, AgentOutcome, AgentTask } from './agents/runner.js';
 import { checkWrite, type PolicyContext } from './agents/policy.js';
@@ -135,6 +136,10 @@ export async function cleanupCycle(cfg: PipelineConfig, prep: CyclePrep): Promis
   if (!removeDir(prep.worktree)) left.push(prep.worktree);
   git(repo, ['worktree', 'prune'], true);
   if (!removeDir(stateDir)) left.push(stateDir);
+  // A branch pushed for review (publishBranch) is removed from the remote once the cycle is over.
+  if (cfg.push && git(repo, ['ls-remote', '--heads', 'origin', prep.branch], true)) {
+    git(repo, ['push', '-q', 'origin', '--delete', prep.branch], true);
+  }
   return { left };
 }
 
@@ -497,6 +502,29 @@ function tryPush(cfg: PipelineConfig, repo: string): string | undefined {
   return stillAhead === '0' ? undefined : `push failed (${ahead} commits not on the remote): ${r}`;
 }
 
+/** A web link to compare a branch with the base branch, for GitHub and GitLab remotes. */
+function compareUrl(cfg: PipelineConfig, branch: string): string | undefined {
+  const m = cfg.repoUrl.match(/^(?:https:\/\/|git@)(github\.com|gitlab\.com)[/:](.+?)(?:\.git)?$/);
+  if (!m) return undefined;
+  return m[1] === 'github.com'
+    ? `https://github.com/${m[2]}/compare/${cfg.baseBranch}...${branch}`
+    : `https://gitlab.com/${m[2]}/-/compare/${cfg.baseBranch}...${branch}`;
+}
+
+/**
+ * Pushes the cycle's branch (not the base branch) so a person can look at the change before
+ * approving the merge. The branch is deleted from the remote again when the cycle ends.
+ */
+export async function publishBranch(cfg: PipelineConfig, prep: CyclePrep): Promise<{ pushed: boolean; note: string }> {
+  const repo = ensureRepo(cfg);
+  const stat = git(repo, ['diff', '--stat', `${prep.baseSha}..${prep.branch}`], true) || '(no changes)';
+  if (!cfg.push) return { pushed: false, note: `branch ${prep.branch} (not pushed; push is off)\n${stat}` };
+  const r = spawnSync('git', ['push', '-q', '--force', 'origin', `${prep.branch}:refs/heads/${prep.branch}`], { cwd: repo, encoding: 'utf8', windowsHide: true });
+  if (r.status !== 0) return { pushed: false, note: `could not push ${prep.branch} for review: ${(r.stderr || r.stdout || '').trim().slice(0, 300)}\n${stat}` };
+  const url = compareUrl(cfg, prep.branch);
+  return { pushed: true, note: `pushed ${prep.branch} for review${url ? `: ${url}` : ''}\n${stat}` };
+}
+
 export async function mergeToMain(cfg: PipelineConfig, prep: CyclePrep, title: string): Promise<{ ok: boolean; sha?: string; note: string }> {
   const repo = ensureRepo(cfg);
   const before = git(repo, ['rev-parse', 'HEAD']);
@@ -605,6 +633,7 @@ export const plainActivities = {
   stopStaging,
   runChecks,
   recordRequirement,
+  publishBranch,
   mergeToMain,
   revertMerge,
   deployLive,

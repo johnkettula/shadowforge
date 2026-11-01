@@ -62,7 +62,18 @@ export interface Limits {
   minutesBetweenCycles: number;
 }
 
+/** Points where a cycle stops and waits for a person's decision (approve, skip or reject). */
+export interface ApprovalGates {
+  /** After the requirement is chosen, before any code is written. */
+  beforeBuild: boolean;
+  /** After the change passed every check and the reviewer, before it's merged and pushed. */
+  beforeMerge: boolean;
+  /** How long to wait for an answer before skipping (build) or rejecting (merge). Default 7 days. */
+  waitDays?: number;
+}
+
 export interface PipelineConfig {
+  approval?: ApprovalGates;
   /** Generated files (OpenAPI snapshots and the like): they count as files, but their lines don't count toward maxChangedLines. */
   generated?: string[];
   /** Folder the pipeline owns: its clone of the repo, worktrees, staging data, reports, logs. */
@@ -166,7 +177,11 @@ export type CycleOutcome =
   | 'no-work'
   | 'redesigned'
   | 'over-budget'
-  | 'error';
+  | 'error'
+  /** A person said not to build the requirement (or didn't answer in time). */
+  | 'skipped'
+  /** Built and checked, but a person said not to merge it. */
+  | 'rejected';
 
 export interface CycleResult {
   cycle: number;

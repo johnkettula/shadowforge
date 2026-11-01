@@ -18,7 +18,7 @@ import { createActivities } from '../src/activities.js';
 import { ScriptedAgentRunner, defaultScript, type ScriptStep } from '../src/agents/runner.js';
 import { defaultConfig } from '../src/config.js';
 import type { PipelineConfig, Role } from '../src/types.js';
-import { pipelineWorkflow, resumeSignal, statusQuery, stopSignal, type PipelineState } from '../src/workflows.js';
+import { decideSignal, pipelineWorkflow, resumeSignal, stageQuery, statusQuery, stopSignal, type PipelineState } from '../src/workflows.js';
 
 const TEMPORAL = process.env.TEMPORAL_CLI ?? 'temporal';
 const PORT = 17233 + Math.floor(Math.random() * 500);
@@ -111,7 +111,8 @@ http.createServer((req, res) => {
     live: { mode: 'processes', services: [svc(true)], apiUrl: 'http://127.0.0.1:{port.api}', healthUrl: 'http://127.0.0.1:{port.api}/health', healthTimeoutSeconds: 20 },
     stagingPortBase: portBase,
     livePortBase: portBase + 150,
-    limits: { ...base.limits, maxDevAttempts: 3, minutesBetweenCycles: 0, redesignEvery: 0, consecutiveFailuresToPause: 3 },
+    limits: { ...base.limits, maxCyclesPerDay: 6, maxUsdPerDay: 25, maxDevAttempts: 3, minutesBetweenCycles: 0, redesignEvery: 0, consecutiveFailuresToPause: 3 },
+    approval: { beforeBuild: false, beforeMerge: false },
     ...patch,
   };
 }
@@ -331,4 +332,85 @@ test('redesign cycle: review doc merged, proposals on the backlog', async () => 
   assert.match(remoteFile(cfg, 'app/docs/redesign/review-0001.md'), /reads value.txt/);
   assert.equal(remoteFile(cfg, 'app/value.txt').trim(), 'one');
   assert.match(readFileSync(path.join(cfg.home, 'backlog.md'), 'utf8'), /Cache value.txt/);
+});
+
+/** Waits until cycle n of the pipeline is waiting at the given gate, and returns what it shows. */
+async function waitForGate(wfId: string, n: number, gate: 'build' | 'merge') {
+  const h = client.workflow.getHandle(`${wfId}-cycle-${n}`);
+  for (let i = 0; i < 300; i++) {
+    const st = await h.query(stageQuery).catch(() => undefined);
+    if (st?.waiting?.gate === gate) return { h, st };
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  throw new Error(`cycle ${n} never reached the ${gate} gate`);
+}
+
+test('approval gates: a person approves the build (with a note) and the merge; the branch is shown, then removed', { timeout: 120_000 }, async () => {
+  const cfg = fixture('approve', { approval: { beforeBuild: true, beforeMerge: true } });
+  let devPrompt = '';
+  const s = await runPipeline(
+    cfg,
+    script({
+      developer: [
+        (task, tools) => {
+          devPrompt = task.prompt;
+          tools.write('app/value.txt', 'two\n');
+          return { summary: 'value=two', filesChanged: ['app/value.txt'], testsAdded: [] };
+        },
+      ],
+    }),
+    {
+      during: async (wfId) => {
+        const b = await waitForGate(wfId, 1, 'build');
+        assert.equal(b.st.stage, 'waiting for your OK to build');
+        assert.equal(b.st.requirement?.title, 'change the value');
+        assert.equal(devPrompt, '', 'nothing is built before the OK');
+        await b.h.signal(decideSignal, { action: 'approve', note: 'keep the trailing newline' });
+        const m = await waitForGate(wfId, 1, 'merge');
+        assert.match(m.st.waiting?.details ?? '', /pushed agent\/cycle-0001 for review/);
+        assert.match(sh(cfg.repoUrl, 'branch', '--list', 'agent/cycle-0001'), /agent\/cycle-0001/, 'branch pushed for review');
+        assert.doesNotMatch(remoteLog(cfg), /AP-0001/, 'not merged before the OK');
+        await m.h.signal(decideSignal, { action: 'approve' });
+      },
+    },
+  );
+  assert.equal(s.recent[0].outcome, 'merged', s.recent[0].note);
+  assert.match(devPrompt, /Note from the person who approved it: keep the trailing newline/);
+  assert.equal(remoteFile(cfg, 'app/value.txt').trim(), 'two');
+  assert.equal(sh(cfg.repoUrl, 'branch', '--list', 'agent/cycle-0001').trim(), '', 'review branch removed afterwards');
+});
+
+test('approval gates: "skip" builds nothing; "reject" merges nothing', { timeout: 120_000 }, async () => {
+  const cfg = fixture('decline', { approval: { beforeBuild: true, beforeMerge: true } });
+  let built = 0;
+  const s = await runPipeline(
+    cfg,
+    script({
+      developer: [
+        (_t, tools) => {
+          built++;
+          tools.write('app/value.txt', 'two\n');
+          return { summary: 'value=two', filesChanged: ['app/value.txt'], testsAdded: [] };
+        },
+      ],
+    }),
+    {
+      maxCycles: 2,
+      during: async (wfId) => {
+        const b1 = await waitForGate(wfId, 1, 'build');
+        await b1.h.signal(decideSignal, { action: 'skip', note: 'not now' });
+        const b2 = await waitForGate(wfId, 2, 'build');
+        await b2.h.signal(decideSignal, { action: 'approve' });
+        const m2 = await waitForGate(wfId, 2, 'merge');
+        await m2.h.signal(decideSignal, { action: 'reject', note: 'wrong value' });
+      },
+    },
+  );
+  assert.deepEqual(s.recent.map((r) => r.outcome), ['skipped', 'rejected']);
+  assert.match(s.recent[0].note, /skip \(not now\)/);
+  assert.match(s.recent[1].note, /reject \(wrong value\)/);
+  assert.equal(built, 1, 'the skipped requirement was never built');
+  assert.equal(s.consecutiveFailures, 0, 'a person saying no is not a failure');
+  assert.equal(remoteFile(cfg, 'app/value.txt').trim(), 'one', 'nothing merged');
+  assert.equal(sh(cfg.repoUrl, 'branch', '--list', 'agent/*').trim(), '', 'no review branches left behind');
 });

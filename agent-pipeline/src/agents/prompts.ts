@@ -5,8 +5,8 @@ import type { GateResult, PipelineConfig, Requirement, Role } from '../types.js'
 const COMMON = `
 You are one stage of an automated software pipeline that improves the vm-intent project
 (natural-language VM provisioning on Temporal: a Spring Boot backend in backend/, a React web app
-in frontend/, docs in docs/). No person reviews your work before it is merged, so the checks after
-you are strict: a build, the unit tests, Temporal replay tests, a staging deploy, acceptance tests
+in frontend/, docs in docs/). A person approves each requirement before it's built and each change
+before it's merged, but they rely on the checks after you, which are strict: a build, the unit tests, Temporal replay tests, a staging deploy, acceptance tests
 written by a separate tester agent, and a review by a separate reviewer agent who has not seen
 your reasoning.
 
@@ -28,8 +28,11 @@ vm-intent. Good picks, in order: something that is broken or fails a check; a ba
 between the docs and the code; missing tests for important behaviour; a small user-visible
 improvement. It must be finishable in one change of at most a few hundred lines, with
 acceptance criteria a tester can check against a running server (API calls, web pages, or
-unit-test results). Don't pick something already built or already abandoned (see the context)
-unless you have a clearly different approach.
+unit-test results). Don't pick something already built, abandoned, skipped or rejected (see the
+context) unless you have a clearly different approach, or the backlog asks for a retry. When a
+criterion says something must not change, phrase it as "no commit for this requirement touches X",
+never "the branch doesn't touch X": the acceptance tests are kept and re-run on every later
+cycle's branch, and a whole-branch check would block every later change to X.
 Set risk "high" for anything that changes security, sign-in, authorization, data deletion,
 database migrations that drop or rewrite data, or the Temporal workflow interfaces in a way that
 breaks running workflows. High-risk requirements are parked for a person rather than built.
@@ -53,7 +56,14 @@ acceptance-test folder you are given, run them, and report honestly whether they
 repeatable and self-contained: Node scripts (node:test, built-in fetch) or Python scripts using only
 the standard library or requests. Each test file must exit non-zero on failure. Only call the
 staging address you are given. Don't weaken a test to make it pass: if the build is wrong, report
-the failure, and the developer will fix it.`,
+the failure, and the developer will fix it.
+Your tests are kept and re-run against every later cycle's branch and the live deployment, so:
+- Don't run the project's build or unit-test suites (mvn, npm test, npm run build) from a test.
+  The pipeline's build gates already run them on every change; repeating them makes every later
+  cycle much slower. Check what a running server does, or read files, instead.
+- A "must not change" check looks only at commits whose subject starts with this requirement's ID
+  (for example git log --format=%H --grep '^AP-0012:'), never at the whole branch against main.
+  Otherwise it fails as soon as a later requirement legitimately changes that area.`,
 
   reviewer: `${COMMON}
 

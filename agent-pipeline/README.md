@@ -1,15 +1,17 @@
 # vm-intent agent pipeline
 
-An automated pipeline that keeps improving vm-intent with no person in the loop. Each **cycle**:
+An automated pipeline that keeps improving vm-intent, with a person approving each step that matters. Each **cycle**:
 
-1. a **requirements agent** picks the next requirement (from failing checks, the backlog, gaps between docs and code);
+1. a **requirements agent** picks the next requirement (from failing checks, the backlog, gaps between docs and code),
+   and **you approve it** before anything is built (or skip it, or approve it with a note for the developer);
 2. a **developer agent** builds it, with unit tests, in its own git worktree;
 3. **build gates** run (Maven unit, workflow and replay tests; the web app build);
 4. the change is **deployed to staging** (its own Temporal server and backend, on its own ports);
 5. a **tester agent** writes acceptance tests for the requirement and runs them against staging, then the
    pipeline runs *every* acceptance test so far, the API contract test and a small load test;
 6. a **reviewer agent**, who never saw the developer's reasoning, approves or sends it back;
-7. it's **merged to `main` and pushed**, the **live deployment is rebuilt and checked**, and if live
+7. the branch is pushed so you can look at the change, and **you approve the merge** (or reject it);
+8. it's **merged to `main` and pushed**, the **live deployment is rebuilt and checked**, and if live
    breaks, the merge is **reverted automatically** and the pipeline pauses.
 
 Any failure goes back to the developer with the error (up to 3 attempts), then the requirement is
@@ -20,19 +22,21 @@ proposals on the backlog, which later cycles build like any other requirement.
 flowchart LR
   P[preflight: does main build, deploy and pass its checks?] --> R[requirements agent]
   R -->|high risk| K[parked for a person]
-  R --> D[developer agent] --> C{rules + size check}
+  R --> A1{you: build it?} -->|skip| Z[skipped]
+  A1 -->|approve| D[developer agent] --> C{rules + size check}
   C -->|broken| D
   C --> G{build gates} -->|fail| D
   G --> S[staging deploy] --> T[tester agent + all checks] -->|fail| D
   T --> V{reviewer agent} -->|changes requested| D
-  V -->|approved| M[merge + push] --> L[live deploy + checks]
+  V -->|approved| A2{you: merge it?} -->|reject| Y[rejected]
+  A2 -->|approve| M[merge + push] --> L[live deploy + checks]
   L -->|fail| X[automatic revert + pause]
 ```
 
 It runs as a Temporal workflow (`src/workflows.ts`), so every stage shows up in the Temporal UI
 with its history, survives a restart of the worker, and can be paused, resumed or stopped.
 
-## The guardrails (instead of a person approving)
+## The guardrails
 
 | Rule | How |
 |---|---|
@@ -43,7 +47,8 @@ with its history, survives a restart of the worker, and can be paused, resumed o
 | No reaching out | No `curl` except to the staging server, no `ssh`, `docker`, `terraform`, `az`, `git push`; agents can't commit or merge (the pipeline does). |
 | Risky work is parked | Requirements the agent rates high-risk (security, sign-in, data deletion, breaking workflow changes) are written up and left for you. |
 | Small changes | At most 25 files and 800 lines per change. |
-| Money | $3 per agent run, $8 per cycle, $25 and 6 cycles per day (all in `pipeline.config.json`). |
+| A person decides | Each requirement waits for your OK before it's built, and each finished change waits for your OK before it's merged (`approval` in `pipeline.config.json`). No answer in 7 days counts as no. |
+| Money | $3 per agent run, $8 per cycle, $12 and 3 cycles per day (all in `pipeline.config.json`). |
 | Stops itself | 3 failed cycles in a row, or any revert, pauses the pipeline until you resume it. |
 | Checks the setup first | Before any agent runs, preflight builds and deploys `main` as it is and runs the checks. If that fails, the problem is the setup, so it pauses without spending anything. |
 
@@ -72,8 +77,12 @@ sections of `pipeline.config.docker.json` into `pipeline.config.json`.
 ## Day to day
 
 ```
-5-control status            what it's doing now, today's spend, recent cycles
-5-control pause [reason]    finishes the current stage, then waits
+5-control status            what it's doing now, today's spend, recent cycles,
+                            and what it's waiting for you to decide
+5-control approve [note]    yes to what it's waiting on; before building, the note goes to the developer
+5-control skip [reason]     don't build the requirement it's waiting on
+5-control reject [reason]   don't merge the change it's waiting on
+5-control pause [reason]    lets the current cycle finish, then waits
 5-control resume
 5-control run-now           skip the wait before the next cycle
 5-control stop              stop after the current cycle

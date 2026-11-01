@@ -177,19 +177,23 @@ test('7: a backend unit test checks listClassifications serializes with "default
   assert.match(src, /\\?"classifications\\?"/, 'the unit test checks the "classifications" key');
 });
 
-// ---- Criterion 8: nothing changed in the workflows, security or seeded catalog YAML ----
+// ---- Criterion 8: AP-0004 changed nothing in the workflows, security or seeded catalog YAML ----
+// Only commits made for AP-0004 count (subject starting "AP-0004:"), not the whole branch: these tests are
+// re-run on every later cycle's branch, and later requirements may legitimately change these areas.
+// (Changed on 2026-11-01 by a person; the first version compared the whole branch with main.)
+const ap4Commits = () => git('log', '--format=%H', '--no-merges', '--grep', '^AP-0004:').split(/\r?\n/).filter(Boolean);
+
 function changedFiles() {
-  let base;
-  for (const ref of ['main', 'origin/main']) {
-    try { base = git('merge-base', 'HEAD', ref).trim(); break; } catch { /* try the next */ }
+  const commits = ap4Commits();
+  assert.ok(commits.length > 0, 'found the AP-0004 commits');
+  const files = new Set();
+  for (const c of commits) {
+    for (const f of git('show', '--name-only', '--format=', c).split(/\r?\n/)) if (f) files.add(f.replace(/^vm-intent\//, ''));
   }
-  assert.ok(base, 'found the main branch to compare with');
-  const committed = git('diff', '--name-only', `${base}...HEAD`).split(/\r?\n/);
-  const uncommitted = git('status', '--porcelain').split(/\r?\n/).map((l) => l.slice(3));
-  return [...committed, ...uncommitted].filter(Boolean).map((f) => f.replace(/^vm-intent\//, ''));
+  return [...files];
 }
 
-test('8: no changes to workflow code, security / sign-in configuration or the seeded catalog YAML', () => {
+test('8: AP-0004 made no changes to workflow code, security / sign-in configuration or the seeded catalog YAML', () => {
   const changed = changedFiles();
   const bad = changed.filter((f) =>
     /^backend\/src\/main\/java\/com\/example\/vmintent\/workflow\//.test(f)
@@ -200,9 +204,8 @@ test('8: no changes to workflow code, security / sign-in configuration or the se
   assert.deepEqual(bad, [], 'files that must not change: ' + bad.join(', '));
 });
 
-test('8: workflow interfaces in the code are unchanged (no @WorkflowInterface / @WorkflowMethod edits)', () => {
-  const base = (() => { for (const r of ['main', 'origin/main']) { try { return git('merge-base', 'HEAD', r).trim(); } catch { /* next */ } } })();
-  const diff = git('diff', `${base}...HEAD`, '--', 'backend/src/main');
+test('8: workflow interfaces in the code are unchanged by AP-0004 (no @WorkflowInterface / @WorkflowMethod edits)', () => {
+  const diff = ap4Commits().map((c) => git('show', '--format=', c, '--', 'backend/src/main')).join('\n');
   assert.doesNotMatch(diff, /^[+-].*@(WorkflowInterface|WorkflowMethod|SignalMethod|QueryMethod|UpdateMethod|ActivityInterface)/m,
     'no workflow or activity interface annotations added or removed');
 });

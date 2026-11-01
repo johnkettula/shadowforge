@@ -7,13 +7,17 @@
 //   npm run ctl -- run-now          skip the wait before the next cycle
 //   npm run ctl -- stop             stop after the current cycle
 //   npm run ctl -- reports          list the cycle reports
+//   npm run ctl -- approve [note]   say yes to what the current cycle is waiting on (build or merge);
+//                                   before building, the note is passed on to the developer
+//   npm run ctl -- skip [reason]    don't build the requirement it's waiting on
+//   npm run ctl -- reject [reason]  don't merge the change it's waiting on
 
 import { Client, Connection, WorkflowNotFoundError } from '@temporalio/client';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { loadConfig, PIPELINE_WORKFLOW_ID, TASK_QUEUE } from './config.js';
 import type { CycleResult } from './types.js';
-import { pauseSignal, pipelineWorkflow, resumeSignal, runNowSignal, stageQuery, statusQuery, stopSignal } from './workflows.js';
+import { decideSignal, pauseSignal, pipelineWorkflow, resumeSignal, runNowSignal, stageQuery, statusQuery, stopSignal } from './workflows.js';
 
 async function client() {
   const connection = await Connection.connect({ address: process.env.TEMPORAL_ADDRESS ?? '127.0.0.1:7233' });
@@ -55,6 +59,13 @@ async function main() {
           if (st) {
             console.log(`\nnow: ${st.stage}${st.attempt ? ` (attempt ${st.attempt})` : ''}${st.requirement ? ` · ${st.requirement.id} ${st.requirement.title}` : ''} · $${st.costUsd.toFixed(2)}`);
             st.log.slice(-8).forEach((l) => console.log(`  ${l}`));
+            if (st.waiting && st.requirement) {
+              const r = st.requirement;
+              console.log(`\n*** WAITING FOR YOU: ${st.waiting.gate === 'build' ? 'build this requirement?' : 'merge this change?'} ***`);
+              console.log(`${r.id}: ${r.title} (risk ${r.risk})\n\n${r.rationale}\n\nAcceptance criteria:\n${r.acceptanceCriteria.map((a) => `  - ${a}`).join('\n')}`);
+              if (st.waiting.details) console.log(`\n${st.waiting.details}`);
+              console.log(`\nAnswer with: 5-control approve [note]  |  5-control ${st.waiting.gate === 'build' ? 'skip' : 'reject'} [reason]`);
+            }
           }
         }
         if (s.recent.length) {
@@ -83,6 +94,24 @@ async function main() {
       await handle.signal(stopSignal);
       console.log('stopping after the current cycle');
       break;
+    case 'approve':
+    case 'skip':
+    case 'reject': {
+      const s = await handle.query(statusQuery);
+      if (!s.currentCycleWorkflowId) {
+        console.log('no cycle is running, so there is nothing to answer');
+        break;
+      }
+      const cyc = c.workflow.getHandle(s.currentCycleWorkflowId);
+      const st = await cyc.query(stageQuery);
+      if (!st.waiting) {
+        console.log(`cycle ${s.cycle} isn't waiting for an answer (it's at: ${st.stage})`);
+        break;
+      }
+      await cyc.signal(decideSignal, { action: cmd, note: rest.join(' ') || undefined });
+      console.log(`${cmd} sent to cycle ${s.cycle} (${st.waiting.gate} gate)`);
+      break;
+    }
     case 'reports': {
       const ledger = path.join(cfg.home, 'reports', 'ledger.json');
       const rows: CycleResult[] = existsSync(ledger) ? JSON.parse(readFileSync(ledger, 'utf8')) : [];
@@ -91,7 +120,7 @@ async function main() {
       break;
     }
     default:
-      console.log('commands: start | once | status | pause [reason] | resume | run-now | stop | reports');
+      console.log('commands: start | once | status | approve [note] | skip [reason] | reject [reason] | pause [reason] | resume | run-now | stop | reports');
   }
   await c.connection.close();
 }

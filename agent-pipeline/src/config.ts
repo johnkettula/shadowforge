@@ -56,6 +56,8 @@ export function defaultConfig(): PipelineConfig {
       `${P}/backend/src/main/resources/application-tls.yml`,
       `${P}/docs/SECURITY.md`,
     ],
+    // A person approves each requirement before it's built, and each change before it's merged.
+    approval: { beforeBuild: true, beforeMerge: true, waitDays: 7 },
     generated: [`${P}/docs/openapi.json`, `${P}/docs/openapi.yaml`, `${P}/frontend/package-lock.json`],
     appendOnly: [`${P}/backend/src/main/resources/db/migration/**`, `${P}/backend/src/test/resources/histories/**`],
     writableBy: {
@@ -111,8 +113,8 @@ export function defaultConfig(): PipelineConfig {
     stagingPortBase: 19000,
     livePortBase: 18080,
     limits: {
-      maxCyclesPerDay: 6,
-      maxUsdPerDay: 25,
+      maxCyclesPerDay: 3,
+      maxUsdPerDay: 12,
       maxUsdPerCycle: 8,
       maxUsdPerAgentRun: 3,
       maxAgentTurns: 80,
@@ -153,6 +155,8 @@ export function loadConfig(file?: string): PipelineConfig {
   if (existsSync(f)) cfg = merge(cfg, JSON.parse(readFileSync(f, 'utf8')) as DeepPartial<PipelineConfig>);
   if (process.env.AGENT_PIPELINE_HOME) cfg.home = process.env.AGENT_PIPELINE_HOME;
   if (process.env.AGENT_PIPELINE_AGENT === 'scripted' || process.env.AGENT_PIPELINE_AGENT === 'claude') cfg.agent.mode = process.env.AGENT_PIPELINE_AGENT;
+  // A dry run (scripted agents) proves the plumbing; it doesn't stop to ask anyone.
+  if (cfg.agent.mode === 'scripted') cfg.approval = { ...(cfg.approval ?? { beforeBuild: false, beforeMerge: false }), beforeBuild: false, beforeMerge: false };
   if (process.env.AGENT_PIPELINE_PUSH) cfg.push = process.env.AGENT_PIPELINE_PUSH === 'true';
   if (process.env.AGENT_PIPELINE_PORT_OFFSET) {
     const off = Number(process.env.AGENT_PIPELINE_PORT_OFFSET) || 0;
