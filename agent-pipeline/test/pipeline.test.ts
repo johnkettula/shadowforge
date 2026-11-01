@@ -414,3 +414,13 @@ test('approval gates: "skip" builds nothing; "reject" merges nothing', { timeout
   assert.equal(remoteFile(cfg, 'app/value.txt').trim(), 'one', 'nothing merged');
   assert.equal(sh(cfg.repoUrl, 'branch', '--list', 'agent/*').trim(), '', 'no review branches left behind');
 });
+
+test('acceptance tests don\'t count toward the line limit: a passing tester\'s tests are kept', async () => {
+  // The developer's change is 2 lines; the scripted tester's test file is longer than the limit.
+  const cfg = fixture('testsize');
+  cfg.limits.maxChangedLines = 4;
+  const s = await runPipeline(cfg, script({}));
+  assert.equal(s.recent[0].outcome, 'merged', s.recent[0].note);
+  assert.match(remoteFile(cfg, 'app/acceptance/ap-0001/requests-endpoint.test.mjs'), /scripted tester/, 'the tests were kept');
+  assert.doesNotMatch(readFileSync(ledger(cfg)[0].reportPath, 'utf8'), /tester broke the rules/);
+});

@@ -186,11 +186,15 @@ export async function commitAndCheck(cfg: PipelineConfig, prep: CyclePrep, role:
     if (status !== 'A' && matchesAny(file, cfg.appendOnly)) violations.push(`${file} may only be added to, never changed or deleted (status ${status})`);
   }
   // A pipeline started before `generated` existed carries a config without it: use the default then.
-  const total = diffFiles(wt, prep.baseSha, 'HEAD', cfg.generated ?? defaultConfig().generated ?? []);
+  // Acceptance tests don't count toward the line limit either: they're the tester's, not part of the
+  // change, and counting them made a passing tester's tests get thrown away (cycle 9). They still
+  // count as files.
+  const notCounted = [...(cfg.generated ?? defaultConfig().generated ?? []), `${cfg.acceptanceDir}/**`];
+  const total = diffFiles(wt, prep.baseSha, 'HEAD', notCounted);
   if (total.files.length > cfg.limits.maxChangedFiles)
     violations.push(`the change touches ${total.files.length} files; the limit is ${cfg.limits.maxChangedFiles}. Make it smaller.`);
   if (total.added + total.removed > cfg.limits.maxChangedLines)
-    violations.push(`the change is ${total.added + total.removed} lines (not counting generated files); the limit is ${cfg.limits.maxChangedLines}. Make it smaller.`);
+    violations.push(`the change is ${total.added + total.removed} lines (not counting generated files or acceptance tests); the limit is ${cfg.limits.maxChangedLines}. Make it smaller.`);
   if (violations.length) {
     git(wt, ['reset', '-q', '--hard', `${sha}~1`]);
     return { sha: git(wt, ['rev-parse', 'HEAD']), files: mine.files, added: total.added, removed: total.removed, violations };
