@@ -73,12 +73,11 @@ test('8: the "Snapshot in the repo" row or nearby text points to the check', () 
   assert.match(row, /openapi\.json/);
 });
 
+// Only commits made for AP-0008 count (subject starting "AP-0008:"), not the whole branch: these tests are
+// re-run on every later cycle's branch, and later requirements may legitimately change these areas.
+// (Changed on 2026-11-01 by a person; the first version used every commit on the branch.)
 function requirementCommits() {
-  let list = '';
-  try { list = git('rev-list', 'main..HEAD'); } catch { /* no main ref */ }
-  let shas = list.split('\n').filter(Boolean);
-  if (shas.length === 0) shas = git('log', '--format=%H', '--grep=AP-0008').split('\n').filter(Boolean);
-  return shas;
+  return git('log', '--format=%H', '--no-merges', '--grep=^AP-0008:').split('\n').filter(Boolean);
 }
 
 test('9: no commit for the requirement touches the protected paths, adds Security/Auth files, or changes Temporal annotations', () => {

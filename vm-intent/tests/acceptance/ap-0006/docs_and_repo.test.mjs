@@ -123,14 +123,11 @@ test('8: docs/API.md "Checking the contract" says mvn test runs OpenApiDocumentT
 });
 
 // ---- Criterion 9 ----
+// Only commits made for AP-0006 count (subject starting "AP-0006:"), not the whole branch: these tests are
+// re-run on every later cycle's branch, and later requirements may legitimately change these areas.
+// (Changed on 2026-11-01 by a person; the first version also counted every commit on the branch.)
 function ap0006Commits() {
-  let base;
-  for (const ref of ['main', 'origin/main']) {
-    try { base = git('merge-base', 'HEAD', ref).trim(); break; } catch { /* next */ }
-  }
-  const range = base ? git('rev-list', `${base}..HEAD`).split(/\r?\n/).filter(Boolean) : [];
-  const tagged = git('log', '--format=%H', '--grep=^AP-0006', 'HEAD').split(/\r?\n/).filter(Boolean);
-  const all = [...new Set([...range, ...tagged])];
+  const all = git('log', '--format=%H', '--no-merges', '--grep=^AP-0006:', 'HEAD').split(/\r?\n/).filter(Boolean);
   assert.ok(all.length > 0, 'found the AP-0006 commits');
   return all;
 }
