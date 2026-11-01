@@ -11,7 +11,7 @@ each real response against the document.
 | Swagger UI (try calls in the browser) | `/swagger-ui.html` | `http://<host>:8080/swagger-ui.html` or `http://<host>:8088/swagger-ui.html` | `http://localhost:8080/swagger-ui.html` |
 | OpenAPI JSON (for client generators) | `/v3/api-docs` | `http://<host>:8080/v3/api-docs` | `http://localhost:8080/v3/api-docs` |
 | OpenAPI YAML | `/v3/api-docs.yaml` | same, with `.yaml` | same |
-| Snapshot in the repo | `docs/openapi.yaml`, `docs/openapi.json` | | |
+| Snapshot in the repo | `docs/openapi.yaml`, `docs/openapi.json` (checked by `mvn test`; to regenerate them see [Checking the contract](#checking-the-contract)) | | |
 
 Port 8088 is the web app; its nginx forwards `/api`, `/v3/api-docs` and `/swagger-ui` to the API. Behind
 a proxy or gateway that sends `X-Forwarded-*` headers, the document lists the public address. To list fixed
@@ -169,3 +169,15 @@ after any API change.
 from the controllers and fails the build if any operation's 2xx response is documented as a free-form map or
 an untyped object (a short allow-list in the test names the exceptions and why). So endpoints return named
 record types, not `Map<String,Object>`, which springdoc can't describe and real responses then fail to match.
+
+`mvn test` also compares the generated document with the snapshots `docs/openapi.json` and
+`docs/openapi.yaml` (`OpenApiSnapshotTest`, as parsed documents, ignoring the top-level `servers`, which
+each snapshot keeps as its local-development entry). When they differ it fails and names the first differing
+path in each file. After an intended API change, regenerate both snapshots from `backend/` and commit them:
+
+```bash
+cd backend
+mvn test -Dtest=OpenApiSnapshotTest -Dopenapi.write=true
+```
+
+Plain `mvn test` never writes to `docs/`.

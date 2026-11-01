@@ -52,6 +52,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * The context is the web layer only: all api controllers (collaborators mocked), springdoc, and the
  * same OpenApiConfig and SecurityOpenApi customizers the server uses. No Temporal, no database.
+ * OpenApiSnapshotTest extends this class to reuse the context; keep its configuration here.
  */
 @WebMvcTest
 @AutoConfigureMockMvc(addFilters = false)
