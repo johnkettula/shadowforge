@@ -103,7 +103,12 @@ A **signal** is fire-and-forget: the caller never learns whether it counted. An 
 A refused update leaves no trace in the workflow's history. The old `confirm` signal is still there
 for older callers.
 
-- Code: `IntentWorkflow.confirmSpec` / `validateConfirmSpec`
+Answering and cancelling work the same way. `clarify` is the `answerQuestion` update, refused unless
+the request is waiting for an answer. `cancel` is the `cancelRequest` update, refused once the build
+has started (`PROVISIONING`) or the request has finished. Each sets the same fields as the old
+`clarify` / `cancel` signals, which are kept so running workflows and recorded histories still replay.
+
+- Code: `IntentWorkflow.confirmSpec` / `validateConfirmSpec`, `answerQuestion`, `cancelRequest`
 
 ## 6. The nightly inventory check
 
@@ -216,7 +221,7 @@ One thing to know: it only skips ahead while a timer is waiting. To wait for a w
 | `LifecycleWorkflowTest` | Expiry, warning, renewal, validators, day-2 changes, rebuilding a removed VM |
 | `OneWayLinkTest` | Build and changes over the link, no answer (timeout and undo), refusal |
 | `LinkFilesTest` | The real file-based link with the simulated domain 3 |
-| `IntentWorkflowTest` | Confirm update, several VMs at once, search attributes |
+| `IntentWorkflowTest` | Answer, confirm and cancel updates (with a replay round trip), several VMs at once, search attributes |
 | `InventoryCheckTest` | Missing VMs and orphans |
 | `ReplayTest` | Old histories against new code, including real catalog runs (resumed, torn down, approved) |
 | `CatalogRunWorkflowTest` | Steps in order, resume with partial work, teardown, 30-day auto teardown, approvals, blueprints |

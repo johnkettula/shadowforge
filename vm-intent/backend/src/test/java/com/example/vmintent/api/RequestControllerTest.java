@@ -1,6 +1,7 @@
 package com.example.vmintent.api;
 
 import com.example.vmintent.api.ApiModels.AnswerBody;
+import com.example.vmintent.api.ApiModels.ApiError;
 import com.example.vmintent.workflow.IntentWorkflow;
 import com.example.vmintent.workflow.Models.IntentRequest;
 import com.example.vmintent.workflow.Models.RequestStatus;
@@ -13,11 +14,13 @@ import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowNotFoundException;
 import io.temporal.client.WorkflowOptions;
 import io.temporal.client.WorkflowStub;
+import io.temporal.client.WorkflowUpdateException;
 import io.temporal.testing.TestWorkflowEnvironment;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -28,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Answering or cancelling a request: 409 once it has finished, 404 for an ID that was never used. */
+/** Answering or cancelling a request: 409 once it has finished or can't take it, 404 for an ID that was never used. */
 class RequestControllerTest {
 
     /** Holds the "CANCELLED" audit event of the "req-closing" request, so its workflow stays open after it's cancelled. */
@@ -53,6 +56,7 @@ class RequestControllerTest {
     private TestWorkflowEnvironment env;
     private HeldRecords records;
     private RequestController controller;
+    private final ApiErrorHandler errors = new ApiErrorHandler();
 
     @BeforeEach
     void setUp() {
@@ -99,11 +103,12 @@ class RequestControllerTest {
             assertTrue(records.cancelledAuditStarted.await(10, TimeUnit.SECONDS));
             assertEquals(WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING,
                     WorkflowStub.fromTyped(wf).describe().getStatus());
+            // The validators refuse both; ApiErrorHandler.updateRefused turns that into 409.
             for (Runnable call : List.<Runnable>of(() -> controller.cancel("req-closing"),
                     () -> controller.clarify("req-closing", new AnswerBody("azure")))) {
-                ResponseStatusException e = assertThrows(ResponseStatusException.class, call::run);
-                assertEquals(HttpStatus.CONFLICT, e.getStatusCode());
-                assertEquals("This request has already finished (cancelled).", e.getReason());
+                ResponseEntity<ApiError> r = errors.updateRefused(assertThrows(WorkflowUpdateException.class, call::run));
+                assertEquals(HttpStatus.CONFLICT, r.getStatusCode());
+                assertEquals("This request has already finished (cancelled).", r.getBody().error());
             }
         } finally {
             records.releaseCancelledAudit.countDown();
@@ -121,6 +126,20 @@ class RequestControllerTest {
         ResponseStatusException e = assertThrows(ResponseStatusException.class, () -> controller.cancel("req-completed"));
         assertEquals(HttpStatus.CONFLICT, e.getStatusCode());
         assertTrue(e.getReason().contains("completed"), e.getReason());
+    }
+
+    @Test
+    void clarifyWhenNotAskedIs409AndTheRequestCanStillBeCancelled() {
+        IntentWorkflow wf = start("req-not-asked", "small debian vm on azure");
+        waitFor(wf, "AWAITING_CONFIRMATION");
+        ResponseEntity<ApiError> r = errors.updateRefused(assertThrows(WorkflowUpdateException.class,
+                () -> controller.clarify("req-not-asked", new AnswerBody("aws"))));
+        assertEquals(HttpStatus.CONFLICT, r.getStatusCode());
+        assertEquals("This request is awaiting confirmation, not waiting for an answer.", r.getBody().error());
+        assertEquals("AWAITING_CONFIRMATION", wf.status().state());
+
+        controller.cancel("req-not-asked");
+        assertEquals("CANCELLED", WorkflowStub.fromTyped(wf).getResult(RequestStatus.class).state());
     }
 
     @Test
