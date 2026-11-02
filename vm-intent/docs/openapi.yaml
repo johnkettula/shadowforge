@@ -648,7 +648,7 @@ paths:
       - Requests
       summary: Answer the request's question
       description: |-
-        Use when state is AWAITING_CLARIFICATION.
+        Use when state is AWAITING_CLARIFICATION. Refused (409) in any other state.
 
         **Required role:** REQUESTER (when sign-in is on; it is currently off)
       operationId: clarifyRequest
@@ -668,7 +668,8 @@ paths:
         "204":
           description: Answer delivered
         "409":
-          description: The request has already finished
+          description: "The request has already finished, or is not waiting for an\
+            \ answer"
           content:
             application/json:
               schema:
@@ -703,7 +704,7 @@ paths:
       - Requests
       summary: Cancel a waiting request
       description: |-
-        Has no effect once the build has started.
+        Use before the build starts. Refused (409) once the build has started (PROVISIONING), or once the request has finished.
 
         **Required role:** REQUESTER (when sign-in is on; it is currently off)
       operationId: cancelRequest
@@ -717,7 +718,7 @@ paths:
         "204":
           description: Cancelled
         "409":
-          description: The request has already finished
+          description: "The request has already finished, or the build has started"
           content:
             application/json:
               schema:

@@ -49,7 +49,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -61,8 +60,6 @@ import java.util.concurrent.TimeoutException;
 public class RequestController {
 
     private static final int QUERY_TIMEOUT_SECONDS = 5;
-    /** A request in one of these states is done, even if its workflow is still writing the last audit event. */
-    private static final Set<String> FINAL_STATES = Set.of("COMPLETED", "PARTIAL", "FAILED", "CANCELLED", "DUPLICATE");
 
     private final WorkflowClient client;
     private final IntentInterpreter interpreter;
@@ -188,9 +185,10 @@ public class RequestController {
     }
 
     @Tag(name = "Requests")
-    @Operation(operationId = "clarifyRequest", summary = "Answer the request's question", description = "Use when state is AWAITING_CLARIFICATION.")
+    @Operation(operationId = "clarifyRequest", summary = "Answer the request's question",
+            description = "Use when state is AWAITING_CLARIFICATION. Refused (409) in any other state.")
     @ApiResponse(responseCode = "204", description = "Answer delivered")
-    @ApiResponse(responseCode = "409", description = "The request has already finished",
+    @ApiResponse(responseCode = "409", description = "The request has already finished, or is not waiting for an answer",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "404", description = "No such request",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
@@ -200,9 +198,9 @@ public class RequestController {
     @PostMapping("/v2/requests/{id}/clarify")
     public void clarify(@PathVariable String id, @RequestBody AnswerBody body) {
         requireOwner(id);
-        requireNotFinished(id);
+        // An update, not a signal: it's refused at once (409) if the request isn't waiting for an answer.
         try {
-            stub(id).clarify(body.answer());
+            stub(id).answerQuestion(body.answer());
         } catch (WorkflowNotFoundException e) {
             throw finishedOr404(id, e);
         }
@@ -232,9 +230,11 @@ public class RequestController {
     }
 
     @Tag(name = "Requests")
-    @Operation(operationId = "cancelRequest", summary = "Cancel a waiting request", description = "Has no effect once the build has started.")
+    @Operation(operationId = "cancelRequest", summary = "Cancel a waiting request",
+            description = "Use before the build starts. Refused (409) once the build has started (PROVISIONING), "
+                    + "or once the request has finished.")
     @ApiResponse(responseCode = "204", description = "Cancelled")
-    @ApiResponse(responseCode = "409", description = "The request has already finished",
+    @ApiResponse(responseCode = "409", description = "The request has already finished, or the build has started",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "404", description = "No such request",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
@@ -244,9 +244,9 @@ public class RequestController {
     @PostMapping("/v2/requests/{id}/cancel")
     public void cancel(@PathVariable String id) {
         requireOwner(id);
-        requireNotFinished(id);
+        // An update, not a signal: it's refused at once (409) once the build has started or the request is done.
         try {
-            stub(id).cancel();
+            stub(id).cancelRequest();
         } catch (WorkflowNotFoundException e) {
             throw finishedOr404(id, e);
         }
@@ -338,32 +338,7 @@ public class RequestController {
         }
     }
 
-    /**
-     * A request reaches its final state a moment before its workflow closes (it still writes the last
-     * audit event), and a signal in between is accepted and ignored. Ask the request itself first, so
-     * that gap gives the same 409 as a closed workflow. If the workers don't answer, send the signal
-     * anyway and let finishedOr404 sort it out.
-     */
-    private void requireNotFinished(String id) {
-        RequestStatus s;
-        try {
-            s = CompletableFuture.supplyAsync(() -> stub(id).status()).get(QUERY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-        } catch (ExecutionException e) {
-            if (e.getCause() instanceof WorkflowNotFoundException nf) throw finishedOr404(id, nf);
-            return;
-        } catch (TimeoutException e) {
-            return;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return;
-        }
-        if (s != null && FINAL_STATES.contains(s.state())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "This request has already finished (" + s.state().toLowerCase() + ").");
-        }
-    }
-
-    /** A signal or update to a request that has already finished: say so (409) instead of "not found". */
+    /** An update to a request whose workflow has closed: say so (409) instead of "not found". */
     private RuntimeException finishedOr404(String id, WorkflowNotFoundException e) {
         try {
             var d = client.newUntypedWorkflowStub(id).describe();
