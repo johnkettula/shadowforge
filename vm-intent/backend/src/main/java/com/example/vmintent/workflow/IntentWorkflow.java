@@ -11,9 +11,8 @@ import io.temporal.workflow.WorkflowMethod;
 
 /**
  * One natural-language request, from words to one or more running VMs.
- * The UI talks to it with updates (answerQuestion, confirmSpec, cancelRequest), which are
- * refused at once if the request can't take them, and reads it with a query (status).
- * The clarify / cancel / confirm signals are kept for older callers and running workflows.
+ * The UI talks to it with signals (clarify / cancel) and an update (confirmSpec),
+ * and reads it with a query (status).
  */
 @WorkflowInterface
 public interface IntentWorkflow {
@@ -41,20 +40,6 @@ public interface IntentWorkflow {
 
     @SignalMethod
     void cancel();
-
-    /** Answer the request's question. Refused unless the request is waiting for an answer. */
-    @UpdateMethod
-    void answerQuestion(String answer);
-
-    @UpdateValidatorMethod(updateName = "answerQuestion")
-    void validateAnswerQuestion(String answer);
-
-    /** Cancel the request. Refused once it's cancelled, its build has started, or it has finished. */
-    @UpdateMethod
-    void cancelRequest();
-
-    @UpdateValidatorMethod(updateName = "cancelRequest")
-    void validateCancelRequest();
 
     @QueryMethod
     RequestStatus status();

@@ -18,7 +18,6 @@ import io.temporal.workflow.Workflow;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 /**
  * IMPORTANT: workflow code must be deterministic. No network calls, no
@@ -62,8 +61,6 @@ public class IntentWorkflowImpl implements IntentWorkflow {
 
     /** Most builds of one multi-VM request that run at the same time. */
     static final int MAX_PARALLEL_BUILDS = 5;
-
-    private static final Set<String> FINAL_STATES = Set.of("COMPLETED", "PARTIAL", "FAILED", "CANCELLED", "DUPLICATE");
 
     @Override
     public RequestStatus run(IntentRequest request) {
@@ -170,43 +167,6 @@ public class IntentWorkflowImpl implements IntentWorkflow {
     @Override
     public void cancel() {
         cancelled = true;
-    }
-
-    // The two updates below set the same fields as the clarify / cancel signals, so the workflow's
-    // steps are the same either way. Their validators refuse what the signals would silently drop.
-
-    @Override
-    public void validateAnswerQuestion(String answer) {
-        refuseIfFinished();
-        if (!"AWAITING_CLARIFICATION".equals(state) || answers.size() > answersUsed) {
-            throw new IllegalArgumentException("This request is " + state.toLowerCase().replace('_', ' ')
-                    + ", not waiting for an answer.");
-        }
-    }
-
-    @Override
-    public void answerQuestion(String answer) {
-        answers.add(answer);
-    }
-
-    @Override
-    public void validateCancelRequest() {
-        refuseIfFinished();
-        if (confirmed || "PROVISIONING".equals(state)) {
-            throw new IllegalArgumentException("The build has already started, so this request can't be cancelled.");
-        }
-    }
-
-    @Override
-    public void cancelRequest() {
-        cancelled = true;
-    }
-
-    private void refuseIfFinished() {
-        if (cancelled || FINAL_STATES.contains(state)) {
-            throw new IllegalArgumentException("This request has already finished ("
-                    + (cancelled ? "cancelled" : state.toLowerCase()) + ").");
-        }
     }
 
     @Override

@@ -8,7 +8,6 @@ import io.temporal.client.WorkflowOptions;
 import io.temporal.client.WorkflowStub;
 import io.temporal.common.SearchAttributes;
 import io.temporal.testing.TestWorkflowEnvironment;
-import io.temporal.testing.WorkflowReplayer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** A request from words to VMs: the answer, confirm and cancel updates, several VMs at once, and search attributes. */
+/** A request from words to VMs: the confirm update, several VMs at once, and search attributes. */
 class IntentWorkflowTest {
 
     private TestWorkflowEnvironment env;
@@ -54,42 +53,6 @@ class IntentWorkflowTest {
         RequestStatus done = WorkflowStub.fromTyped(wf).getResult(RequestStatus.class);
         assertEquals("COMPLETED", done.state());
         assertTrue(records.has("CONFIRMED jdoe"));
-    }
-
-    @Test
-    void answerIsTakenOnlyWhileTheRequestIsWaitingForOne() throws Exception {
-        IntentWorkflow wf = start("req-answer", "ubuntu server with 2 cores in us-east", false);
-        waitFor(wf, "AWAITING_CLARIFICATION");
-        wf.answerQuestion("aws");
-        waitFor(wf, "AWAITING_CONFIRMATION");
-        LifecycleWorkflowTest.assertRefused(() -> wf.answerQuestion("azure"), "awaiting confirmation, not waiting for an answer");
-        assertEquals("aws", wf.status().interpretation().spec().provider(), "the refused answer changed nothing");
-
-        wf.cancelRequest();
-        assertEquals("CANCELLED", WorkflowStub.fromTyped(wf).getResult(RequestStatus.class).state());
-        // Replay what just happened, updates included, against today's code.
-        WorkflowReplayer.replayWorkflowExecution(
-                env.getWorkflowClient().fetchHistory("req-answer"), IntentWorkflowImpl.class);
-    }
-
-    @Test
-    void cancelIsTakenWhileWaitingAndRefusedOnceTheBuildHasStarted() throws Exception {
-        IntentWorkflow asked = start("req-cancel-question", "ubuntu server with 2 cores in us-east", false);
-        waitFor(asked, "AWAITING_CLARIFICATION");
-        asked.cancelRequest();
-        // Refused once cancelled, while the workflow is still open: RequestControllerTest holds it open for that.
-        assertEquals("CANCELLED", WorkflowStub.fromTyped(asked).getResult(RequestStatus.class).state());
-
-        cloud.throttleFirstCreates.set(1_000);   // hold the build in PROVISIONING
-        IntentWorkflow building = start("req-cancel-build", "small debian vm on azure", false);
-        waitFor(building, "AWAITING_CONFIRMATION");
-        building.confirmSpec("jdoe", null);
-        waitFor(building, "PROVISIONING");
-        LifecycleWorkflowTest.assertRefused(building::cancelRequest, "build has already started");
-        cloud.throttleFirstCreates.set(0);
-        assertEquals("COMPLETED", WorkflowStub.fromTyped(building).getResult(RequestStatus.class).state());
-        WorkflowReplayer.replayWorkflowExecution(
-                env.getWorkflowClient().fetchHistory("req-cancel-build"), IntentWorkflowImpl.class);
     }
 
     @Test
