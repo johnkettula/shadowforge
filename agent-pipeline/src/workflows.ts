@@ -459,3 +459,27 @@ export async function pipelineWorkflow(input: { cfg: PipelineConfig; state?: Pip
   status = 'stopped';
   return state;
 }
+
+// ---------------------------------------------------------------------------------------------
+// A one-off live deploy, outside a cycle (after a person fixed main by hand, or live is down).
+
+export interface LiveDeployResult {
+  ok: boolean;
+  apiUrl: string;
+  checks: { name: string; passed: boolean }[];
+  note: string;
+}
+
+export async function liveDeployWorkflow(input: { cfg?: PipelineConfig } = {}): Promise<LiveDeployResult> {
+  const cfg = input.cfg ?? (await quick.currentConfig());
+  const live = await work.deployLive(cfg);
+  if (!live.ok) return { ok: false, apiUrl: live.apiUrl, checks: [], note: `live deploy failed:\n${live.tail.slice(-3000)}` };
+  const checks = await work.runChecks(cfg, undefined, live.apiUrl, 'manual-deploy');
+  const bad = failed(checks);
+  return {
+    ok: bad.length === 0,
+    apiUrl: live.apiUrl,
+    checks: checks.map((c) => ({ name: c.name, passed: c.passed })),
+    note: bad.length ? `live is up, but checks failed:\n${describe(checks).slice(0, 3000)}` : `live deployed and checked (${checks.length} checks passed)`,
+  };
+}

@@ -17,6 +17,8 @@ const backendService = (readyPath: string) => ({
   env: {
     TEMPORAL_ADDRESS: '127.0.0.1:{port.temporal}',
     VMINTENT_FILES_DIR: '{stateDir}/files',
+    // run-jar.mjs runs a copy of the jar from here, so a build can replace target/*.jar.
+    RUN_JAR_DIR: '{stateDir}/run',
     VMINTENT_TARGETS_DIR: '{stateDir}/targets',
     VMINTENT_LINK_OUTBOX: '{stateDir}/link/outbox',
     VMINTENT_LINK_INBOX: '{stateDir}/link/inbox',

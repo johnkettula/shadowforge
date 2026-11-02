@@ -211,3 +211,39 @@ export function removeDir(dir: string): boolean {
     return false;
   }
 }
+
+/**
+ * Stops whatever is listening on these TCP ports. A deploy's processes are normally stopped by
+ * killTree, but on Windows a process can outlive its recorded parent (the live backend did, and
+ * kept the jar locked so the next build failed). The ports belong to that deploy alone, so
+ * anything still listening on them is a leftover. Returns the pids it stopped.
+ */
+export function killListeners(ports: number[]): number[] {
+  const wanted = ports.filter((p) => Number.isInteger(p) && p > 0);
+  if (!wanted.length) return [];
+  const pids = new Set<number>();
+  if (process.platform === 'win32') {
+    const ps =
+      `$p = @(${wanted.join(',')}); ` +
+      'Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | ' +
+      'Where-Object { $p -contains $_.LocalPort } | Select-Object -ExpandProperty OwningProcess -Unique';
+    const r = spawnSync('powershell', ['-NoProfile', '-Command', ps], { encoding: 'utf8', windowsHide: true });
+    for (const line of (r.stdout ?? '').split(/\r?\n/)) if (/^\d+$/.test(line.trim())) pids.add(Number(line.trim()));
+  } else {
+    for (const port of wanted) {
+      const r = spawnSync('lsof', ['-t', `-iTCP:${port}`, '-sTCP:LISTEN'], { encoding: 'utf8' });
+      for (const line of (r.stdout ?? '').split(/\r?\n/)) if (/^\d+$/.test(line.trim())) pids.add(Number(line.trim()));
+    }
+  }
+  pids.delete(process.pid);
+  pids.delete(0);
+  for (const pid of pids) {
+    try {
+      if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true });
+      else process.kill(pid, 'SIGKILL');
+    } catch {
+      /* already gone */
+    }
+  }
+  return [...pids];
+}

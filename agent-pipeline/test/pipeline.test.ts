@@ -18,7 +18,7 @@ import { createActivities } from '../src/activities.js';
 import { ScriptedAgentRunner, defaultScript, type ScriptStep } from '../src/agents/runner.js';
 import { defaultConfig } from '../src/config.js';
 import type { PipelineConfig, Role } from '../src/types.js';
-import { decideSignal, pipelineWorkflow, resumeSignal, stageQuery, statusQuery, stopSignal, type PipelineState } from '../src/workflows.js';
+import { decideSignal, liveDeployWorkflow, pipelineWorkflow, resumeSignal, stageQuery, statusQuery, stopSignal, type PipelineState } from '../src/workflows.js';
 
 const TEMPORAL = process.env.TEMPORAL_CLI ?? 'temporal';
 const PORT = 17233 + Math.floor(Math.random() * 500);
@@ -423,4 +423,23 @@ test('acceptance tests don\'t count toward the line limit: a passing tester\'s t
   assert.equal(s.recent[0].outcome, 'merged', s.recent[0].note);
   assert.match(remoteFile(cfg, 'app/acceptance/ap-0001/requests-endpoint.test.mjs'), /scripted tester/, 'the tests were kept');
   assert.doesNotMatch(readFileSync(ledger(cfg)[0].reportPath, 'utf8'), /tester broke the rules/);
+});
+
+test('deploy-live: a leftover process on the live port is stopped, and live is rebuilt and checked', { timeout: 120_000 }, async () => {
+  const cfg = fixture('deploylive');
+  // An orphan from an earlier live run, which the pipeline has no record of, holding the live API port.
+  const orphan = spawn(process.execPath, ['-e', `require('http').createServer((q,r)=>{r.statusCode=500;r.end()}).listen(${cfg.livePortBase}, '127.0.0.1')`], { detached: true, stdio: 'ignore' });
+  orphan.unref();
+  await new Promise((r) => setTimeout(r, 800));
+  const taskQueue = 'tq-deploylive';
+  const worker = await Worker.create({ connection, taskQueue, workflowBundle: bundle, activities: createActivities(new ScriptedAgentRunner(script({}))) });
+  const r = await worker.runUntil(client.workflow.execute(liveDeployWorkflow, { taskQueue, workflowId: 'deploy-live-test', args: [{ cfg }] }));
+  const live = path.join(cfg.home, 'state', 'live.json');
+  if (existsSync(live)) for (const pid of JSON.parse(readFileSync(live, 'utf8')).pids as number[]) try { process.kill(-pid, 'SIGKILL'); } catch { /* gone */ }
+  let orphanAlive = true;
+  try { process.kill(orphan.pid!, 0); } catch { orphanAlive = false; }
+  if (orphanAlive) process.kill(orphan.pid!, 'SIGKILL');
+  assert.equal(orphanAlive, false, 'the orphan on the live port was stopped');
+  assert.equal(r.ok, true, r.note);
+  assert.deepEqual(r.checks.map((c) => c.name), ['smoke']);
 });

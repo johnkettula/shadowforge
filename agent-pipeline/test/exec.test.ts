@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, mkdirSync, symlinkSync, writeFileSync, existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { killPostgresIn, processNamed, removeDir } from '../src/exec.js';
+import { killListeners, killPostgresIn, processNamed, removeDir } from '../src/exec.js';
 
 const alive = (pid: number) => {
   try {
@@ -44,4 +44,21 @@ test('a leftover Postgres in a staging folder is stopped, and nothing else is', 
 
   assert.equal(removeDir(path.join(dir, 'staging')), true);
   assert.equal(existsSync(path.join(dir, 'staging')), false);
+});
+
+test('killListeners stops what listens on the given ports, and nothing else', { skip: process.platform === 'win32' }, async () => {
+  const listen = (port: number) =>
+    spawn(process.execPath, ['-e', `require('http').createServer((q,r)=>r.end('x')).listen(${port}, '127.0.0.1')`], { detached: true, stdio: 'ignore' });
+  const port = 23000 + Math.floor(Math.random() * 2000);
+  const target = listen(port);
+  const bystander = listen(port + 1);
+  target.unref();
+  bystander.unref();
+  await new Promise((r) => setTimeout(r, 800));
+  assert.deepEqual(killListeners([port]), [target.pid]);
+  await new Promise((r) => setTimeout(r, 300));
+  assert.equal(alive(target.pid!), false, 'the listener on the port was stopped');
+  assert.equal(alive(bystander.pid!), true, 'a process on another port was left alone');
+  assert.deepEqual(killListeners([port]), [], 'nothing left to stop');
+  process.kill(bystander.pid!, 'SIGKILL');
 });

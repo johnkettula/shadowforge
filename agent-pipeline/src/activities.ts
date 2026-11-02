@@ -6,12 +6,12 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, wri
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { defaultConfig } from './config.js';
+import { defaultConfig, loadConfig } from './config.js';
 import type { AgentRunner, AgentOutcome, AgentTask } from './agents/runner.js';
 import { checkWrite, type PolicyContext } from './agents/policy.js';
 import { developerPrompt, redesignPrompt, requirementsPrompt, reviewerPrompt, testerPrompt } from './agents/prompts.js';
 import { DEVELOPER_SCHEMA, REDESIGN_SCHEMA, REQUIREMENT_SCHEMA, REVIEW_SCHEMA, TESTER_SCHEMA } from './agents/schemas.js';
-import { fill, fillEnv, git, killPostgresIn, killTree, removeDir, run, startService, waitForUrl } from './exec.js';
+import { fill, fillEnv, git, killListeners, killPostgresIn, killTree, removeDir, run, startService, waitForUrl } from './exec.js';
 import { matchesAny, toPosix } from './glob.js';
 import type {
   AgentUsage,
@@ -263,10 +263,16 @@ export async function runGates(cfg: PipelineConfig, prep: CyclePrep, attempt: nu
   return out;
 }
 
+/** The ports a deploy uses (they're its own: staging per cycle, live fixed). */
+const deployPorts = (v: Record<string, string>) =>
+  ['port.api', 'port.temporal', 'port.temporalUi', 'port.db', 'port.web', 'port.health'].map((k) => Number(v[k])).filter((n) => n > 0);
+
 async function startDeploy(cfg: PipelineConfig, spec: DeploySpec, v: Record<string, string>, logDir: string): Promise<{ ok: boolean; handle: StagingHandle; tail: string }> {
   const handle: StagingHandle = { apiUrl: fill(spec.apiUrl, v), pids: [], stopCommands: spec.stop ?? [], vars: v, logDir };
   mkdirSync(logDir, { recursive: true });
   mkdirSync(v.stateDir, { recursive: true });
+  // Anything left on this deploy's ports from an earlier run would hold files open or take the port.
+  if (spec.mode === 'processes' && killListeners(deployPorts(v)).length) await new Promise((r) => setTimeout(r, 2000));
   for (const b of spec.build ?? []) {
     const r = await runSpec(cfg, b, v, path.join(logDir, 'build.log'));
     if (!r.passed) return { ok: false, handle, tail: `${b.name} failed:\n${r.tail}` };
@@ -318,6 +324,8 @@ async function stopDeploy(cfg: PipelineConfig, handle: StagingHandle): Promise<v
   for (const s of handle.stopCommands) await runSpec(cfg, s, handle.vars, path.join(handle.logDir, 'stop.log'));
   for (const pid of [...handle.pids].reverse()) killTree(pid);
   await new Promise((r) => setTimeout(r, 1500));
+  // Whatever outlived its recorded parent is still on the deploy's ports: stop that too.
+  if (handle.pids.length && killListeners(deployPorts(handle.vars)).length) await new Promise((r) => setTimeout(r, 1500));
   // The backend's embedded Postgres runs on its own: stop it too.
   if (handle.vars.stateDir && killPostgresIn(handle.vars.stateDir).length) await new Promise((r) => setTimeout(r, 1500));
 }
@@ -626,7 +634,13 @@ export async function preflight(cfg: PipelineConfig): Promise<{ ok: boolean; pro
   return { ok: problems.length === 0, problems };
 }
 
+/** The config the worker would start a pipeline with (pipeline.config.json in its folder). */
+export async function currentConfig(): Promise<PipelineConfig> {
+  return loadConfig();
+}
+
 export const plainActivities = {
+  currentConfig,
   preflight,
   prepareCycle,
   cleanupCycle,

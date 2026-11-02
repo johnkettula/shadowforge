@@ -87,7 +87,13 @@ sections of `pipeline.config.docker.json` into `pipeline.config.json`.
 5-control run-now           skip the wait before the next cycle
 5-control stop              stop after the current cycle
 5-control reports           every cycle with its outcome and cost
+5-control deploy-live       rebuild and check the live copy from main now (not during a cycle)
 ```
+
+If the live copy on 18080 is stuck (a leftover process from before a reboot or a crash),
+`stop-live.cmd` stops whatever is on its ports (18080-18085); `5-control deploy-live` starts it again.
+Deploys also do this themselves now: they stop anything left on their own ports, and the backend
+runs from a copy of the jar, so Windows can't lock the file a build needs to replace.
 
 After changing the pipeline's code (or pulling an update), run `restart-worker.cmd`: it stops the
 running worker and starts a new one; a cycle in progress carries on in the new worker.

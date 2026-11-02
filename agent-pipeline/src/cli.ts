@@ -7,6 +7,7 @@
 //   npm run ctl -- run-now          skip the wait before the next cycle
 //   npm run ctl -- stop             stop after the current cycle
 //   npm run ctl -- reports          list the cycle reports
+//   npm run ctl -- deploy-live      rebuild and check the live copy from main now (not during a cycle)
 //   npm run ctl -- approve [note]   say yes to what the current cycle is waiting on (build or merge);
 //                                   before building, the note is passed on to the developer
 //   npm run ctl -- skip [reason]    don't build the requirement it's waiting on
@@ -17,7 +18,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { loadConfig, PIPELINE_WORKFLOW_ID, TASK_QUEUE } from './config.js';
 import type { CycleResult } from './types.js';
-import { decideSignal, pauseSignal, pipelineWorkflow, resumeSignal, runNowSignal, stageQuery, statusQuery, stopSignal } from './workflows.js';
+import { decideSignal, liveDeployWorkflow, pauseSignal, pipelineWorkflow, resumeSignal, runNowSignal, stageQuery, statusQuery, stopSignal } from './workflows.js';
 
 async function client() {
   const connection = await Connection.connect({ address: process.env.TEMPORAL_ADDRESS ?? '127.0.0.1:7233' });
@@ -112,6 +113,18 @@ async function main() {
       console.log(`${cmd} sent to cycle ${s.cycle} (${st.waiting.gate} gate)`);
       break;
     }
+    case 'deploy-live': {
+      const s = await handle.query(statusQuery).catch(() => undefined);
+      if (s?.currentCycleWorkflowId) {
+        console.log(`cycle ${s.cycle} is running; deploy live when it has finished (or pause first)`);
+        break;
+      }
+      const h = await c.workflow.start(liveDeployWorkflow, { workflowId: `${workflowId}-deploy-live-${Date.now()}`, taskQueue: TASK_QUEUE, args: [{ cfg }] });
+      console.log(`deploying live from ${cfg.baseBranch} (${h.workflowId}); this takes a few minutes`);
+      const r = await h.result();
+      console.log(`${r.ok ? 'OK' : 'FAILED'}: ${r.note}\n${r.apiUrl}`);
+      break;
+    }
     case 'reports': {
       const ledger = path.join(cfg.home, 'reports', 'ledger.json');
       const rows: CycleResult[] = existsSync(ledger) ? JSON.parse(readFileSync(ledger, 'utf8')) : [];
@@ -120,7 +133,7 @@ async function main() {
       break;
     }
     default:
-      console.log('commands: start | once | status | approve [note] | skip [reason] | reject [reason] | pause [reason] | resume | run-now | stop | reports');
+      console.log('commands: start | once | status | approve [note] | skip [reason] | reject [reason] | pause [reason] | resume | run-now | stop | deploy-live | reports');
   }
   await c.connection.close();
 }
