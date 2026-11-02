@@ -956,7 +956,7 @@
           "Requests"
         ],
         "summary": "Answer the request's question",
-        "description": "Use when state is AWAITING_CLARIFICATION.\n\n**Required role:** REQUESTER (when sign-in is on; it is currently off)",
+        "description": "Use when state is AWAITING_CLARIFICATION. Refused (409) in any other state.\n\n**Required role:** REQUESTER (when sign-in is on; it is currently off)",
         "operationId": "clarifyRequest",
         "parameters": [
           {
@@ -983,7 +983,7 @@
             "description": "Answer delivered"
           },
           "409": {
-            "description": "The request has already finished",
+            "description": "The request has already finished, or is not waiting for an answer",
             "content": {
               "application/json": {
                 "schema": {
@@ -1041,7 +1041,7 @@
           "Requests"
         ],
         "summary": "Cancel a waiting request",
-        "description": "Has no effect once the build has started.\n\n**Required role:** REQUESTER (when sign-in is on; it is currently off)",
+        "description": "Use before the build starts. Refused (409) once the build has started (PROVISIONING), or once the request has finished.\n\n**Required role:** REQUESTER (when sign-in is on; it is currently off)",
         "operationId": "cancelRequest",
         "parameters": [
           {
@@ -1058,7 +1058,7 @@
             "description": "Cancelled"
           },
           "409": {
-            "description": "The request has already finished",
+            "description": "The request has already finished, or the build has started",
             "content": {
               "application/json": {
                 "schema": {
