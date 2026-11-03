@@ -271,6 +271,9 @@ public class IntentWorkflowImpl implements IntentWorkflow {
                 + (failures.isEmpty() ? "" : " Failed (rolled back): " + String.join("; ", failures) + ".")
                 + (duplicates.isEmpty() ? "" : " Already existed: " + String.join(", ", duplicates) + ".");
         if (vms.size() == n) return finish("COMPLETED", "All " + n + " VMs are running.");
+        // VMs that already existed count as running, not failed: with no failures the request is complete.
+        if (!vms.isEmpty() && failures.isEmpty()) return finish("COMPLETED", "All " + n + " VMs are running ("
+                + duplicates.size() + " already existed: " + String.join(", ", duplicates) + ").");
         if (vms.isEmpty() && failures.isEmpty()) return finish("DUPLICATE", summary);
         if (vms.isEmpty()) return finish("FAILED", summary);
         return finish("PARTIAL", summary);

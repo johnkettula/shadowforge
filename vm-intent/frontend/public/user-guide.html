@@ -194,11 +194,11 @@ svg .lines path { fill: none; stroke: var(--quiet); stroke-width: 1.25; } svg .h
 <tbody>
 <tr>
 <td>COMPLETED</td>
-<td>The VM (or every VM, for a request for several) was built and is running</td>
+<td>The VM (or every VM, for a request for several) was built and is running. A request for several VMs where some already existed and the rest were built also ends COMPLETED: VMs that already existed count as running, and the message names them</td>
 </tr>
 <tr>
 <td>PARTIAL</td>
-<td>A request for several VMs where some were built and some failed (the failed ones were rolled back)</td>
+<td>A request for several VMs where some were built and at least one failed (the failed ones were rolled back)</td>
 </tr>
 <tr>
 <td>FAILED</td>
