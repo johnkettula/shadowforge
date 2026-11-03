@@ -81,7 +81,8 @@ addresses instead, set `VMINTENT_API_SERVER_URLS` (comma-separated).
   under `duplicate`, the legacy endpoint returns `409`, and a request finishes as `DUPLICATE`. It is safe
   to retry a call that timed out.
 - **Long-running work is asynchronous.** Create calls return at once with an ID; poll the matching
-  `GET` every 2–5 seconds. Final request states are `COMPLETED`, `FAILED`, `CANCELLED` and `DUPLICATE`; a
+  `GET` every 2–5 seconds. Final request states are `COMPLETED`, `PARTIAL`, `FAILED`, `CANCELLED` and
+  `DUPLICATE` (`PARTIAL`: a request for several VMs where some were built and at least one failed); a
   batch is done when `state` is `COMPLETED`.
 - **Browser pages on other sites (CORS).** A web page served from another address that calls the API from
   the browser must be listed in `VMINTENT_CORS_ORIGINS` (comma-separated; patterns like

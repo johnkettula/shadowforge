@@ -159,8 +159,10 @@ public class RequestController {
     @Tag(name = "Requests")
     @Operation(operationId = "getRequest", summary = "Get a request's status",
             description = "state is one of STARTING, INTERPRETING, AWAITING_CLARIFICATION, AWAITING_CONFIRMATION, "
-                    + "PROVISIONING, COMPLETED, FAILED, CANCELLED, DUPLICATE, or BUSY (workers didn't answer "
-                    + "within 5 seconds; try again). The last four of the first list are final.")
+                    + "PROVISIONING, COMPLETED, PARTIAL, FAILED, CANCELLED, DUPLICATE, or BUSY (workers didn't answer "
+                    + "within 5 seconds; try again). The final states are COMPLETED, PARTIAL, FAILED, CANCELLED and "
+                    + "DUPLICATE. A request for several VMs ends COMPLETED when none failed (VMs that already existed "
+                    + "count as running) and PARTIAL when some were built and some failed.")
     @ApiResponse(responseCode = "200", description = "Current status")
     @ApiResponse(responseCode = "404", description = "No such request",
             content = @Content(schema = @Schema(implementation = ApiError.class)))

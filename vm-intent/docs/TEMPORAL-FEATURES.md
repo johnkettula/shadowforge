@@ -149,8 +149,9 @@ API: `POST /api/v2/vms/{specHash}/renew | resize | power | snapshot | decommissi
 **Features:** child workflows, `Async.function` and `Promise`.
 
 "3 web servers on aws" builds three VMs named `web-01`, `web-02` and `web-03`, each in its own child
-workflow with its own rollback, at most 5 at a time. The request ends COMPLETED (all built), PARTIAL
-(some failed) or FAILED (none built). One request can ask for up to 20 VMs; for more, use a batch.
+workflow with its own rollback, at most 5 at a time. The request ends COMPLETED (built, none failed;
+VMs that already existed count as running, not failed, and the message names them), PARTIAL (some built and
+at least one failed), FAILED (none built, at least one failed) or DUPLICATE (all already existed). One request can ask for up to 20 VMs; for more, use a batch.
 
 ## 9. Replay tests
 

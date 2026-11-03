@@ -127,6 +127,47 @@ class IntentWorkflowTest {
     }
 
     @Test
+    void vmsThatAlreadyExistedCountAsRunningSoTheRequestIsCompleted() throws Exception {
+        IntentWorkflow first = start("req-two", "2 small ubuntu servers on aws called app", false);
+        waitFor(first, "AWAITING_CONFIRMATION");
+        first.confirm();
+        assertEquals("COMPLETED", WorkflowStub.fromTyped(first).getResult(RequestStatus.class).state());
+        assertEquals(2, cloud.created.get());
+
+        IntentWorkflow more = start("req-two-more", "3 small ubuntu servers on aws called app", false);
+        waitFor(more, "AWAITING_CONFIRMATION");
+        more.confirm();
+        RequestStatus done = WorkflowStub.fromTyped(more).getResult(RequestStatus.class);
+
+        assertEquals("COMPLETED", done.state(), done.message());
+        assertEquals("All 3 VMs are running (2 already existed: app-01, app-02).", done.message());
+        assertEquals(1, done.vms().size());
+        assertEquals("app-03", cloud.nameById.get(done.vms().get(0).vmId()));
+        assertEquals(3, cloud.created.get(), "only app-03 was built");
+        assertTrue(cloud.deleted.isEmpty());
+        WorkflowReplayer.replayWorkflowExecution(
+                env.getWorkflowClient().fetchHistory("req-two-more"), IntentWorkflowImpl.class);
+    }
+
+    @Test
+    void someBuiltAndSomeFailedIsPartialAndOnlyTheFailedOnesAreRolledBack() throws Exception {
+        cloud.failNames.add("mix-02");
+        IntentWorkflow wf = start("req-mixed", "3 small ubuntu servers on aws called mix", false);
+        waitFor(wf, "AWAITING_CONFIRMATION");
+        wf.confirm();
+        RequestStatus done = WorkflowStub.fromTyped(wf).getResult(RequestStatus.class);
+
+        assertEquals("PARTIAL", done.state(), done.message());
+        assertTrue(done.message().contains("2 running, 1 failed"), done.message());
+        assertTrue(done.message().contains("Failed (rolled back): mix-02"), done.message());
+        assertEquals(2, done.vms().size());
+        assertEquals(1, cloud.deleted.size());
+        assertEquals("mix-02", cloud.nameById.get(cloud.deleted.iterator().next()));
+        WorkflowReplayer.replayWorkflowExecution(
+                env.getWorkflowClient().fetchHistory("req-mixed"), IntentWorkflowImpl.class);
+    }
+
+    @Test
     void requestsAreTaggedForSearch() {
         IntentWorkflow wf = start("req-tagged", "small debian vm on azure for prod", true);
         waitFor(wf, "AWAITING_CONFIRMATION");

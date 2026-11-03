@@ -65,8 +65,10 @@ public final class TestFakes {
         return new BatchItem(spec, SpecCanonicalizer.hash(spec));
     }
 
-    /** A cloud where every VM is running on the second status check, unless its name contains "fail". */
+    /** A cloud where every VM is running on the second status check, unless its name contains "fail" or is in failNames. */
     public static class FakeCloud implements ProviderActivities {
+        /** Names of VMs that fail to boot, so one VM of a request can fail while the others run. */
+        final Set<String> failNames = ConcurrentHashMap.newKeySet();
         final AtomicInteger created = new AtomicInteger();
         final AtomicInteger throttleFirstCreates = new AtomicInteger();
         final Map<String, String> vmIdByKey = new ConcurrentHashMap<>();
@@ -105,7 +107,8 @@ public final class TestFakes {
         public VmStatus describeVm(String vmId) {
             int n = checks.computeIfAbsent(vmId, k -> new AtomicInteger()).incrementAndGet();
             if (n < 2) return new VmStatus("PENDING", null, "booting");
-            if (nameById.get(vmId).contains("fail")) return new VmStatus("FAILED", null, "boot failed");
+            String name = nameById.get(vmId);
+            if (name.contains("fail") || failNames.contains(name)) return new VmStatus("FAILED", null, "boot failed");
             return new VmStatus("RUNNING", "10.0.0." + n, "running");
         }
 

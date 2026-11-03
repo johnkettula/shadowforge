@@ -95,8 +95,8 @@ A request ends in one of five states:
 
 | Final state | What it means |
 | --- | --- |
-| COMPLETED | The VM (or every VM, for a request for several) was built and is running |
-| PARTIAL | A request for several VMs where some were built and some failed (the failed ones were rolled back) |
+| COMPLETED | The VM (or every VM, for a request for several) was built and is running. A request for several VMs where some already existed and the rest were built also ends COMPLETED: VMs that already existed count as running, and the message names them |
+| PARTIAL | A request for several VMs where some were built and at least one failed (the failed ones were rolled back) |
 | FAILED | A build step failed. The half-built VM was rolled back (deleted) |
 | CANCELLED | You cancelled, or nobody answered or confirmed within 24 hours |
 | DUPLICATE | An identical VM (same spec hash) is already built or being built, so no second one was made |
