@@ -138,7 +138,9 @@ if done["state"] == "COMPLETED":
     call("POST", f"/api/v2/vms/{h}/power", 200, {"on": False}, name="powerVm")
     call("POST", f"/api/v2/vms/{h}/snapshot", 200, {"label": "contract-test"}, name="snapshotVm")
     call("POST", f"/api/v2/vms/{h}/decommission", 200, {"reason": "contract test"}, name="decommissionVm")
+    call("POST", f"/api/v2/vms/{h}/decommission", 409, name="decommissionVm: already decommissioned -> 409")
 call("GET", "/api/v2/vms/" + "0" * 64 + "/lifecycle", 404, name="getVmLifecycle: unknown VM -> 404")
+call("POST", "/api/v2/vms/" + "0" * 64 + "/renew", 404, {"days": 7}, name="renewVm: unknown VM -> 404")
 
 # --- Requests: errors
 call("GET", "/api/v2/requests/intent-does-not-exist", 404, name="getRequest: unknown ID -> 404")

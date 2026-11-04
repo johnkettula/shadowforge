@@ -49,6 +49,7 @@
           {
             "name": "specHash",
             "in": "path",
+            "description": "The VM's spec hash",
             "required": true,
             "schema": {
               "type": "string"
@@ -72,6 +73,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/VmLifecycle"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No VM with that spec hash",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -121,6 +132,7 @@
           {
             "name": "specHash",
             "in": "path",
+            "description": "The VM's spec hash",
             "required": true,
             "schema": {
               "type": "string"
@@ -144,6 +156,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/VmLifecycle"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No VM with that spec hash",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -193,6 +215,7 @@
           {
             "name": "specHash",
             "in": "path",
+            "description": "The VM's spec hash",
             "required": true,
             "schema": {
               "type": "string"
@@ -216,6 +239,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/VmLifecycle"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No VM with that spec hash",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -265,6 +298,7 @@
           {
             "name": "specHash",
             "in": "path",
+            "description": "The VM's spec hash",
             "required": true,
             "schema": {
               "type": "string"
@@ -288,6 +322,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/VmLifecycle"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No VM with that spec hash",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -337,6 +381,7 @@
           {
             "name": "specHash",
             "in": "path",
+            "description": "The VM's spec hash",
             "required": true,
             "schema": {
               "type": "string"
@@ -359,6 +404,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/VmLifecycle"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No VM with that spec hash",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
