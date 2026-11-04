@@ -47,6 +47,7 @@ paths:
       parameters:
       - name: specHash
         in: path
+        description: The VM's spec hash
         required: true
         schema:
           type: string
@@ -63,6 +64,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/VmLifecycle"
+        "404":
+          description: No VM with that spec hash
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "409":
           description: "Refused: the VM isn't in a state that allows this (the message\
             \ says why)"
@@ -95,6 +102,7 @@ paths:
       parameters:
       - name: specHash
         in: path
+        description: The VM's spec hash
         required: true
         schema:
           type: string
@@ -111,6 +119,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/VmLifecycle"
+        "404":
+          description: No VM with that spec hash
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "409":
           description: "Refused: the VM isn't in a state that allows this (the message\
             \ says why)"
@@ -143,6 +157,7 @@ paths:
       parameters:
       - name: specHash
         in: path
+        description: The VM's spec hash
         required: true
         schema:
           type: string
@@ -159,6 +174,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/VmLifecycle"
+        "404":
+          description: No VM with that spec hash
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "409":
           description: "Refused: the VM isn't in a state that allows this (the message\
             \ says why)"
@@ -191,6 +212,7 @@ paths:
       parameters:
       - name: specHash
         in: path
+        description: The VM's spec hash
         required: true
         schema:
           type: string
@@ -207,6 +229,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/VmLifecycle"
+        "404":
+          description: No VM with that spec hash
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "409":
           description: "Refused: the VM isn't in a state that allows this (the message\
             \ says why)"
@@ -239,6 +267,7 @@ paths:
       parameters:
       - name: specHash
         in: path
+        description: The VM's spec hash
         required: true
         schema:
           type: string
@@ -254,6 +283,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/VmLifecycle"
+        "404":
+          description: No VM with that spec hash
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "409":
           description: "Refused: the VM isn't in a state that allows this (the message\
             \ says why)"

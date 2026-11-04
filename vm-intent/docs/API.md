@@ -72,8 +72,8 @@ addresses instead, set `VMINTENT_API_SERVER_URLS` (comma-separated).
 - **Free-form values** (a definition's step settings and input defaults, a run's inputs, a step's output)
   can be any JSON value, so the document gives them no type.
 - **Errors** (every 4xx and 5xx) have the body `{"error": "...", "workflowId"?: "...", "rejected"?: [...]}`.
-  `400` is a bad body, `404` an unknown ID, `409` a change that can't be made now (the `error` says why:
-  a request not waiting for an answer or confirmation, already building or already finished, a VM already off, an identical VM already built), `500` an
+  `400` is a bad body, `404` an unknown ID (including a `specHash` that matches no VM), `409` a change that can't be made now (the `error` says why:
+  a request not waiting for an answer or confirmation, already building or already finished, a VM already off or already removed, an identical VM already built), `500` an
   unexpected error, `502` a backend (vCenter, VCF Automation) that refused vm-intent's sign-in, and `503` a
   backend that isn't set up on this server or didn't answer.
 - **Idempotency.** A VM's identity is the SHA-256 of its canonical spec (`specHash`). Sending the same
@@ -159,7 +159,7 @@ python tests/api_contract_test.py http://localhost:8080
 With sign-in on, give it an ADMIN credential: `VMINTENT_TOKEN=<token>`, or `VMINTENT_CLIENT_CERT`,
 `VMINTENT_CLIENT_KEY` and `VMINTENT_CA` for a certificate.
 
-It runs 55 checks: every operation, the full question, confirm and cancel flows, a VM's day-2 changes, a
+It runs 57 checks: every operation, the full question, confirm and cancel flows, a VM's day-2 changes, a
 batch, the inventory check, the vSphere endpoints, the catalog and compliance endpoints (reading the built-in
 `web-server` definition, validating its YAML, the classifications, runs, the decision log and the archive;
 it publishes nothing and starts no run), and the 400, 404, 409 and 503 error cases (vSphere

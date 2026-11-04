@@ -44,6 +44,7 @@ import java.util.function.Function;
  * A VM's life after its build ("day 2"): expiry and renewal, resize, power, snapshots and removal.
  * Each change is a Temporal update to the VM's lifecycle workflow ("life-" + spec hash): it is
  * checked first, and the answer comes back once the change is done (or why it was refused: 409).
+ * A spec hash that matches no VM is 404.
  *
  * Also the inventory check (drift and orphans), which runs nightly on a Temporal Schedule.
  */
@@ -52,6 +53,7 @@ import java.util.function.Function;
 public class VmController {
 
     private static final String REFUSED = "Refused: the VM isn't in a state that allows this (the message says why)";
+    private static final String NO_VM = "No VM with that spec hash";
 
     private final WorkflowClient client;
     private final VmRegistry registry;
@@ -90,9 +92,10 @@ public class VmController {
     @Operation(operationId = "renewVm", summary = "Renew a VM", description = "Pushes the expiry back by 1 to 90 days "
             + "(at most 365 days from today). A VM that never expires can't be renewed.")
     @ApiResponse(responseCode = "200", description = "Renewed; the new lifecycle")
+    @ApiResponse(responseCode = "404", description = NO_VM, content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "409", description = REFUSED, content = @Content(schema = @Schema(implementation = ApiError.class)))
     @PostMapping("/vms/{specHash}/renew")
-    public VmLifecycle renew(@PathVariable String specHash, @RequestBody RenewBody body) {
+    public VmLifecycle renew(@Parameter(description = "The VM's spec hash") @PathVariable String specHash, @RequestBody RenewBody body) {
         return change(specHash, life -> life.renew(actor(), body.days()));
     }
 
@@ -100,27 +103,30 @@ public class VmController {
     @Operation(operationId = "resizeVm", summary = "Resize a VM", description = "Changes vCPU and memory. "
             + "If the cloud refuses, nothing changes and the reason comes back (409).")
     @ApiResponse(responseCode = "200", description = "Resized; the new lifecycle")
+    @ApiResponse(responseCode = "404", description = NO_VM, content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "409", description = REFUSED, content = @Content(schema = @Schema(implementation = ApiError.class)))
     @PostMapping("/vms/{specHash}/resize")
-    public VmLifecycle resize(@PathVariable String specHash, @RequestBody ResizeBody body) {
+    public VmLifecycle resize(@Parameter(description = "The VM's spec hash") @PathVariable String specHash, @RequestBody ResizeBody body) {
         return change(specHash, life -> life.resize(actor(), body.vcpu(), body.memoryGiB()));
     }
 
     @Tag(name = "VM lifecycle")
     @Operation(operationId = "powerVm", summary = "Power a VM on or off")
     @ApiResponse(responseCode = "200", description = "Done; the new lifecycle")
+    @ApiResponse(responseCode = "404", description = NO_VM, content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "409", description = REFUSED, content = @Content(schema = @Schema(implementation = ApiError.class)))
     @PostMapping("/vms/{specHash}/power")
-    public VmLifecycle power(@PathVariable String specHash, @RequestBody PowerBody body) {
+    public VmLifecycle power(@Parameter(description = "The VM's spec hash") @PathVariable String specHash, @RequestBody PowerBody body) {
         return change(specHash, life -> life.power(actor(), body.on()));
     }
 
     @Tag(name = "VM lifecycle")
     @Operation(operationId = "snapshotVm", summary = "Snapshot a VM", description = "Up to 20 snapshots per VM.")
     @ApiResponse(responseCode = "200", description = "Snapshot taken; the new lifecycle")
+    @ApiResponse(responseCode = "404", description = NO_VM, content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "409", description = REFUSED, content = @Content(schema = @Schema(implementation = ApiError.class)))
     @PostMapping("/vms/{specHash}/snapshot")
-    public VmLifecycle snapshot(@PathVariable String specHash, @RequestBody SnapshotBody body) {
+    public VmLifecycle snapshot(@Parameter(description = "The VM's spec hash") @PathVariable String specHash, @RequestBody SnapshotBody body) {
         return change(specHash, life -> life.snapshot(actor(), body.label()));
     }
 
@@ -128,9 +134,10 @@ public class VmController {
     @Operation(operationId = "decommissionVm", summary = "Remove a VM now",
             description = "Deletes the VM from its cloud and marks it DELETED. This can't be undone.")
     @ApiResponse(responseCode = "200", description = "Removed; the final lifecycle")
+    @ApiResponse(responseCode = "404", description = NO_VM, content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "409", description = REFUSED, content = @Content(schema = @Schema(implementation = ApiError.class)))
     @PostMapping("/vms/{specHash}/decommission")
-    public VmLifecycle decommission(@PathVariable String specHash, @RequestBody(required = false) DecommissionBody body) {
+    public VmLifecycle decommission(@Parameter(description = "The VM's spec hash") @PathVariable String specHash, @RequestBody(required = false) DecommissionBody body) {
         return change(specHash, life -> life.decommission(actor(), body == null ? null : body.reason()));
     }
 
@@ -164,11 +171,14 @@ public class VmController {
 
     private VmLifecycle change(String specHash, Function<VmLifecycleWorkflow, VmLifecycle> update) {
         VmLifecycleWorkflow life = life(specHash);
+        // An unknown spec hash is a mistake in the request (404); a known VM that can't be changed is 409.
+        if (registry.get(specHash) == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, NO_VM);
         requireOwner(specHash, life);
         try {
             return update.apply(life);
         } catch (WorkflowNotFoundException e) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, gone(specHash));
+            String why = gone(specHash);
+            throw new ResponseStatusException(NO_VM.equals(why) ? HttpStatus.NOT_FOUND : HttpStatus.CONFLICT, why);
         }
     }
 
@@ -192,7 +202,7 @@ public class VmController {
 
     private String gone(String specHash) {
         VmRecord r = registry.get(specHash);
-        if (r == null) return "No VM with that spec hash";
+        if (r == null) return NO_VM;
         return "This VM is " + r.state().toLowerCase() + ", so it can't be changed"
                 + (r.lifecycle() == null && "RUNNING".equals(r.state()) ? " (it was built before lifecycles existed)" : "");
     }
