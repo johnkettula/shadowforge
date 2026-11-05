@@ -125,6 +125,19 @@ vmintent:
     #     blueprint-version: ""                      # empty = the newest released version
     #     blueprint-inputs: { cpuCount: "{vcpu}", totalMemoryMB: "{memoryMiB}", image: "{os}-{osVersion}", diskGB: "{diskGiB}", env: "{env}" }
 
+  # Azure Resource Manager (provider/azure). Azure requests are still simulated; this is the client the
+  # real Azure route will use. The IDs and the secret come only from the environment. See docs/AZURE.md.
+  azure:
+    tenant-id: ${VMINTENT_AZURE_TENANT_ID:}
+    client-id: ${VMINTENT_AZURE_CLIENT_ID:}               # the service principal's application (client) ID
+    client-secret: ${VMINTENT_AZURE_CLIENT_SECRET:}
+    subscription-id: ${VMINTENT_AZURE_SUBSCRIPTION_ID:}
+    resource-group: ${VMINTENT_AZURE_RESOURCE_GROUP:}
+    location: ${VMINTENT_AZURE_LOCATION:}                 # e.g. westeurope
+    login-url: https://login.microsoftonline.com
+    management-url: https://management.azure.com
+    timeout-seconds: 30
+
   # The one-way link to domain 3. See docs/ONE-WAY-LINK.md.
   link:
     # Clouds reached over the link instead of directly: comma-separated (aws,azure), or * for all.
