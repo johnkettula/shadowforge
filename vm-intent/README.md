@@ -94,6 +94,7 @@ backend/src/main/java/com/example/vmintent/
               VmReconcileWorkflow (plan, create, verify, saga rollback)
   provider/   ProviderActivities interface + simulated AWS/Azure/GCP/vSphere adapters;
               provider/vsphere: real vCenter 9 and VCF Automation 9 clients (docs/VSPHERE.md)
+              provider/azure: the Azure Resource Manager client, not used by builds yet (docs/AZURE.md)
               (SimCloud keeps the pretend clouds in Postgres), each on its own task queues,
               and the VM inventory (VmRegistry)
   workflow/   also BatchProvisionWorkflow -> BatchShardWorkflow -> one VmReconcileWorkflow per VM
