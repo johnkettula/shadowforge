@@ -169,7 +169,8 @@ test('2: application.yml binds subnet-id, admin-username and admin-ssh-public-ke
 
 test('2: no AP-0017 commit adds a secret, password or private key to any file', () => {
   for (const sha of aps17()) {
-    const added = git(['show', '--format=', '--unified=0', sha]).split('\n')
+    // The acceptance tests name these patterns themselves; scan everything else the commit adds.
+    const added = git(['show', '--format=', '--unified=0', sha, '--', ':(top)', ':(top,exclude)vm-intent/tests/acceptance']).split('\n')
       .filter((l) => l.startsWith('+') && !l.startsWith('+++')).join('\n');
     assert.doesNotMatch(added, /-----BEGIN [A-Z ]*PRIVATE KEY-----/, `${sha.slice(0, 7)} adds no private key`);
     assert.doesNotMatch(added, /\b(client-secret|password|adminPassword)\s*:\s*(?!\$\{)[^\s#]+/i, `${sha.slice(0, 7)} adds no literal secret/password setting`);
