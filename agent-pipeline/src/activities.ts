@@ -90,14 +90,39 @@ function backlogText(cfg: PipelineConfig): string {
   return parts.join('\n\n') || '(empty)';
 }
 
-function contextFor(cfg: PipelineConfig, repo: string): string {
-  const ledger = readLedger(cfg).slice(-15);
+export const DAILY_DOCS_PREFIX = 'Daily docs';
+
+/**
+ * The day's documentation update is due when docs are on and no cycle today (UTC) has picked it yet,
+ * whatever its outcome: a failed one isn't retried the same day.
+ */
+export function dailyDocsDue(cfg: PipelineConfig, ledger: CycleResult[], now = new Date()): boolean {
+  if (cfg.dailyDocs === false) return false;
+  const today = now.toISOString().slice(0, 10);
+  return !ledger.some((r) => r.startedAt?.slice(0, 10) === today && r.requirement?.title?.startsWith(DAILY_DOCS_PREFIX));
+}
+
+const dailyDocsTask = (today: string) => `THIS CYCLE IS TODAY'S DOCUMENTATION UPDATE (asked for by John: "we should update documentation daily").
+Pick exactly one requirement whose title starts with "${DAILY_DOCS_PREFIX} ${today}:". It brings the documentation in
+line with the code as it is on ${'main'} now, and changes no code: README.md, docs/*.md (API, USER-GUIDE and the
+generated frontend/public/user-guide.html if USER-GUIDE.md changes, TEMPORAL-FEATURES, DEFINITIONS, SECURITY,
+VSPHERE, AZURE and the rest) and agent-pipeline-facing docs inside vm-intent. Look at what was merged since the
+last daily docs update (git log, ${'docs/AGENT-REQUIREMENTS.md'}), find every place the docs are now wrong, missing
+or out of date, and list each fix as an acceptance criterion a tester can check by reading the files. Leave out
+anything already correct. Risk low. Don't touch backend/, frontend/src/, tests/ except docs-only files, or the
+OpenAPI snapshots. If nothing is out of date, say so and pick no requirement.`;
+
+function contextFor(cfg: PipelineConfig, repo: string, mode: 'feature' | 'redesign' = 'feature'): string {
+  const all = readLedger(cfg);
+  const ledger = all.slice(-15);
   const lines = ledger.map(
     (r) => `- cycle ${r.cycle} (${r.mode}) ${r.requirement ? `${r.requirement.id} "${r.requirement.title}"` : ''}: ${r.outcome}${r.note ? ` — ${r.note.slice(0, 300)}` : ''}`,
   );
   const live = path.join(dirs(cfg).state, 'last-live-check.txt');
   const reqDoc = path.join(repo, cfg.requirementsDoc);
+  const docsDue = mode === 'feature' && dailyDocsDue(cfg, all);
   return [
+    ...(docsDue ? [dailyDocsTask(new Date().toISOString().slice(0, 10))] : []),
     `Recent pipeline cycles (newest last):\n${lines.join('\n') || '(none yet)'}`,
     `Backlog (from people and from redesign reviews):\n${backlogText(cfg)}`,
     `Last check of the live deployment:\n${existsSync(live) ? readFileSync(live, 'utf8').slice(-3000) : '(none yet)'}`,
@@ -123,7 +148,7 @@ export async function prepareCycle(cfg: PipelineConfig, cycle: number, mode: 'fe
   mkdirSync(d.worktrees, { recursive: true });
   git(repo, ['worktree', 'add', '-B', branch, worktree, cfg.baseBranch]);
   const baseSha = git(worktree, ['rev-parse', 'HEAD']);
-  return { cycle, mode, branch, worktree, baseSha, context: contextFor(cfg, repo), portOffset: 10 * (cycle % 10) };
+  return { cycle, mode, branch, worktree, baseSha, context: contextFor(cfg, repo, mode), portOffset: 10 * (cycle % 10) };
 }
 
 /** Best effort: a folder that can't be removed now is removed at the start of a later cycle. */

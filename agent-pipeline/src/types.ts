@@ -73,6 +73,8 @@ export interface ApprovalGates {
 }
 
 export interface PipelineConfig {
+  /** The first feature cycle of each day (UTC) brings the documentation up to date. Default on. */
+  dailyDocs?: boolean;
   approval?: ApprovalGates;
   /** Generated files (OpenAPI snapshots and the like): they count as files, but their lines don't count toward maxChangedLines. */
   generated?: string[];

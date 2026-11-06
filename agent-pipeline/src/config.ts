@@ -59,7 +59,9 @@ export function defaultConfig(): PipelineConfig {
       `${P}/docs/SECURITY.md`,
     ],
     // A person approves each requirement before it's built, and each change before it's merged.
-    approval: { beforeBuild: true, beforeMerge: true, waitDays: 7 },
+    // John decides at the end of a run, from its synopsis, instead of approving each step (2026-11-05).
+    approval: { beforeBuild: false, beforeMerge: false, waitDays: 7 },
+    dailyDocs: true,
     generated: [`${P}/docs/openapi.json`, `${P}/docs/openapi.yaml`, `${P}/frontend/package-lock.json`],
     appendOnly: [`${P}/backend/src/main/resources/db/migration/**`, `${P}/backend/src/test/resources/histories/**`],
     writableBy: {

@@ -7,6 +7,7 @@
 //   npm run ctl -- run-now          skip the wait before the next cycle
 //   npm run ctl -- stop             stop after the current cycle
 //   npm run ctl -- reports          list the cycle reports
+//   npm run ctl -- synopsis [days]  summary of the last run (default: cycles since the last 24 hours)
 //   npm run ctl -- deploy-live      rebuild and check the live copy from main now (not during a cycle)
 //   npm run ctl -- approve [note]   say yes to what the current cycle is waiting on (build or merge);
 //                                   before building, the note is passed on to the developer
@@ -17,6 +18,7 @@ import { Client, Connection, WorkflowNotFoundError } from '@temporalio/client';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { loadConfig, PIPELINE_WORKFLOW_ID, TASK_QUEUE } from './config.js';
+import { synopsis } from './synopsis.js';
 import type { CycleResult } from './types.js';
 import { decideSignal, liveDeployWorkflow, pauseSignal, pipelineWorkflow, resumeSignal, runNowSignal, stageQuery, statusQuery, stopSignal } from './workflows.js';
 
@@ -132,8 +134,15 @@ async function main() {
       if (!rows.length) console.log('no cycles yet');
       break;
     }
+    case 'synopsis': {
+      const ledger = path.join(cfg.home, 'reports', 'ledger.json');
+      const rows: CycleResult[] = existsSync(ledger) ? JSON.parse(readFileSync(ledger, 'utf8')) : [];
+      const days = Number(rest[0]) > 0 ? Number(rest[0]) : 1;
+      console.log(synopsis(rows, new Date(Date.now() - days * 86_400_000).toISOString()));
+      break;
+    }
     default:
-      console.log('commands: start | once | status | approve [note] | skip [reason] | reject [reason] | pause [reason] | resume | run-now | stop | deploy-live | reports');
+      console.log('commands: start | once | status | synopsis [days] | approve [note] | skip [reason] | reject [reason] | pause [reason] | resume | run-now | stop | deploy-live | reports');
   }
   await c.connection.close();
 }
