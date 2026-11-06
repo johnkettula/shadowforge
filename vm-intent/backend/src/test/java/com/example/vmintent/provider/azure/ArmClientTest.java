@@ -12,6 +12,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -169,6 +170,123 @@ class ArmClientTest {
                 HttpRequest.newBuilder(URI.create(arm.url() + vmPath("vm-a") + "?api-version=2024-07-01")).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
         assertEquals(401, noToken.statusCode());
+    }
+
+    // ------------------------------------------------------------------ non-blocking path (for activities)
+
+    private long operationPolls() {
+        return armCalls().stream().filter(c -> c.startsWith("GET ") && c.contains("/operations/")).count();
+    }
+
+    @Test
+    void beginReturnsWhileTheOperationIsStillInProgressWithoutPolling() {
+        arm.pollsUntilDone = 3;
+        ArmClient.Started s = client.begin("PUT", vmPath("vm-a"), vm(Map.of("managed-by", "vm-intent")));
+        assertEquals(201, s.status());
+        assertEquals("vm-a", s.body().path("name").asText());
+        assertEquals("Creating", s.body().path("properties").path("provisioningState").asText());
+        assertTrue(s.operationUrl().startsWith(arm.url() + "/subscriptions/") && s.operationUrl().contains("/operations/"), s.operationUrl());
+        assertEquals(0, operationPolls(), "no operation-status GET: " + armCalls());
+        assertEquals(1, armCalls().size(), armCalls().toString());
+        assertEquals(List.of("InProgress"), arm.operations.values().stream().map(o -> o.status).toList());
+    }
+
+    @Test
+    void operationIsReadOnceAtATimeUntilSucceeded() {
+        arm.pollsUntilDone = 2;
+        String op = client.begin("PUT", vmPath("vm-a"), vm(Map.of())).operationUrl();
+        List<ArmClient.OperationStatus> seen = new ArrayList<>();
+        ArmClient.Operation o;
+        do {
+            o = client.operation(op);
+            seen.add(o.status());
+            assertEquals(seen.size(), operationPolls(), "one GET per operation() call");
+        } while (!o.done() && seen.size() < 10);
+        assertEquals(List.of(ArmClient.OperationStatus.InProgress, ArmClient.OperationStatus.InProgress, ArmClient.OperationStatus.Succeeded), seen);
+        assertNull(o.errorCode());
+        assertEquals("Succeeded", client.get(vmPath("vm-a")).path("properties").path("provisioningState").asText());
+
+        ArmClient.Started del = client.begin("DELETE", vmPath("vm-a"), null);
+        assertEquals(202, del.status());
+        assertEquals(ArmClient.OperationStatus.InProgress, client.operation(del.operationUrl()).status());
+        assertEquals(ArmClient.OperationStatus.InProgress, client.operation(del.operationUrl()).status());
+        assertEquals(ArmClient.OperationStatus.Succeeded, client.operation(del.operationUrl()).status());
+        assertNull(arm.resource(VMS, "vm-a"));
+        assertNull(client.begin("DELETE", vmPath("vm-a"), null).operationUrl(), "already gone: 204, nothing to follow");
+    }
+
+    @Test
+    void aFailedOperationIsReturnedWithArmsCodeAndMessageNotThrown() {
+        arm.failNextOperation("Allocation failed. We do not have sufficient capacity for the requested VM size.");
+        String op = client.begin("PUT", vmPath("vm-a"), vm(Map.of())).operationUrl();
+        assertEquals(ArmClient.OperationStatus.InProgress, client.operation(op).status());
+        ArmClient.Operation o = client.operation(op);
+        assertEquals(ArmClient.OperationStatus.Failed, o.status());
+        assertTrue(o.done());
+        assertEquals("OperationFailed", o.errorCode());
+        assertTrue(o.errorMessage().contains("sufficient capacity"), o.errorMessage());
+    }
+
+    @Test
+    void operationRefusesAnAddressOutsideTheManagementUrlAndSendsNothingThere() throws Exception {
+        try (MockArm other = new MockArm()) {
+            String path = "/subscriptions/" + MockArm.SUBSCRIPTION + "/providers/Microsoft.Compute/locations/westeurope/operations/op-1?api-version=2024-07-01";
+            for (String url : List.of(other.url() + path, arm.url() + "0" + path, "https://example.com" + path)) {
+                ApplicationFailure f = assertThrows(ApplicationFailure.class, () -> client.operation(url), url);
+                assertEquals("CloudError", f.getType());
+                assertTrue(f.isNonRetryable());
+            }
+            assertTrue(other.calls.isEmpty(), other.calls.toString());
+            assertTrue(arm.calls.isEmpty(), "not even a sign-in: " + arm.calls);
+        }
+    }
+
+    @Test
+    void aRetryAfterLongerThanTheBudgetIsCloudBusyAtOnce() {
+        ArmClient fresh = new ArmClient(arm.properties());   // the default tuning, sign-in included
+        arm.retryAfter = "120";
+        arm.failNext(10, 429);
+        long start = System.nanoTime();
+        ApplicationFailure f = assertThrows(ApplicationFailure.class, () -> fresh.get(vmPath("vm-a")));
+        Duration took = Duration.ofNanos(System.nanoTime() - start);
+        assertEquals("CloudBusy", f.getType());
+        assertFalse(f.isNonRetryable());
+        assertEquals(Duration.ofSeconds(60), f.getNextRetryDelay(), "Temporal waits, up to a minute");
+        assertEquals(1, armCalls().size(), "no second try inside the call: " + armCalls());
+        assertTrue(took.compareTo(Duration.ofSeconds(15)) < 0, "took " + took);
+        assertTrue(took.compareTo(Duration.ofSeconds(5)) < 0, "did not sleep: took " + took);
+
+        arm.failNext(0, 429);
+        ArmClient.Started started = fresh.begin("PUT", vmPath("vm-a"), vm(Map.of()));
+        arm.failNext(10, 429);
+        ApplicationFailure op = assertThrows(ApplicationFailure.class, () -> fresh.operation(started.operationUrl()));
+        assertEquals("CloudBusy", op.getType());
+        assertFalse(op.isNonRetryable());
+    }
+
+    @Test
+    void anAnswerHeldPastTheRequestTimeoutIsCloudBusyWithinTheBudget() {
+        AzureProperties p = arm.properties();
+        AzureProperties slowDefault = new AzureProperties(p.tenantId(), p.clientId(), p.clientSecret(), p.subscriptionId(),
+                p.resourceGroup(), p.location(), p.loginUrl(), p.managementUrl(), null);   // timeoutSeconds: the default 30
+        ArmClient fresh = new ArmClient(slowDefault);
+        arm.responseDelay = Duration.ofSeconds(60);
+        long start = System.nanoTime();
+        ApplicationFailure f = assertThrows(ApplicationFailure.class, () -> fresh.begin("PUT", vmPath("vm-a"), vm(Map.of())));
+        Duration took = Duration.ofNanos(System.nanoTime() - start);
+        assertEquals("CloudBusy", f.getType());
+        assertFalse(f.isNonRetryable());
+        assertTrue(took.compareTo(Duration.ofSeconds(15)) < 0, "took " + took);
+        assertTrue(took.compareTo(ArmClient.Tuning.CALL_BUDGET.plusSeconds(1)) < 0, "kept to the budget: took " + took);
+    }
+
+    @Test
+    void a409IsCloudBusyRetryableAndSentOnce() {
+        arm.failNext(1, 409);
+        ApplicationFailure f = assertThrows(ApplicationFailure.class, () -> client.begin("PUT", vmPath("vm-a"), vm(Map.of())));
+        assertEquals("CloudBusy", f.getType());
+        assertFalse(f.isNonRetryable());
+        assertEquals(1, armCalls().size(), "Temporal retries it, not the client: " + armCalls());
     }
 
     @Test

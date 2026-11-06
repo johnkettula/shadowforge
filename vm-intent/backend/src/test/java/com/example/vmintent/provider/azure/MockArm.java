@@ -10,12 +10,15 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -56,15 +59,24 @@ public final class MockArm implements AutoCloseable {
     public volatile int pollsUntilDone = 1;
     /** The Retry-After header sent with 429s and operations (seconds); null = none. */
     public volatile String retryAfter = "0";
+    /** How long every ARM answer (not sign-in) is held before it is sent; zero = at once. */
+    public volatile Duration responseDelay = Duration.ZERO;
     private volatile int failCount;
     private volatile int failStatus;
     private volatile String failNextOperation;
 
     private final HttpServer server;
+    // Each exchange on its own thread, so a held answer neither blocks the next request nor close().
+    private final ExecutorService pool = Executors.newCachedThreadPool(r -> {
+        Thread t = new Thread(r, "mock-arm");
+        t.setDaemon(true);
+        return t;
+    });
 
     public MockArm() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", this::handle);
+        server.setExecutor(pool);
         server.start();
     }
 
@@ -75,6 +87,7 @@ public final class MockArm implements AutoCloseable {
     @Override
     public void close() {
         server.stop(0);
+        pool.shutdownNow();
     }
 
     /** Settings for an ArmClient that talks to this mock (both sign-in and ARM). */
@@ -125,6 +138,14 @@ public final class MockArm implements AutoCloseable {
         } catch (RuntimeException e) {
             r = err(500, "InternalServerError", e.toString());
         }
+        if (!responseDelay.isZero() && !path.endsWith("/oauth2/v2.0/token")) {
+            try {
+                Thread.sleep(responseDelay.toMillis());
+            } catch (InterruptedException e) {
+                ex.close();   // closed down
+                return;
+            }
+        }
         byte[] out = r.body() == null ? new byte[0] : JSON.writeValueAsBytes(r.body());
         ex.getResponseHeaders().add("Content-Type", "application/json");
         r.headers().forEach((k, v) -> ex.getResponseHeaders().add(k, v));
@@ -165,7 +186,8 @@ public final class MockArm implements AutoCloseable {
         if (failCount > 0) {
             failCount--;
             Map<String, String> h = failStatus == 429 && retryAfter != null ? Map.of("Retry-After", retryAfter) : Map.of();
-            return new Reply(failStatus, Map.of("error", Map.of("code", failStatus == 429 ? "TooManyRequests" : "InternalServerError",
+            String code = failStatus == 429 ? "TooManyRequests" : failStatus == 409 ? "Conflict" : "InternalServerError";
+            return new Reply(failStatus, Map.of("error", Map.of("code", code,
                     "message", "mock failure " + failStatus)), h);
         }
         if (!q.containsKey("api-version")) return err(400, "MissingApiVersionParameter", "The api-version query parameter is required.");
