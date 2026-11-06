@@ -1,7 +1,8 @@
 # Real Azure
 
 Azure requests are still simulated (VM IDs start with `az-vm-`). Part A1 adds `provider/azure`: the settings
-(`AzureProperties`) and an Azure Resource Manager client (`ArmClient`); part A2 will build VMs with it.
+(`AzureProperties`) and an Azure Resource Manager client (`ArmClient`); part A2a adds `AzureArmBackend`, which
+builds VMs with it but is not connected yet.
 
 ## Settings
 
@@ -66,7 +67,44 @@ retryable `CloudBusy` ("not ready yet") so Temporal calls it again after its bac
 | operation `Failed` / `Canceled` (`operation`) | no | returned, with ARM's code and message | - |
 | operation still running after 30 minutes (`put` / `delete`) | no | `CloudBusy` | yes |
 
+## AzureArmBackend (part A2a)
+
+`AzureArmBackend` builds, reads and removes one Linux VM with ARM, following the pattern above. It is **not
+used by `AzureProvider` yet**: Azure requests stay simulated. Part A2b connects it behind `vmintent.azure.route`.
+
+- **VM ID:** `arm:<resource-group>:<vm-name>`, e.g. `arm:rg-vmintent:app-db-01` (never `az-vm-`, the
+  simulator's prefix). `owns(vmId)` is true for IDs starting with `arm:`.
+- **Resources**, all in `resource-group` and `location`: the public IP `<name>-pip` (Standard, static), the NIC
+  `<name>-nic` on `subnet-id` with that public IP, and the VM `<name>` (OS disk removed with it).
+- **Tags** on all three: `vm-intent=managed` and `vm-intent-key=<idempotency key>`. A resource without
+  `vm-intent=managed` is never changed or removed.
+- **Settings** (`AzureVmProperties`, next to `AzureProperties`): `subnet-id` (`VMINTENT_AZURE_SUBNET_ID`, the full
+  ARM ID of an existing subnet), `admin-username` (`VMINTENT_AZURE_ADMIN_USERNAME`, default `azureuser`) and
+  `admin-ssh-public-key` (`VMINTENT_AZURE_ADMIN_SSH_PUBLIC_KEY`). VMs get SSH key sign-in only, no password.
+- **Images** (by `os-version`, then `os-major`): `ubuntu-24.04` Canonical/ubuntu-24_04-lts/server,
+  `ubuntu-22.04` Canonical/0001-com-ubuntu-server-jammy/22_04-lts-gen2, `debian-12` Debian/debian-12/12-gen2,
+  `rhel-9` RedHat/RHEL/9-lvm-gen2. Others, Windows included (it needs a password), are refused. `plan` gives the
+  size and region from `ProviderCatalog` and this image.
+
+Each call reads what ARM has, moves at most one step with `begin` and returns or throws; it keeps no state.
+
+| Call | Step | When not ready / refused |
+|---|---|---|
+| `createVm` | checks the settings | non-retryable `NotSetUp` naming what is missing; nothing is sent |
+| | checks the spec: an image for the OS, a region that maps to `location`, a catalog size | non-retryable `InvalidSpec`, before any PUT |
+| | a VM of that name exists: tagged, returns its ID (no PUT); untagged | non-retryable `InvalidSpec`, nothing sent |
+| | public IP: PUT if missing; wait for `Succeeded` | retryable `CloudBusy` (`CloudError` if `Failed`) |
+| | NIC: the same | the same |
+| | VM: PUT, then return its ID at once | - |
+| `describeVm` | reads only: `PENDING` until the VM is `Succeeded`, then `RUNNING` with the public IP's address; `FAILED` with ARM's message | missing or untagged VM: non-retryable `VmNotFound` |
+| `deleteVm` | VM, then NIC, then public IP: DELETE what still exists; returns once all three are gone | retryable `CloudBusy` while a delete runs; untagged: non-retryable `InvalidSpec`, no DELETE |
+
+`CLOUD_RETRY` keeps retrying `CloudBusy` for up to 30 minutes, so Temporal does the waiting.
+
 ## Tests
+
+`AzureArmBackendTest` calls the backend again after each `CloudBusy`, as Temporal would, against `MockArm`.
+In `MockArm`, reading a resource while its operation runs counts as a poll of that operation.
 
 `ArmClientTest` runs the client against `MockArm`, a stateful stand-in for sign-in and ARM on 127.0.0.1
 (see its comments). No test calls real Azure. `MockArm.responseDelay` holds its answers to test the request

@@ -201,6 +201,12 @@ public final class MockArm implements AutoCloseable {
         String type = x.group(3);
         if (!TYPES.contains(type)) return err(400, "InvalidResourceType", "The resource type '" + type + "' could not be found.");
         String id = id(type, x.group(4));
+        // Reading a resource while its operation runs counts as a poll of it: time passes, as on real ARM.
+        if (method.equals("GET")) {
+            operations.forEach((op, o) -> {
+                if (o.resourceId.equalsIgnoreCase(id) && o.status.equals("InProgress")) poll(op);
+            });
+        }
         ObjectNode existing = resources.get(id.toLowerCase());
         switch (method) {
             case "GET" -> {
@@ -252,11 +258,18 @@ public final class MockArm implements AutoCloseable {
             ObjectNode res = resources.get(op.resourceId.toLowerCase());
             if (op.failure != null) {
                 op.status = "Failed";
-                if (res != null) state(res, "Failed");
+                if (res != null) {
+                    state(res, "Failed");   // with the message where a VM's instance view has it
+                    ((ObjectNode) res.get("properties")).putObject("instanceView").putArray("statuses").addObject()
+                            .put("code", "ProvisioningState/failed/OperationFailed").put("level", "Error").put("message", op.failure);
+                }
             } else {
                 op.status = "Succeeded";
                 if (op.delete) resources.remove(op.resourceId.toLowerCase());
                 else if (res != null) state(res, "Succeeded");
+                if (res != null && !op.delete && op.resourceId.contains("/publicIPAddresses/")) {
+                    ((ObjectNode) res.get("properties")).put("ipAddress", "20.50.0." + ids.incrementAndGet() % 250);
+                }
             }
         }
         Map<String, Object> out = new HashMap<>(Map.of("name", opId, "status", op.status));
