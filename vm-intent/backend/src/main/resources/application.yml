@@ -137,6 +137,10 @@ vmintent:
     login-url: https://login.microsoftonline.com
     management-url: https://management.azure.com
     timeout-seconds: 30
+    # For AzureArmBackend's Linux VMs (provider/azure/AzureVmProperties.java). The SSH key is a public key only.
+    subnet-id: ${VMINTENT_AZURE_SUBNET_ID:}               # full ARM ID of an existing subnet
+    admin-username: ${VMINTENT_AZURE_ADMIN_USERNAME:azureuser}
+    admin-ssh-public-key: ${VMINTENT_AZURE_ADMIN_SSH_PUBLIC_KEY:}
 
   # The one-way link to domain 3. See docs/ONE-WAY-LINK.md.
   link:
