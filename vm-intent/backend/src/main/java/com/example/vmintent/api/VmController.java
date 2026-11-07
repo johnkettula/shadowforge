@@ -11,6 +11,7 @@ import com.example.vmintent.db.InventoryActivitiesImpl;
 import com.example.vmintent.provider.VmRegistry;
 import com.example.vmintent.security.ApiAccessRules;
 import com.example.vmintent.security.Caller;
+import com.example.vmintent.spec.VmIdentity;
 import com.example.vmintent.workflow.InventoryCheckWorkflow;
 import com.example.vmintent.workflow.Models.InventoryReport;
 import com.example.vmintent.workflow.Models.VmLifecycle;
@@ -211,7 +212,7 @@ public class VmController {
         if (!specHash.matches("[0-9a-f]{64}")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "specHash must be the 64-character SHA-256 hex string");
         }
-        return client.newWorkflowStub(VmLifecycleWorkflow.class, "life-" + specHash);
+        return client.newWorkflowStub(VmLifecycleWorkflow.class, VmIdentity.lifecycleWorkflowId(specHash));
     }
 
     private static String actor() {

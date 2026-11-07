@@ -6,6 +6,7 @@ import com.example.vmintent.intent.RuleBasedIntentExtractor;
 import com.example.vmintent.provider.ProviderActivities;
 import com.example.vmintent.provider.ProviderCatalog;
 import com.example.vmintent.spec.SpecCanonicalizer;
+import com.example.vmintent.spec.VmIdentity;
 import com.example.vmintent.spec.VmSpec;
 import com.example.vmintent.workflow.Models.BatchItem;
 import com.example.vmintent.workflow.Models.InventoryFinding;
@@ -42,11 +43,17 @@ public final class TestFakes {
 
     /** Registers every workflow and these fakes on the right task queues, and starts the workers. */
     public static void startWorkers(TestWorkflowEnvironment env, FakeCloud cloud, FakeRecords records, LinkActivities link) {
+        startWorkers(env, cloud, records, link, new FakeIntent(records));
+    }
+
+    /** The same, with these intent activities instead of FakeIntent. */
+    public static void startWorkers(TestWorkflowEnvironment env, FakeCloud cloud, FakeRecords records, LinkActivities link,
+                                    IntentActivities intentActivities) {
         Worker intent = env.newWorker(TaskQueues.INTENT);
         intent.registerWorkflowImplementationTypes(IntentWorkflowImpl.class, VmReconcileWorkflowImpl.class,
                 VmLifecycleWorkflowImpl.class, BatchProvisionWorkflowImpl.class, BatchShardWorkflowImpl.class,
                 InventoryCheckWorkflowImpl.class);
-        intent.registerActivitiesImplementations(records, link, new FakeIntent(records), new FakeInventory(records));
+        intent.registerActivitiesImplementations(records, link, intentActivities, new FakeInventory(records));
         for (String p : TaskQueues.PROVIDERS) {
             ProviderActivities view = cloud.view(p);
             env.newWorker(TaskQueues.forProvider(p)).registerActivitiesImplementations(view);
@@ -211,8 +218,8 @@ public final class TestFakes {
         }
 
         @Override
-        public Interpretation interpret(String text) {
-            return interpreter.interpret(text);
+        public Interpretation interpret(String text, String owner) {
+            return interpreter.interpret(text, owner);
         }
 
         @Override
@@ -224,11 +231,11 @@ public final class TestFakes {
         }
 
         @Override
-        public List<BatchItem> expand(Interpretation it) {
+        public List<BatchItem> expand(Interpretation it, String owner) {
             List<BatchItem> items = new ArrayList<>();
             for (int i = 1; i <= it.vmCount(); i++) {
                 VmSpec s = it.spec().withName(String.format("%s-%02d", it.spec().name(), i));
-                items.add(new BatchItem(s, SpecCanonicalizer.hash(s)));
+                items.add(new BatchItem(s, VmIdentity.hash(s, owner)));
             }
             return items;
         }

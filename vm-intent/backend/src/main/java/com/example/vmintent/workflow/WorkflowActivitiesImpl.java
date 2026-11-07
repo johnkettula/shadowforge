@@ -4,7 +4,7 @@ import com.example.vmintent.db.AuditLog;
 import com.example.vmintent.intent.IntentInterpreter;
 import com.example.vmintent.intent.Interpretation;
 import com.example.vmintent.provider.VmRegistry;
-import com.example.vmintent.spec.SpecCanonicalizer;
+import com.example.vmintent.spec.VmIdentity;
 import com.example.vmintent.spec.VmSpec;
 import com.example.vmintent.workflow.Models.BatchItem;
 import com.example.vmintent.workflow.Models.VmLifecycle;
@@ -33,8 +33,8 @@ public class WorkflowActivitiesImpl implements IntentActivities, RecordActivitie
     }
 
     @Override
-    public Interpretation interpret(String text) {
-        return interpreter.interpret(text);
+    public Interpretation interpret(String text, String owner) {
+        return interpreter.interpret(text, owner);
     }
 
     @Override
@@ -47,12 +47,12 @@ public class WorkflowActivitiesImpl implements IntentActivities, RecordActivitie
     }
 
     @Override
-    public List<BatchItem> expand(Interpretation it) {
+    public List<BatchItem> expand(Interpretation it, String owner) {
         int n = it.vmCount();
         List<BatchItem> items = new ArrayList<>(n);
         for (int i = 1; i <= n; i++) {
             VmSpec spec = it.spec().withName(String.format("%s-%02d", it.spec().name(), i));
-            items.add(new BatchItem(spec, SpecCanonicalizer.hash(spec)));
+            items.add(new BatchItem(spec, VmIdentity.hash(spec, owner)));
         }
         return items;
     }

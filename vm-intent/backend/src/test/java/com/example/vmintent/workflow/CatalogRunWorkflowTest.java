@@ -1,9 +1,11 @@
 package com.example.vmintent.workflow;
 
+import com.example.vmintent.api.RequestOwner;
 import com.example.vmintent.catalog.CatalogActivitiesImpl;
 import com.example.vmintent.catalog.CatalogModels.Blueprint;
 import com.example.vmintent.catalog.CatalogModels.Classification;
 import com.example.vmintent.catalog.CatalogModels.Definition;
+import com.example.vmintent.catalog.CatalogModels.PreparedVm;
 import com.example.vmintent.catalog.CatalogModels.RunRequest;
 import com.example.vmintent.catalog.CatalogModels.RunStatus;
 import com.example.vmintent.catalog.CatalogModels.StepState;
@@ -12,6 +14,8 @@ import com.example.vmintent.catalog.RunInputs;
 import com.example.vmintent.catalog.TargetStore;
 import com.example.vmintent.provider.ProviderActivities;
 import com.example.vmintent.provider.VmRegistry;
+import com.example.vmintent.spec.HashOwnerSpy;
+import com.example.vmintent.spec.SpecCanonicalizer;
 import com.example.vmintent.spec.VmSpec;
 import com.example.vmintent.workflow.Models.VmLifecycle;
 import com.example.vmintent.workflow.Models.VmRecord;
@@ -27,11 +31,13 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -62,6 +68,9 @@ class CatalogRunWorkflowTest {
     private TargetStore store;
     private final List<String> decisions = new CopyOnWriteArrayList<>();
     private final Map<String, String> runStates = new ConcurrentHashMap<>();
+    /** The owner prepareVm got, and the owner VmIdentity.hash got inside it. */
+    private final List<String> prepareOwners = new CopyOnWriteArrayList<>();
+    private final List<String> hashOwners = Collections.synchronizedList(new ArrayList<>());
 
     /** Remembers specs too, so the registry view below can answer like the real one. */
     static class SpecRecords extends TestFakes.FakeRecords {
@@ -112,6 +121,14 @@ class CatalogRunWorkflowTest {
                                     String reason, String classification) {
                 decisions.add(actor + " " + action + " " + (allowed ? "ALLOW" : "DENY") + " " + policy);
             }
+
+            @Override
+            public PreparedVm prepareVm(Map<String, Object> with, List<Blueprint> blueprints, String blueprint,
+                                        Map<String, Object> params, Map<String, Object> run, String owner) {
+                prepareOwners.add(String.valueOf(owner));
+                return HashOwnerSpy.recording(hashOwners,
+                        () -> super.prepareVm(with, blueprints, blueprint, params, run, owner));
+            }
         };
         Worker intent = env.newWorker(TaskQueues.INTENT);
         intent.registerWorkflowImplementationTypes(CatalogRunWorkflowImpl.class, VmReconcileWorkflowImpl.class,
@@ -145,6 +162,26 @@ class CatalogRunWorkflowTest {
         assertEquals("shop-web", records.specs.get(hash).name(), "the name came from ${ params.app + '-web' }");
         assertEquals("COMPLETED", runStates.get(s.runId()));
         assertTrue(records.has("RUN_COMPLETED"));
+    }
+
+    @Test
+    void theVmIsPreparedForTheServerSideOwnerNotRequestedBy() {
+        // Sign-in off: the owner is "anonymous", whatever requestedBy claims.
+        SecurityContextHolder.clearContext();
+        CatalogRunWorkflow run = start(webServer(), Map.of("app", "owned"), List.of(), "mallory", RequestOwner.current());
+        waitFor(run, "COMPLETED");
+        assertEquals(List.of("anonymous"), prepareOwners);
+        assertEquals(List.of("anonymous"), hashOwners);
+        assertTrue(records.has("RUN_STARTED mallory"), "requestedBy is still the name in the audit trail");
+
+        // A run started before the owner existed has none: null, which VmIdentity treats as anonymous.
+        prepareOwners.clear();
+        hashOwners.clear();
+        run = start(webServer(), Map.of("app", "older"));
+        String hash = (String) waitFor(run, "COMPLETED").steps().get(0).output().get("specHash");
+        assertEquals(List.of("null"), prepareOwners);
+        assertEquals(Collections.singletonList(null), hashOwners);
+        assertEquals(SpecCanonicalizer.hash(records.specs.get(hash)), hash, "the same hash as before owners existed");
     }
 
     @Test
@@ -357,12 +394,17 @@ class CatalogRunWorkflowTest {
     }
 
     private CatalogRunWorkflow start(Definition def, Map<String, Object> params, List<Blueprint> blueprints) {
+        return start(def, params, blueprints, "jdoe", null);
+    }
+
+    private CatalogRunWorkflow start(Definition def, Map<String, Object> params, List<Blueprint> blueprints,
+                                     String requestedBy, String owner) {
         RunInputs.Checked checked = RunInputs.check(def, params);
         assertTrue(checked.problems().isEmpty(), checked.problems().toString());
         String id = RunInputs.runId(def, checked.params());
         CatalogRunWorkflow wf = env.getWorkflowClient().newWorkflowStub(CatalogRunWorkflow.class,
                 WorkflowOptions.newBuilder().setTaskQueue(TaskQueues.INTENT).setWorkflowId(id).build());
-        WorkflowClient.start(wf::run, new RunRequest(def, blueprints, checked.params(), "jdoe", C3, false));
+        WorkflowClient.start(wf::run, new RunRequest(def, blueprints, checked.params(), requestedBy, C3, false, owner));
         return env.getWorkflowClient().newWorkflowStub(CatalogRunWorkflow.class, id);
     }
 

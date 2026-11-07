@@ -19,6 +19,7 @@ import com.example.vmintent.legacy.LegacyVmDefinition;
 import com.example.vmintent.provider.VmRegistry;
 import com.example.vmintent.security.ApiAccessRules;
 import com.example.vmintent.security.Caller;
+import com.example.vmintent.spec.VmIdentity;
 import com.example.vmintent.workflow.IntentWorkflow;
 import com.example.vmintent.workflow.Models.IntentRequest;
 import com.example.vmintent.workflow.Models.ReconcileRequest;
@@ -89,7 +90,7 @@ public class RequestController {
                     + "would ask. Starts nothing and builds nothing. Many wordings of the same VM give the same specHash.")
     @PostMapping("/v2/interpret")
     public Interpretation preview(@RequestBody TextBody body) {
-        return interpreter.interpret(body.text());
+        return interpreter.interpret(body.text(), RequestOwner.current());
     }
 
     @Tag(name = "Requests")
@@ -105,7 +106,9 @@ public class RequestController {
                 WorkflowOptions.newBuilder().setTaskQueue(TaskQueues.INTENT).setWorkflowId(id).build());
         // Signed-in callers are recorded as themselves, whatever userId says.
         String user = Caller.nameOr(body.userId(), "demo-user");
-        WorkflowClient.start(wf::run, new IntentRequest(body.text(), user, "api", search.enabled()));
+        // The VM's owner comes from sign-in only, never from userId (see VmIdentity).
+        WorkflowClient.start(wf::run, new IntentRequest(body.text(), user, "api", search.enabled(),
+                RequestOwner.current()));
         return new SubmitResponse(id);
     }
 
@@ -289,11 +292,11 @@ public class RequestController {
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @PostMapping("/v1/vms")
     public ResponseEntity<?> legacyCreate(@RequestBody LegacyVmDefinition def) {
-        Interpretation it = legacy.translate(def);
+        Interpretation it = legacy.translate(def, RequestOwner.current());
         if (it.question() != null) {
             return ResponseEntity.badRequest().body(ApiError.of(it.question()));
         }
-        String workflowId = "vm-" + it.specHash();
+        String workflowId = VmIdentity.buildWorkflowId(it.specHash());
         VmRecord existing = registry.get(it.specHash());
         if (existing != null && "RUNNING".equals(existing.state())) {
             return ResponseEntity.status(HttpStatus.CONFLICT)

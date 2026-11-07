@@ -14,8 +14,14 @@ public final class Models {
     /**
      * searchAttributes = tag the workflow with VmRequester, VmState etc. so requests can be listed and
      * filtered. Only set when the Temporal server has those attributes (see SearchAttributesSetup).
+     * owner = who the VM is for, from sign-in on the server (see VmIdentity); null (as in requests
+     * started before it existed) = anonymous. userId is only the name recorded in the audit trail.
      */
-    public record IntentRequest(String text, String userId, String channel, boolean searchAttributes) {
+    public record IntentRequest(String text, String userId, String channel, boolean searchAttributes, String owner) {
+        public IntentRequest(String text, String userId, String channel, boolean searchAttributes) {
+            this(text, userId, channel, searchAttributes, null);
+        }
+
         public IntentRequest(String text, String userId, String channel) {
             this(text, userId, channel, false);
         }

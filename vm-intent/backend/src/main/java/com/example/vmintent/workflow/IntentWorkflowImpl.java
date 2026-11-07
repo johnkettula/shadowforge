@@ -1,6 +1,7 @@
 package com.example.vmintent.workflow;
 
 import com.example.vmintent.intent.Interpretation;
+import com.example.vmintent.spec.VmIdentity;
 import com.example.vmintent.workflow.Models.BatchItem;
 import com.example.vmintent.workflow.Models.IntentRequest;
 import com.example.vmintent.workflow.Models.ReconcileRequest;
@@ -78,7 +79,7 @@ public class IntentWorkflowImpl implements IntentWorkflow {
         // 1. Interpret, asking clarifying questions until we have a full spec.
         while (true) {
             setState("INTERPRETING", "Working out what you need...");
-            interpretation = activities.interpret(text);
+            interpretation = activities.interpret(text, request.owner());
             log("Interpreted with " + interpretation.extractor());
             if (interpretation.question() == null) {
                 if (tagged) {
@@ -125,7 +126,7 @@ public class IntentWorkflowImpl implements IntentWorkflow {
         VmReconcileWorkflow child = Workflow.newChildWorkflowStub(
                 VmReconcileWorkflow.class,
                 ChildWorkflowOptions.newBuilder()
-                        .setWorkflowId("vm-" + interpretation.specHash())
+                        .setWorkflowId(VmIdentity.buildWorkflowId(interpretation.specHash()))
                         .setTaskQueue(TaskQueues.INTENT)
                         .build());
         try {
@@ -226,7 +227,7 @@ public class IntentWorkflowImpl implements IntentWorkflow {
      * child workflow ("vm-" + its spec hash), with its own rollback, so one failure doesn't stop the rest.
      */
     private RequestStatus buildMany(IntentRequest request) {
-        List<BatchItem> items = activities.expand(interpretation);
+        List<BatchItem> items = activities.expand(interpretation, request.owner());
         int n = items.size();
         VmResult[] built = new VmResult[n];
         List<String> failures = new ArrayList<>();
@@ -248,7 +249,7 @@ public class IntentWorkflowImpl implements IntentWorkflow {
             int slot = i;
             VmReconcileWorkflow child = Workflow.newChildWorkflowStub(VmReconcileWorkflow.class,
                     ChildWorkflowOptions.newBuilder()
-                            .setWorkflowId("vm-" + item.specHash())
+                            .setWorkflowId(VmIdentity.buildWorkflowId(item.specHash()))
                             .setTaskQueue(TaskQueues.INTENT)
                             .build());
             Async.function(child::reconcile,
