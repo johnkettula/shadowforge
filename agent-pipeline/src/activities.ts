@@ -456,7 +456,7 @@ export function createAgentActivities(choice: RunnerChoice) {
         cwd: prep.worktree,
         prompt: developerPrompt(cfg, req, feedback),
         schema: DEVELOPER_SCHEMA,
-        meta: { projectDir: cfg.projectDir, requirementId: req.id, feedback },
+        meta: { projectDir: cfg.projectDir, requirementId: req.id, requirementTitle: req.title, feedback },
       });
       return { summary: String((o.output as { summary?: string } | undefined)?.summary ?? o.text).slice(0, 2000), usage: o.usage, denied: o.denied };
     },

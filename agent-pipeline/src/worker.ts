@@ -5,11 +5,13 @@ import { NativeConnection, Worker } from '@temporalio/worker';
 import { fileURLToPath } from 'node:url';
 import { createActivities } from './activities.js';
 import { ClaudeAgentRunner, ScriptedAgentRunner, type AgentRunner } from './agents/runner.js';
+import { RoutingAgentRunner } from './agents/ollama.js';
 import { TASK_QUEUE } from './config.js';
 
 export async function startWorker(opts: { runner?: AgentRunner; address?: string; taskQueue?: string } = {}) {
   // The run's config says which agents to use, so a dry run (scripted) needs no worker restart.
-  const claude = new ClaudeAgentRunner();
+  // Stages listed in agent.local run on a local model first (Claude when its answer is unusable).
+  const claude = new RoutingAgentRunner(new ClaudeAgentRunner());
   const choice = opts.runner ?? ((c: { agent: { mode: string } }) => (c.agent.mode === 'scripted' ? new ScriptedAgentRunner() : claude));
   if (!opts.runner && !process.env.ANTHROPIC_API_KEY && !process.env.CLAUDE_CODE_OAUTH_TOKEN) {
     console.warn('No ANTHROPIC_API_KEY is set: only dry runs (scripted agents) will work. See README.');

@@ -93,6 +93,8 @@ export interface PipelineConfig {
     mode: 'claude' | 'scripted';
     model?: string;
     effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+    /** Stages that run on a local open model through Ollama, falling back to Claude (src/agents/ollama.ts). */
+    local?: import('./agents/ollama.js').LocalAgentConfig;
   };
   /** Paths (globs, relative to the repo root) no agent may change. Checked on every edit and again on the diff. */
   protectedPaths: string[];

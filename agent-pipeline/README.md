@@ -52,6 +52,34 @@ with its history, survives a restart of the worker, and can be paused, resumed o
 | Stops itself | 3 failed cycles in a row, or any revert, pauses the pipeline until you resume it. |
 | Checks the setup first | Before any agent runs, preflight builds and deploys `main` as it is and runs the checks. If that fails, the problem is the setup, so it pauses without spending anything. |
 
+## Local models (hybrid)
+
+Some stages run on a free open model on basement, through [Ollama](https://ollama.com), and the
+rest on Claude. John chose this on 2026-11-07 after a benchmark on basement (`local-llm/`):
+`qwen3.5:4b` passed a real requirements step and a real code change; `qwen3.5:9b` was slower and
+picked the wrong item.
+
+| Stage | Model |
+|---|---|
+| Requirements | local `qwen3.5:4b` |
+| Reviewer | local `qwen3.5:4b` |
+| Developer on the daily docs cycle | local `qwen3.5:4b` |
+| Developer (features), tester, design review | Claude |
+
+- The local agent gets the same tools (Read, Glob, Grep, Bash, Edit, Write) and every call goes
+  through the same policy, so all the guardrails above still apply.
+- If the local model gives no usable result (no valid answer, out of turns, over `maxMinutes`, or
+  Ollama is down), any half-made edits are undone and Claude does the stage. Reports say which
+  model did each stage (`[local qwen3.5:4b]` or `… done by Claude`).
+- Settings, in `pipeline.config.json`:
+  `"agent": { "mode": "claude", "effort": "high", "local": { "model": "qwen3.5:4b", "roles": ["requirements", "reviewer"], "dailyDocsDeveloper": true, "numCtx": 16384, "maxMinutes": 45 } }`.
+  Leave `local` out to run everything on Claude. A running pipeline takes a new `agent` setting
+  through the `updateConfig` signal (send the whole `agent` object).
+- Basement has no graphics card, so local stages run on the CPU: about 10 to 13 words a second,
+  and reading a long prompt takes minutes. A local reviewer is a weaker gate than Claude; the
+  staging checks and acceptance tests still run before every review.
+- Install or re-run the benchmark: `local-llm/install-and-benchmark.cmd`.
+
 ## Set up on basement
 
 You need Node 20+, Git, Java 21 + Maven, Python 3 (`pip install openapi-core requests` for the API
@@ -115,6 +143,7 @@ running worker and starts a new one; a cycle in progress carries on in the new w
 | `src/agents/policy.ts` | What each agent may do (checked on every tool call) |
 | `src/agents/prompts.ts` | What each agent is told |
 | `src/agents/runner.ts` | Claude Agent SDK runner, and the scripted runner for tests and dry runs |
+| `src/agents/ollama.ts` | Local-model runner (Ollama) and the routing between local and Claude, with the fallback |
 | `src/config.ts` | Defaults for vm-intent; `pipeline.config.json` overrides them |
 | `test/` | `npm test`: the rules, and full cycles against a real Temporal server and a small fixture repo |
 
