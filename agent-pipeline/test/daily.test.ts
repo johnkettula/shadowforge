@@ -48,3 +48,12 @@ test('the synopsis lists what merged, what needs a look, and the cost', () => {
   assert.doesNotMatch(s, /Old one/);
   assert.equal(synopsis([], '2026-11-06'), 'No cycles since 2026-11-06.');
 });
+
+test('the requirements prompt lists the protected files, which no criterion may require changing', async () => {
+  const { requirementsPrompt, ROLE_PROMPTS: PROMPTS } = await import('../src/agents/prompts.js');
+  const cfg = defaultConfig();
+  const p = requirementsPrompt(cfg, '(context)');
+  assert.match(p, /Protected files/);
+  assert.match(p, /docs\/SECURITY\.md/);
+  assert.match(PROMPTS.requirements, /Never write a criterion that needs a protected file changed/);
+});

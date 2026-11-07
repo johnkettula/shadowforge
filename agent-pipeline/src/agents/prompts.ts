@@ -33,6 +33,9 @@ context) unless you have a clearly different approach, or the backlog asks for a
 criterion says something must not change, phrase it as "no commit for this requirement touches X",
 never "the branch doesn't touch X": the acceptance tests are kept and re-run on every later
 cycle's branch, and a whole-branch check would block every later change to X.
+Never write a criterion that needs a protected file changed (listed below): agents can't edit those, so
+the requirement could never pass (cycle 19 failed this way on docs/SECURITY.md). If a protected file
+should change, say so in the rationale ("a person should update docs/SECURITY.md: ...") instead.
 Set risk "high" for anything that changes security, sign-in, authorization, data deletion,
 database migrations that drop or rewrite data, or the Temporal workflow interfaces in a way that
 breaks running workflows. High-risk requirements are parked for a person rather than built.
@@ -90,6 +93,9 @@ ${cfg.goals || '(none given: use your judgement)'}
 
 Context from the pipeline:
 ${context}
+
+Protected files (only people change them; no criterion may require changing one):
+${cfg.protectedPaths.map((p) => `- ${p}`).join('\n')}
 
 The project is in ${cfg.projectDir}/. Choose the next requirement.`;
 }
