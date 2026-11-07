@@ -62,7 +62,7 @@ export function defaultConfig(): PipelineConfig {
     // John decides at the end of a run, from its synopsis, instead of approving each step (2026-11-05).
     approval: { beforeBuild: false, beforeMerge: false, waitDays: 7 },
     dailyDocs: true,
-    generated: [`${P}/docs/openapi.json`, `${P}/docs/openapi.yaml`, `${P}/frontend/package-lock.json`],
+    generated: [`${P}/docs/openapi.json`, `${P}/docs/openapi.yaml`, `${P}/frontend/package-lock.json`, `${P}/backend/src/test/resources/histories/**`],
     appendOnly: [`${P}/backend/src/main/resources/db/migration/**`, `${P}/backend/src/test/resources/histories/**`],
     writableBy: {
       developer: [`${P}/**`],
