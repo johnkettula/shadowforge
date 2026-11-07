@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dailyDocsDue } from '../src/activities.js';
+import { dailyDocsDue, dailyDocsTask } from '../src/activities.js';
 import { defaultConfig } from '../src/config.js';
 import { synopsis } from '../src/synopsis.js';
 import type { CycleResult } from '../src/types.js';
@@ -19,6 +19,14 @@ test('the daily docs update is due once per UTC day, whatever happened to it', (
   assert.equal(dailyDocsDue(cfg, [row(2, '2026-11-06T00:10:00Z', 'Daily docs 2026-11-06: x', 'abandoned')], now), false, 'not retried the same day');
   assert.equal(dailyDocsDue(cfg, [row(3, '2026-11-06T00:10:00Z', 'Some feature')], now), true);
   assert.equal(dailyDocsDue({ ...cfg, dailyDocs: false }, [], now), false);
+});
+
+test('the daily docs task asks for a full check and a Last updated date on each edited doc', () => {
+  const t = dailyDocsTask('2026-11-07');
+  assert.match(t, /Daily docs 2026-11-07:/);
+  assert.match(t, /read every one of those docs in full/);
+  assert.match(t, /Last updated 2026-11-07\./);
+  assert.match(t, /Don't change the date of a doc you don't otherwise edit/);
 });
 
 test('approvals are off by default; daily docs on', () => {

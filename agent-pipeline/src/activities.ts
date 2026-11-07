@@ -102,15 +102,21 @@ export function dailyDocsDue(cfg: PipelineConfig, ledger: CycleResult[], now = n
   return !ledger.some((r) => r.startedAt?.slice(0, 10) === today && r.requirement?.title?.startsWith(DAILY_DOCS_PREFIX));
 }
 
-const dailyDocsTask = (today: string) => `THIS CYCLE IS TODAY'S DOCUMENTATION UPDATE (asked for by John: "we should update documentation daily").
+export const dailyDocsTask = (today: string) => `THIS CYCLE IS TODAY'S DOCUMENTATION UPDATE (asked for by John: "we should update documentation daily"
+and "really check those docs for changes").
 Pick exactly one requirement whose title starts with "${DAILY_DOCS_PREFIX} ${today}:". It brings the documentation in
 line with the code as it is on ${'main'} now, and changes no code: README.md, docs/*.md (API, USER-GUIDE and the
 generated frontend/public/user-guide.html if USER-GUIDE.md changes, TEMPORAL-FEATURES, DEFINITIONS, SECURITY,
-VSPHERE, AZURE and the rest) and agent-pipeline-facing docs inside vm-intent. Look at what was merged since the
-last daily docs update (git log, ${'docs/AGENT-REQUIREMENTS.md'}), find every place the docs are now wrong, missing
-or out of date, and list each fix as an acceptance criterion a tester can check by reading the files. Leave out
-anything already correct. Risk low. Don't touch backend/, frontend/src/, tests/ except docs-only files, or the
-OpenAPI snapshots. If nothing is out of date, say so and pick no requirement.`;
+VSPHERE, AZURE and the rest) and agent-pipeline-facing docs inside vm-intent.
+Check thoroughly, not only the latest merges: read every one of those docs in full and check each concrete claim
+(endpoints, settings and their defaults, states, file and class names, commands, counts, which clouds are real or
+simulated) against the code. Also look at what was merged since the last daily docs update (git log,
+${'docs/AGENT-REQUIREMENTS.md'}). Find every place the docs are now wrong, missing or out of date, and list each fix
+as an acceptance criterion a tester can check by reading the files. Leave out anything already correct.
+Dates: every doc this change edits must have a "Last updated ${today}." line near its top (just under the title),
+added if it is missing and replaced if it shows an older date; make that an acceptance criterion naming each file.
+Don't change the date of a doc you don't otherwise edit. Risk low. Don't touch backend/, frontend/src/, tests/
+except docs-only files, or the OpenAPI snapshots. If nothing is out of date, say so and pick no requirement.`;
 
 function contextFor(cfg: PipelineConfig, repo: string, mode: 'feature' | 'redesign' = 'feature'): string {
   const all = readLedger(cfg);
