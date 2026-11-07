@@ -87,6 +87,10 @@ export function defaultConfig(): PipelineConfig {
         '^python3? [\\w./-]+\\.py\\b',
         '^python3? -m (pytest|py_compile|unittest)\\b',
         '^git (add|restore)\\b',
+        // Removing a stray file the developer added (a reviewer asked for this in cycle 18 and the developer
+        // couldn't). One file at a time; recursive deletes stay refused by DENY_ALWAYS.
+        '^git rm( -q| -f| --cached)* [\\w./-]+$',
+        '^rm( -f)? [\\w./-]+$',
         '^(mkdir|touch)\\b',
         '^(cp|mv) [\\w./-]+ [\\w./-]+$',
       ],
