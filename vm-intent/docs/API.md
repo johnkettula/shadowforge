@@ -1,5 +1,7 @@
 # vm-intent REST API: guide for calling services
 
+Last updated 2026-11-07.
+
 The API is described by an **OpenAPI 3.0** document that the server generates from its own code, so the
 document always matches what the server does. `tests/api_contract_test.py` calls every endpoint and checks
 each real response against the document.
@@ -44,10 +46,10 @@ addresses instead, set `VMINTENT_API_SERVER_URLS` (comma-separated).
 | `createLegacyVm` | `POST /api/v1/vms` | The old universal JSON format |
 | `listDefinitions` | `GET /api/v2/definitions` | Catalog definitions and blueprints ([DEFINITIONS.md](DEFINITIONS.md)) |
 | `getDefinition` | `GET /api/v2/definitions/{kind}/{name}` | One, as data and as its YAML |
-| `validateDefinition` | `POST /api/v2/definitions/validate` | Check YAML (`application/yaml`, or JSON `{"yaml": ...}`); every problem listed |
-| `publishDefinition` | `POST /api/v2/definitions` | Publish (OPERATOR). 201 published, 200 unchanged, 422 refused with the problems |
+| `validateDefinition` | `POST /api/v2/definitions/validate` | Check YAML (`application/yaml`, or JSON `{"yaml": ...}`); every problem listed. In the OpenAPI document (and generated clients) this operation is `validateDefinitionJson` |
+| `publishDefinition` | `POST /api/v2/definitions` | Publish (OPERATOR). 201 published, 200 unchanged, 422 refused with the problems. In the OpenAPI document (and generated clients) this operation is `publishDefinitionJson` |
 | `retireDefinition` | `POST /api/v2/definitions/{kind}/{name}/{version}/retire` | No new runs of that version (OPERATOR) |
-| `listClassifications` | `GET /api/v2/classifications` | `{"default": "C2", "classifications": [{"code", "label", "retentionYears"}, ...]}`: the `default` code (one of those listed) applies when neither a run nor its definition gives one, then every code with its text and retention in years |
+| `listClassifications` | `GET /api/v2/classifications` | `{"default": "C1", "classifications": [{"code", "label", "retentionYears"}, ...]}`: the `default` code (one of those listed) applies when neither a run nor its definition gives one, then every code with its text and retention in years |
 | `startRun` | `POST /api/v2/runs` | `{"definition": "web-server", "params": {"app": "shop"}}`. 201 started; 200 with `existing: true` if the same inputs are already running |
 | `listRuns` | `GET /api/v2/runs` | Recent catalog runs |
 | `getRun` | `GET /api/v2/runs/{runId}` | Every step, what it produced, what the run waits for |

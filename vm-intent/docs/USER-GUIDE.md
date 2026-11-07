@@ -1,10 +1,10 @@
 # vm-intent User Guide
 
-Last updated 21 October 2026.
+Last updated 2026-11-07.
 
 ## What vm-intent does
 
-You ask for a virtual machine in plain English, and vm-intent builds it on vSphere, AWS, Azure or Google Cloud. The clouds are **simulated** in this version, so nothing real is created and no cloud accounts are needed.
+You ask for a virtual machine in plain English, and vm-intent builds it on vSphere, AWS, Azure or Google Cloud. The clouds are **simulated** by default, so nothing real is created and no cloud accounts are needed. An administrator can connect vSphere to a real vCenter 9 or VCF Automation 9 (`docs/VSPHERE.md`); real Azure is being built and isn't connected yet.
 
 How a request becomes a VM:
 
@@ -30,11 +30,14 @@ Open the web app in any browser. Use `localhost` on basement itself, or basement
 
 If the network address stops working, your router may have given basement a new one. Double-click `7-show-addresses.cmd` in the vm-intent folder to see the current addresses.
 
-The web app is one page with three parts:
+The web app is one page with these parts:
 
 - **Request panel**, with two tabs: **Plain English** for typed requests and **Legacy JSON API** for the old JSON format.
 - **Request card**, which appears once you submit. It shows the state, the questions, the spec and the finished VM.
-- **Inventory**, a list of every VM and its state.
+- **Requests**, the list of recent requests, to find one again.
+- **Inventory**, a list of every VM and its state. Click a VM to look after it.
+- **Inventory check**, the result of the nightly check, with **Run now**.
+- **Catalog**, for ready-made jobs from operators, and **Compliance**, for auditors.
 
 The **Help** menu at the top right opens this guide, the API documentation and the Temporal UI.
 
@@ -103,7 +106,7 @@ A request ends in one of five states:
 
 **Confirming checks the spec.** **Looks right, build it** sends the spec hash you were looking at. If the request isn't waiting any more, or the spec isn't the one you saw, you get a message saying so instead of a build.
 
-**Audit trail.** Open *Audit trail* on the card for a timed list of what happened and who did it. Events include REQUESTED, QUESTION_ASKED, ANSWERED, INTERPRETED, CONFIRMED, PROVISIONING, VM_CREATED, RUNNING, ROLLED_BACK, COMPLETED, FAILED, CANCELLED and DUPLICATE, plus the lifecycle events below. The trail is kept in the database, so it survives restarts.
+**Audit trail.** Open *Audit trail* on the card for a timed list of what happened and who did it. Events include REQUESTED, QUESTION_ASKED, ANSWERED, INTERPRETED, CONFIRMED, PROVISIONING, VM_CREATED, RUNNING, ROLLED_BACK, COMPLETED, PARTIAL, FAILED, CANCELLED and DUPLICATE, plus the lifecycle events below. The trail is kept in the database, so it survives restarts.
 
 **Workflow history.** Open *Workflow history* for the steps the workflow ran. Its **open workflow** link shows every step, with timings and retries, in the Temporal UI.
 
@@ -228,7 +231,7 @@ The web app can't sign in yet, so use it only with sign-in off. Setup steps for 
 
 ## For other services: the REST API
 
-Everything the web app does is also available to other systems through a REST API, described by an OpenAPI 3.0 document.
+Everything the web app does is also available to other systems through a REST API, described by an OpenAPI 3.0 document. The table below lists the main operations; all 42 are in `docs/API.md`.
 
 - **Swagger UI** (`/swagger-ui.html`): read every operation and try it with **Try it out**. Each operation lists its **Required role**.
 - **OpenAPI document** (`/v3/api-docs`, or `/v3/api-docs.yaml`): point a client generator or an API gateway at it.

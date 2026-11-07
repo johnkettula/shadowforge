@@ -33,23 +33,24 @@ def label(x, y, words, anchor="middle"):
 # The same picture as the request-states diagram in the shared guide, as plain SVG.
 DIAGRAM = (
     "<figure class='diagram'><svg viewBox='0 0 800 384' role='img' "
-    "aria-label='Every request ends in one of four states'>"
+    "aria-label='Every request ends in one of five states'>"
     "<defs><marker id='arrow' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' "
     "orient='auto-start-reverse'><path d='M0 0L10 5L0 10z' class='head'/></marker></defs>"
-    "<text class='title' x='20' y='30'>Every request ends in one of four states</text>"
+    "<text class='title' x='20' y='30'>Every request ends in one of five states</text>"
     "<g class='lines'>"
     + "".join(f"<path d='{d}' marker-end='url(#arrow)'/>" for d in [
         "M108 134V158", "M196 184H210", "M388 184H402", "M580 184H594", "M300 160V84H402",
-        "M88 208V278", "M128 280V210", "M300 208V278", "M196 304H210", "M492 208V278"])
+        "M88 208V278", "M128 280V210", "M300 208V278", "M196 304H210", "M492 208V278", "M560 160L618 110"])
     + "</g>"
     + label(108, 126, "You submit")
     + box(108, 184, "Interpreting") + box(300, 184, "Awaiting confirmation") + box(492, 184, "Provisioning")
-    + box(684, 184, "Completed", "done") + box(492, 84, "Duplicate", "final")
+    + box(684, 184, "Completed", "done") + box(492, 84, "Duplicate", "final") + box(684, 84, "Partial", "final")
     + box(108, 304, "Awaiting clarification") + box(300, 304, "Cancelled", "final") + box(492, 304, "Failed", "final")
     + label(203, 150, "spec complete") + label(395, 150, "you confirm") + label(587, 150, "VM boots")
     + label(352, 76, "already exists") + label(82, 248, "missing", "end")
     + label(134, 248, "you answer", "start") + label(306, 248, "cancel, or no reply in 24 h", "start")
     + label(498, 248, "a step fails, VM rolled back", "start")
+    + label(626, 132, "several VMs, some failed", "start")
     + label(20, 364, "Shaded boxes are final states. Cancel works in either waiting state.", "start")
     + "</svg></figure>"
 )

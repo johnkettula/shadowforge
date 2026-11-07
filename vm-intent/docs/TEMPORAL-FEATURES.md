@@ -1,5 +1,7 @@
 # Temporal features in vm-intent
 
+Last updated 2026-11-07.
+
 This page explains which Temporal features vm-intent uses, what each one is for, where it is in the
 code, and how to see it working. It's written for someone learning Temporal.
 
@@ -227,3 +229,5 @@ One thing to know: it only skips ahead while a timer is waiting. To wait for a w
 | `ReplayTest` | Old histories against new code, including real catalog runs (resumed, torn down, approved) |
 | `CatalogRunWorkflowTest` | Steps in order, resume with partial work, teardown, 30-day auto teardown, approvals, blueprints |
 | `CountPhrasingTest` | "3 web servers" vs "a RHEL 9 server" |
+| `BatchWorkflowTest` | Batches in shards: rollbacks, duplicates in one batch, throttled creates retried |
+| `VsphereRoutesWorkflowTest` | vSphere builds through the mock vCenter 9 and VCF Automation 9, their rollbacks, and a catalog run that deploys a blueprint and tears it down |

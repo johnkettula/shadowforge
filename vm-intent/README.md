@@ -1,9 +1,13 @@
 # vm-intent: natural-language VM requests on Temporal
 
+Last updated 2026-11-07.
+
 You type a request for a VM in plain English. One canonical, cloud-neutral spec
 comes out, and a Temporal workflow builds it on vSphere, AWS, Azure or Google
-Cloud. The four clouds are **simulated** here, so everything runs on this PC
-with no cloud accounts.
+Cloud. The clouds are **simulated** by default, so everything runs on this PC
+with no cloud accounts. vSphere can also use a real vCenter 9 or VCF Automation 9
+([docs/VSPHERE.md](docs/VSPHERE.md)); real Azure is being built and isn't connected yet
+([docs/AZURE.md](docs/AZURE.md)).
 
 Stack: **React + TypeScript (Vite)** front end, **Spring Boot 3 + Temporal Java SDK** back end.
 
@@ -94,7 +98,8 @@ backend/src/main/java/com/example/vmintent/
               VmReconcileWorkflow (plan, create, verify, saga rollback)
   provider/   ProviderActivities interface + simulated AWS/Azure/GCP/vSphere adapters;
               provider/vsphere: real vCenter 9 and VCF Automation 9 clients (docs/VSPHERE.md)
-              provider/azure: the Azure Resource Manager client, not used by builds yet (docs/AZURE.md)
+              provider/azure: the Azure Resource Manager client (ArmClient) and AzureArmBackend
+              (create, describe, delete one VM); not connected to builds yet (docs/AZURE.md)
               (SimCloud keeps the pretend clouds in Postgres), each on its own task queues,
               and the VM inventory (VmRegistry)
   workflow/   also BatchProvisionWorkflow -> BatchShardWorkflow -> one VmReconcileWorkflow per VM
@@ -128,7 +133,8 @@ takes a little longer.
 
 - Tables are created by Flyway from `backend/src/main/resources/db/migration`.
 - Audit events: REQUESTED, QUESTION_ASKED, ANSWERED, INTERPRETED, CONFIRMED, PROVISIONING,
-  VM_CREATED, RUNNING, ROLLED_BACK, COMPLETED, FAILED, CANCELLED, DUPLICATE.
+  VM_CREATED, RUNNING, ROLLED_BACK, COMPLETED, PARTIAL, FAILED, CANCELLED, DUPLICATE, plus each VM's
+  lifecycle events (EXPIRY_WARNING, RENEWED, RESIZED, POWERED_ON, POWERED_OFF, SNAPSHOT, DELETED and others).
 - API: `GET /api/v2/audit?requestId=...` or `?specHash=...`. The UI shows it under "Audit trail".
 - To use a real Postgres server, set `vmintent.db.embedded: false` in `application.yml` and fill in
   `spring.datasource.url`, `username` and `VMINTENT_DB_PASSWORD`.
@@ -152,7 +158,7 @@ gateway import.
 
 **Sign-in:** set `VMINTENT_SECURITY_MODE` to `entra` (Microsoft Entra ID access tokens, roles from Entra
 app roles), `pki` (client certificates from your CAs, on an allowlist that gives each one a role) or
-`entra,pki`. Both use the same four roles: ADMIN, BATCH, REQUESTER, READER. Setup steps: `docs/SECURITY.md`.
+`entra,pki`. Both use the same six roles: ADMIN, OPERATOR, AUDITOR, BATCH, REQUESTER, READER. Setup steps: `docs/SECURITY.md`.
 Off by default, in which case keep the API on a private network. `python tests/api_contract_test.py` checks every endpoint against the live document.
 
 ## Building thousands of VMs at once
@@ -239,8 +245,9 @@ be quick. Try the example phrasings with **Preview** to compare a model with the
 
 ## Next steps toward production
 
-- Replace a `SimulatedProvider` subclass with real SDK calls, such as AWS SDK for Java v2
-  `Ec2Client.runInstances` with a `clientToken` for idempotency.
+- Make the other clouds real the way vSphere was ([docs/VSPHERE.md](docs/VSPHERE.md)) and Azure is being
+  done ([docs/AZURE.md](docs/AZURE.md)): for AWS, the EC2 API's `RunInstances` with a `ClientToken` for
+  idempotency.
 - Send the EXPIRY_WARNING audit events as email or chat messages.
 - Point the catalog's file actions at the real SSH servers and MinIO instead of the local
   file store (`catalog/TargetStore.java`), and replace the placeholder classification codes.

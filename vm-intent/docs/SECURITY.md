@@ -1,5 +1,7 @@
 # Sign-in and permissions
 
+Last updated 2026-11-07.
+
 vm-intent's REST API can require callers to sign in, in either of two ways:
 
 - **Microsoft Entra ID access tokens.** People and services sign in with Entra, and Entra **app roles**
@@ -8,7 +10,7 @@ vm-intent's REST API can require callers to sign in, in either of two ways:
   on the server names the specific certificates that may call, and gives each one a role. See
   [Client certificates (PKI)](#client-certificates-pki).
 
-Both lead to the same four roles and the same rules for each operation.
+Both lead to the same six roles and the same rules for each operation.
 
 | `VMINTENT_SECURITY_MODE` | Who may call |
 |---|---|
@@ -74,11 +76,13 @@ Use the Entra admin center (entra.microsoft.com), with rights to create app regi
 2. **Expose an API → Application ID URI → Add**, and set it to `api://vm-intent` (or keep the default `api://<client-id>`).
 3. **Expose an API → Add a scope**, twice: `VmIntent.Request` and `VmIntent.Read`, consented by admins and users.
    These are for people signing in through an app.
-4. **App roles → Create app role**, four times:
+4. **App roles → Create app role**, six times:
 
    | Display name | Value | Allowed member types |
    |---|---|---|
    | VM Intent admin | `VmIntent.Admin` | Users/Groups + Applications |
+   | VM Intent operator | `VmIntent.Operator` | Users/Groups (and Applications for a publishing pipeline) |
+   | VM Intent auditor | `VmIntent.Auditor` | Users/Groups |
    | VM Intent batch | `VmIntent.Batch` | Applications (and Users/Groups if people run batches) |
    | VM Intent requester | `VmIntent.Request` | Users/Groups |
    | VM Intent reader | `VmIntent.Read` | Users/Groups + Applications |
@@ -136,7 +140,7 @@ certificates* you chose: a certificate from a trusted CA that isn't listed is re
 ```yaml
 clients:
   - name: ci-pipeline            # audit trail: "pki:ci-pipeline"
-    role: BATCH                  # ADMIN, BATCH, REQUESTER or READER
+    role: BATCH                  # ADMIN, OPERATOR, AUDITOR, BATCH, REQUESTER or READER
     subject: "CN=ci-pipeline,OU=Build Services,O=Example Corp,C=US"
     issuer: "CN=Example Issuing CA 1,O=Example Corp,C=US"   # recommended with subject
   - name: reporting
@@ -292,6 +296,6 @@ Each file's header has the exact commands. Never point a real deployment at eith
 
 The roles and per-operation rules live in one place (`security/ApiAccessRules.java`), separate from how
 callers prove who they are. Entra ID (`SecurityConfig`) and client certificates (`PkiAuthenticationFilter`) are
-two methods that both end in the same four roles. Another one, such as an attribute service that looks up a
+two methods that both end in the same six roles. Another one, such as an attribute service that looks up a
 certificate holder's entitlements, would sit next to them: for example, it could replace the allowlist
 lookup. Nothing else changes.

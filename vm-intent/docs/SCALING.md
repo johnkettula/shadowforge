@@ -1,5 +1,7 @@
 # Scaling vm-intent to 2,000 VM builds at once
 
+Last updated 2026-11-07.
+
 This page explains how the provisioning engine runs thousands of VM builds at the same time,
 what limits it, and what the load tests showed.
 
@@ -27,7 +29,7 @@ VmReconcileWorkflow x 2,000  "vm-<spec hash>"
 | **Shards of 500 under one batch** | Each workflow's history stays small (a few thousand events, well under Temporal's 51,200 limit). The batch also stays under the limit of 2,000 open child workflows per parent. A 10,000-VM batch is just 20 shards. |
 | **No activity waits for boot** | `createVm` returns at once. The workflow then sleeps on a Temporal timer and checks status (after 15 s, then every 5 s rising to every 30 s). A sleeping workflow uses no worker thread, so 2,000 waiting builds cost almost nothing. |
 | **Two queues per cloud** | `aws-q` (create/delete) and `aws-read-q` (plan/status) have separate rate limits, the way real cloud APIs do. |
-| **Server-side rate limits** | `maxTaskQueueActivitiesPerSecond` is enforced by Temporal across all workers, so adding workers never breaks a cloud's API limit. Defaults: 25 creates/s per public cloud, 15 per vSphere. |
+| **Server-side rate limits** | `maxTaskQueueActivitiesPerSecond` is enforced by Temporal across all workers, so adding workers never breaks a cloud's API limit. Defaults: 25 creates/s for AWS and Google Cloud, 8 for Azure (its documented limit), 15 for vSphere. |
 | **Throttling is retried, not failed** | A cloud "429" is retried with exponential backoff (2 s doubling to 60 s), for up to 30 minutes. |
 | **Separate API and worker processes** | The same jar runs as `api` (REST only) or `worker` (workflows only). To scale, add workers; nothing else changes. |
 | **Virtual threads (Java 21)** | Workflow and activity threads are virtual, so a worker can hold thousands of cached workflows. |
@@ -40,7 +42,7 @@ The ramp-up is set by the create rate limits, not by Temporal:
 
 ```
 time to start every VM  ≈  number of VMs / total creates per second
-2,000 / (25 + 25 + 25 + 15)  ≈  22 seconds
+2,000 / (25 + 8 + 25 + 15)  ≈  27 seconds
 ```
 
 Total time is roughly that ramp-up plus the slowest boot plus one status-check interval (up to 30 s).
@@ -120,6 +122,8 @@ in-memory test server, with timers skipped and a fake cloud. It checks:
 
 ## What is still simulated
 
-The four clouds are simulated (`SimCloud`). To go live, replace `createVm`, `describeVm` and `deleteVm` in
-each provider class with real SDK calls: for AWS, `RunInstances` with `ClientToken` = spec hash,
-`DescribeInstances`, and `TerminateInstances`. Nothing in the workflows changes.
+By default every cloud is simulated (`SimCloud`). vSphere can already be real (vCenter 9 or VCF Automation 9,
+see [VSPHERE.md](VSPHERE.md)), and real Azure is being built ([AZURE.md](AZURE.md)). For the rest, `createVm`,
+`describeVm` and `deleteVm` get real API calls the same way: for AWS, `RunInstances` with `ClientToken` = spec
+hash, `DescribeInstances`, and `TerminateInstances`. Nothing in the workflows changes. The load-test results
+above are all against the simulated clouds.
