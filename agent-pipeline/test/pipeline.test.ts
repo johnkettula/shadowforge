@@ -425,6 +425,16 @@ test('acceptance tests don\'t count toward the line limit: a passing tester\'s t
   assert.doesNotMatch(readFileSync(ledger(cfg)[0].reportPath, 'utf8'), /tester broke the rules/);
 });
 
+test('acceptance tests don\'t count toward the file limit either (cycle 21)', async () => {
+  // The developer's change is one file, the limit; the scripted tester adds a test file on top.
+  const cfg = fixture('testfiles');
+  cfg.limits.maxChangedFiles = 1;
+  const s = await runPipeline(cfg, script({}));
+  assert.equal(s.recent[0].outcome, 'merged', s.recent[0].note);
+  assert.match(remoteFile(cfg, 'app/acceptance/ap-0001/requests-endpoint.test.mjs'), /scripted tester/, 'the tests were kept');
+  assert.doesNotMatch(readFileSync(ledger(cfg)[0].reportPath, 'utf8'), /tester broke the rules/);
+});
+
 test('deploy-live: a leftover process on the live port is stopped, and live is rebuilt and checked', { timeout: 120_000 }, async () => {
   const cfg = fixture('deploylive');
   // An orphan from an earlier live run, which the pipeline has no record of, holding the live API port.
