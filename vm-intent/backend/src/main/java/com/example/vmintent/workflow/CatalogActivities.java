@@ -16,9 +16,13 @@ import java.util.Map;
 @ActivityInterface
 public interface CatalogActivities {
 
-    /** vm.create: the spec from the step's settings, checked against policy and the blueprints. */
+    /**
+     * vm.create: the spec from the step's settings, checked against policy and the blueprints.
+     * owner = who the VM is for (see VmIdentity); tasks scheduled before it was added read it as
+     * null = anonymous.
+     */
     PreparedVm prepareVm(Map<String, Object> with, List<Blueprint> blueprints, String blueprint,
-                         Map<String, Object> params, Map<String, Object> run);
+                         Map<String, Object> params, Map<String, Object> run, String owner);
 
     /** The VM with this spec hash if it's built or being built: state, vmId, ipAddress, ...; else null. */
     Map<String, Object> existingVm(String specHash);

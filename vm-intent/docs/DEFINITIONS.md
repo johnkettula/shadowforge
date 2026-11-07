@@ -121,6 +121,16 @@ so expressions stay valid if it's swapped for cel-java later.
 `vm.create` uses the same build workflow as plain-English requests, so the VM gets the same rollback,
 the one-way link when its cloud is behind it, and a lifecycle workflow (expiry, renewal, day-2 changes).
 
+**A VM's identity (spec hash).** A VM is identified by its spec hash: the SHA-256 of its spec's
+canonical string (keys sorted, no `name` key when there is no name). The hash is computed in one place,
+`VmIdentity` (in `spec/`), for every way in (plain English, multi-VM requests, batches, the legacy JSON
+API and `vm.create`). Its build workflow ID is `vm-` + hash and its lifecycle workflow ID is
+`life-` + hash. Each request also carries an owner, taken on the server from sign-in: the signed-in
+name, or `anonymous` when sign-in is off. It is never taken from `userId`, `requestedBy` or anything
+else the client sends; those are still only the names recorded in the audit trail. Today the owner
+does not change the hash: every owner gets the same hash for the same spec, so existing VMs keep
+theirs.
+
 `probe` (for `check.until`) has `reachable`, `power`, `vcpu`, `memoryGiB`, `tools` (a list), `files`
 (a count) and `config` (a map), for example `probe.reachable && 'nginx' in probe.tools`.
 

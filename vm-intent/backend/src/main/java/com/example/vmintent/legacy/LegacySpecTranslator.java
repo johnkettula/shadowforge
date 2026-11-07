@@ -19,7 +19,8 @@ public class LegacySpecTranslator {
         this.interpreter = interpreter;
     }
 
-    public Interpretation translate(LegacyVmDefinition in) {
+    /** owner = who the VM is for (see VmIdentity); null = anonymous. */
+    public Interpretation translate(LegacyVmDefinition in, String owner) {
         IntentDraft d = new IntentDraft();
         d.name = in.name();
         d.provider = Vocabulary.normalize(Vocabulary.PROVIDER_WORDS, in.cloud());
@@ -37,6 +38,6 @@ public class LegacySpecTranslator {
         d.env = Vocabulary.normalize(Vocabulary.ENV_WORDS, in.environment());
         d.ttlDays = in.ttlDays();
         d.publicIp = in.publicIp();
-        return interpreter.fromDraft("(legacy JSON)", "legacy-json", d);
+        return interpreter.fromDraft("(legacy JSON)", "legacy-json", d, owner);
     }
 }

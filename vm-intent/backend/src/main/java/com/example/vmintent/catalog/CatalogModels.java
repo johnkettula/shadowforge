@@ -80,9 +80,19 @@ public final class CatalogModels {
 
     // ------------------------------------------------------------------ runs
 
-    /** Everything a run needs, fixed when it starts. */
+    /**
+     * Everything a run needs, fixed when it starts. owner = who its VMs are for, from sign-in on the
+     * server (see VmIdentity); null (as in runs started before it existed) = anonymous. requestedBy is
+     * only the name recorded in the audit trail.
+     */
     public record RunRequest(Definition definition, List<Blueprint> blueprints, Map<String, Object> params,
-                             String requestedBy, Classification classification, boolean searchAttributes) {}
+                             String requestedBy, Classification classification, boolean searchAttributes,
+                             String owner) {
+        public RunRequest(Definition definition, List<Blueprint> blueprints, Map<String, Object> params,
+                          String requestedBy, Classification classification, boolean searchAttributes) {
+            this(definition, blueprints, params, requestedBy, classification, searchAttributes, null);
+        }
+    }
 
     @Schema(description = "Where one catalog run is.")
     public record RunStatus(

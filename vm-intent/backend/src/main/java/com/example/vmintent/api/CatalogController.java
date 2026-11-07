@@ -283,7 +283,9 @@ public class CatalogController {
         }
         CatalogRunWorkflow wf = client.newWorkflowStub(CatalogRunWorkflow.class, opts.build());
         try {
-            WorkflowClient.start(wf::run, new RunRequest(def, blueprints, inputs.params(), me, cls, tag));
+            // The VM's owner comes from sign-in only, never from requestedBy (see VmIdentity).
+            WorkflowClient.start(wf::run, new RunRequest(def, blueprints, inputs.params(), me, cls, tag,
+                    RequestOwner.current()));
         } catch (WorkflowExecutionAlreadyStarted already) {
             return ResponseEntity.ok(new RunStarted(runId, true, status(runId)));
         }

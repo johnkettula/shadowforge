@@ -2,6 +2,7 @@ package com.example.vmintent.intent;
 
 import com.example.vmintent.spec.SpecCanonicalizer;
 import com.example.vmintent.spec.SpecValidator;
+import com.example.vmintent.spec.VmIdentity;
 import com.example.vmintent.spec.VmSpec;
 
 import java.util.ArrayList;
@@ -20,16 +21,22 @@ public class IntentInterpreter {
         this.extractor = extractor;
     }
 
+    /** For nobody in particular (the anonymous owner). */
     public Interpretation interpret(String text) {
+        return interpret(text, null);
+    }
+
+    /** owner = who the VM is for (see VmIdentity); null = anonymous. */
+    public Interpretation interpret(String text, String owner) {
         IntentDraft draft = extractor.extract(text);
         String source = extractor.name();
         if (!draft.notes.isEmpty() && draft.notes.get(0).startsWith("source:")) {
             source = draft.notes.remove(0).substring("source:".length());
         }
-        return fromDraft(text, source, draft);
+        return fromDraft(text, source, draft, owner);
     }
 
-    public Interpretation fromDraft(String text, String source, IntentDraft draft) {
+    public Interpretation fromDraft(String text, String source, IntentDraft draft, String owner) {
         String question = PolicyDefaults.missingQuestion(draft);
         if (question != null) {
             return new Interpretation(text, source, null, null, null, List.of(), question);
@@ -44,7 +51,7 @@ public class IntentInterpreter {
                     String.join(" ", problems) + " What should I change?");
         }
 
-        String hash = SpecCanonicalizer.hash(spec);
+        String hash = VmIdentity.hash(spec, owner);
         VmSpec named = SpecCanonicalizer.withGeneratedName(spec, hash);
         int count = draft.count == null || draft.count < 1 ? 1 : draft.count;
         String summary = PolicyDefaults.summary(named);

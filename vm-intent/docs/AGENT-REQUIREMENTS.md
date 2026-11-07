@@ -252,3 +252,54 @@ Risk: medium. Attempts: 3. Built: 2026-11-06.
 
 04:20:24 attempt 3: developer: No code change this round. The only failing check, '2: no AP-0017 commit adds a secret, password or private key to any file' (tests/acceptance/ap-0017/repo.test.mjs:170), fails on commit 061e1a6. That
 04:54:01 attempt 3: review: approved: AP-0017 adds the AzureArmBackend class (about 224 lines), a separate AzureVmProperties settings record, three new environment-variable bindings in application.yml, small MockArm additions, AzureArmBac
+
+## AP-0021: Per-user identity part 1 (design review 0020 #1): a VmIdentity class that computes a VM's identity hash and builds its vm-/life- workflow IDs, and a RequestOwner taken from sign-in (or 'anonymous') th
+
+This is the backlog's first item, groundwork for John's per-user VM identity feature (the AP-0019 retry). Design review 0020 (docs/redesign/review-0020.md, item 1 and proposal 1) found that a VM's identity is built by hand in many places.
+
+The hash is computed in 4 places:
+- IntentInterpreter.fromDraft:47
+- WorkflowActivitiesImpl.expand:55
+- BatchController:151
+- CatalogActivitiesImpl:175
+
+The workflow IDs are written out by hand in 8 places:
+- "vm-" + hash: RequestController:296, IntentWorkflowImpl:128 and :251, BatchShardWorkflowImpl:82, CatalogRunWorkflowImpl:241
+- "life-" + hash: VmController:214, CatalogActivitiesImpl:628, VmLifecycleWorkflowImpl:46
+
+The activities that compute hashes (interpret, expand, prepareVm) don't know who is asking. The requester names that do exist are chosen by the client when sign-in is off:
+- userId, falling back to demo-user
+- requestedBy, falling back to batch-api
+- legacy-api
+- the claimed name in the catalog
+
+So they must not be used for identity.
+
+This cycle adds one class that computes the hash and builds both IDs, and a server-side owner (the signed-in name, or "anonymous"). The owner is passed to every place a hash is computed. In this cycle, VmIdentity.hash still returns today's SpecCanonicalizer.hash for every owner. No hash or workflow ID changes value, so the recorded histories replay unchanged. The feature cycle then only has to change the non-anonymous branch of VmIdentity.hash.
+
+Golden-value tests pin today's hashes. They protect the backlog rule "existing VMs keep their hash" in every later cycle.
+
+Compatibility notes for Temporal:
+- Adding an owner argument to the interpret, expand and prepareVm activities keeps their activity type names. Replay matches activities by name, and an activity task scheduled with fewer arguments reads the missing owner as null, which means anonymous.
+- IntentRequest gets a new last component. Old histories don't have it, so it reads as null.
+
+The backlog's second groundwork item (baseline histories and a HistoryRecorder) must still come before the per-user identity change. It can be the next cycle; nothing in this cycle changes a workflow ID. RequestOwner reads Caller.signedIn() but must live outside the protected security/ folder. Nothing here changes sign-in, roles or who may do what, and no criterion needs docs/SECURITY.md. When the feature itself is merged, a person should add a line to docs/SECURITY.md saying that a VM's owner comes from sign-in, never from the client.
+
+Risk is medium rather than the backlog's low because @ActivityInterface method parameters and a workflow input record change, though in a replay-compatible way. Estimated size: VmIdentity about 40 lines, RequestOwner about 20, call-site edits about 80, tests about 200, docs about 15.
+
+Acceptance criteria:
+- backend/src/main/java/com/example/vmintent/spec/VmIdentity.java exists with public static methods hash(VmSpec spec, String owner), buildWorkflowId(String hash) and lifecycleWorkflowId(String hash). buildWorkflowId returns "vm-" + hash. lifecycleWorkflowId returns "life-" + hash. In this requirement, hash(spec, owner) returns exactly SpecCanonicalizer.hash(spec) for every owner, including null, "anonymous" and any other name. Its Javadoc says that a null owner and "anonymous" mean nobody is signed in, and that the per-user identity feature will change only the branch for owners that aren't anonymous.
+- Outside spec/VmIdentity.java and spec/SpecCanonicalizer.java, no file under backend/src/main/java calls SpecCanonicalizer.hash(. The hash sites in IntentInterpreter, WorkflowActivitiesImpl.expand, BatchController and CatalogActivitiesImpl call VmIdentity.hash. The workflow IDs in RequestController (legacy create), IntentWorkflowImpl (single and multi-VM builds), BatchShardWorkflowImpl, CatalogRunWorkflowImpl, VmController, CatalogActivitiesImpl and VmLifecycleWorkflowImpl are built with VmIdentity.buildWorkflowId or VmIdentity.lifecycleWorkflowId. (The reviewer checks the workflow-ID sites; SpecCanonicalizer.withGeneratedName's "vm-" name prefix is not a workflow ID and stays.)
+- A new class backend/src/main/java/com/example/vmintent/api/RequestOwner.java (not under the protected security/ folder) has a static current(). It returns the signed-in principal's name when there is one (via Caller.signedIn()), and "anonymous" otherwise. It never reads a request body, a userId, requestedBy or any other client-supplied value. A unit test shows current() returns "anonymous" with an empty SecurityContext and the principal's name when an authenticated SecurityContext is set.
+- The owner travels from the server to every hash site. IntentRequest (workflow/Models.java) gets a new last component, owner; its existing constructors still compile, and a null owner means anonymous. RequestController.submit sets it from RequestOwner.current(), not from body.userId(). The interpret and expand activities get an owner argument (their activity method names don't change), and IntentWorkflowImpl passes request.owner(). BatchController and the legacy POST /api/v1/vms path use RequestOwner.current(). The catalog run carries the owner to CatalogActivitiesImpl's prepareVm. userId, requestedBy and the audit 'by' names keep their current values and meaning.
+- A unit test (for example with a recording fake or a spy on VmIdentity's callers) shows the owner each hash site receives. With sign-in off, the interpret/submit path, the multi-VM expand path, the batch path and the catalog prepare path each pass "anonymous", even when the request body has userId or requestedBy set to another name such as "mallory". With an authenticated SecurityContext for a user (for example "alice"), at least the submit and batch paths pass "alice".
+- A new VmIdentityTest pins the SHA-256 hex hash of at least two fixed VmSpecs, one with a name and one without, as string literals computed with the code as it was before this requirement. It asserts that VmIdentity.hash(spec, null), VmIdentity.hash(spec, "anonymous") and SpecCanonicalizer.hash(spec) all equal the pinned literal. It also asserts buildWorkflowId and lifecycleWorkflowId for one hash.
+- cd backend && mvn test passes, including ReplayTest, the OpenAPI snapshot check, VmIdentityTest and the new owner tests. No commit for this requirement modifies or deletes an existing file under backend/src/test/resources/histories/, or changes docs/openapi.json or docs/openapi.yaml.
+- On the running server, POST /api/v2/interpret with the text 'a small ubuntu server on aws called idtest-01' returns a specHash. It equals the lowercase hex SHA-256 of the returned spec's canonical string, computed independently by the test the way SpecCanonicalizer.canonicalString does: keys sorted, strings quoted, other values as written, no spaces, the name key left out when name is null. Two POST /api/v2/requests with that same text, one with userId 'alice' and one with userId 'bob' (sign-in off on staging), both report the same specHash once interpreted. That specHash equals the one from /api/v2/interpret.
+- On the running server, the existing behaviour is unchanged. Confirming a request builds a VM whose build workflow ID is 'vm-' + specHash. A second request for a spec that is already running is still reported as a DUPLICATE (or the legacy POST /api/v1/vms gives 409). The contract test and all older acceptance suites pass.
+- docs/DEFINITIONS.md has a short entry for the spec hash / VM identity. It says that the hash is computed in one place (VmIdentity) and that the build and lifecycle workflow IDs are 'vm-' + hash and 'life-' + hash. It says that each request carries an owner taken from sign-in ('anonymous' when sign-in is off, never from userId or requestedBy), and that today the owner does not yet change the hash. The text matches the code.
+
+Risk: medium. Attempts: 1. Built: 2026-11-07.
+
+17:44:08 attempt 1: developer: AP-0021 is built and the full backend suite passes: `cd backend && mvn test` exited with code 0, and none of the 28 test-class reports shows a failure or error. That run includes ReplayTest and the Op
+18:18:38 attempt 1: review: approved: The change meets AP-0021 and stays within its scope. VmIdentity (spec/) has hash(spec, owner), buildWorkflowId and lifecycleWorkflowId. hash returns SpecCanonicalizer.hash for every owner, and the Jav

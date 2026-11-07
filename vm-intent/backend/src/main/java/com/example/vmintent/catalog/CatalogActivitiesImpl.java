@@ -9,8 +9,8 @@ import com.example.vmintent.cel.Cel;
 import com.example.vmintent.intent.PolicyDefaults;
 import com.example.vmintent.provider.VmRegistry;
 import com.example.vmintent.provider.vsphere.VsphereRoutes;
-import com.example.vmintent.spec.SpecCanonicalizer;
 import com.example.vmintent.spec.SpecValidator;
+import com.example.vmintent.spec.VmIdentity;
 import com.example.vmintent.spec.VmSpec;
 import com.example.vmintent.workflow.CatalogActivities;
 import com.example.vmintent.workflow.Models.VmLifecycle;
@@ -113,7 +113,7 @@ public class CatalogActivitiesImpl implements CatalogActivities {
 
     @Override
     public PreparedVm prepareVm(Map<String, Object> with, List<Blueprint> blueprints, String blueprint,
-                                Map<String, Object> params, Map<String, Object> run) {
+                                Map<String, Object> params, Map<String, Object> run, String owner) {
         List<String> problems = new ArrayList<>();
         String provider = text(with.get("provider"));
         String region = text(with.get("region"));
@@ -172,7 +172,7 @@ public class CatalogActivitiesImpl implements CatalogActivities {
             }
         }
         if (!namedFound) problems.add("the blueprint '" + blueprint + "' isn't published (or is retired)");
-        return new PreparedVm(spec, SpecCanonicalizer.hash(spec), problems);
+        return new PreparedVm(spec, VmIdentity.hash(spec, owner), problems);
     }
 
     @Override
@@ -625,7 +625,7 @@ public class CatalogActivitiesImpl implements CatalogActivities {
 
     private VmLifecycleWorkflow life(String hash) {
         store.target(hash);   // checks it's a spec hash
-        return client.newWorkflowStub(VmLifecycleWorkflow.class, "life-" + hash);
+        return client.newWorkflowStub(VmLifecycleWorkflow.class, VmIdentity.lifecycleWorkflowId(hash));
     }
 
     private VmLifecycle lifecycle(VmLifecycleWorkflow life, String hash) {

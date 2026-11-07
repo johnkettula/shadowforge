@@ -14,6 +14,7 @@ import com.example.vmintent.provider.VmRegistry;
 import com.example.vmintent.security.Caller;
 import com.example.vmintent.spec.SpecCanonicalizer;
 import com.example.vmintent.spec.SpecValidator;
+import com.example.vmintent.spec.VmIdentity;
 import com.example.vmintent.workflow.BatchProvisionWorkflow;
 import com.example.vmintent.workflow.Models.BatchItem;
 import com.example.vmintent.workflow.Models.BatchRequest;
@@ -88,10 +89,11 @@ public class BatchController {
         List<Rejected> rejected = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         int sameInBatch = 0;
+        String owner = RequestOwner.current();   // from sign-in only, never from requestedBy
         for (int i = 0; i < body.items().size(); i++) {
             BatchItem ok;
             try {
-                ok = toItem(body.items().get(i));
+                ok = toItem(body.items().get(i), owner);
             } catch (IllegalArgumentException e) {
                 rejected.add(new Rejected(i, e.getMessage()));
                 continue;
@@ -141,17 +143,17 @@ public class BatchController {
         return new StatsResponse(registry.countByState());
     }
 
-    private BatchItem toItem(BatchItemBody item) {
+    private BatchItem toItem(BatchItemBody item, String owner) {
         if (item == null || (item.text() == null && item.spec() == null)) {
             throw new IllegalArgumentException("Give either text or spec");
         }
         if (item.spec() != null) {
             List<String> problems = SpecValidator.problems(item.spec());
             if (!problems.isEmpty()) throw new IllegalArgumentException(String.join(" ", problems));
-            String hash = SpecCanonicalizer.hash(item.spec());
+            String hash = VmIdentity.hash(item.spec(), owner);
             return new BatchItem(SpecCanonicalizer.withGeneratedName(item.spec(), hash), hash);
         }
-        Interpretation it = interpreter.interpret(item.text());
+        Interpretation it = interpreter.interpret(item.text(), owner);
         if (it.question() != null) throw new IllegalArgumentException("Needs an answer: " + it.question());
         return new BatchItem(it.spec(), it.specHash());
     }

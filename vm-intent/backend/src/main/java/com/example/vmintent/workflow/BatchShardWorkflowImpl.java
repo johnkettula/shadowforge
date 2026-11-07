@@ -1,5 +1,6 @@
 package com.example.vmintent.workflow;
 
+import com.example.vmintent.spec.VmIdentity;
 import com.example.vmintent.workflow.Models.BatchItem;
 import com.example.vmintent.workflow.Models.ReconcileRequest;
 import com.example.vmintent.workflow.Models.ShardProgress;
@@ -79,7 +80,7 @@ public class BatchShardWorkflowImpl implements BatchShardWorkflow {
         VmReconcileWorkflow vm = Workflow.newChildWorkflowStub(
                 VmReconcileWorkflow.class,
                 ChildWorkflowOptions.newBuilder()
-                        .setWorkflowId("vm-" + item.specHash())
+                        .setWorkflowId(VmIdentity.buildWorkflowId(item.specHash()))
                         .setTaskQueue(TaskQueues.INTENT)
                         .setParentClosePolicy(ParentClosePolicy.PARENT_CLOSE_POLICY_ABANDON)
                         // Build again only if the last attempt failed; otherwise it's a duplicate.

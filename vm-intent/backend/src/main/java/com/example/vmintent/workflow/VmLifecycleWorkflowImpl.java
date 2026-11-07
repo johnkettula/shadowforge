@@ -1,5 +1,6 @@
 package com.example.vmintent.workflow;
 
+import com.example.vmintent.spec.VmIdentity;
 import com.example.vmintent.workflow.Models.LifecycleRequest;
 import com.example.vmintent.workflow.Models.LinkReply;
 import com.example.vmintent.workflow.Models.Route;
@@ -43,7 +44,7 @@ public class VmLifecycleWorkflowImpl implements VmLifecycleWorkflow {
     static final int HISTORY_LIMIT = 2_000;
 
     static String workflowId(String specHash) {
-        return "life-" + specHash;
+        return VmIdentity.lifecycleWorkflowId(specHash);
     }
 
     private final RecordActivities records = Workflow.newActivityStub(RecordActivities.class,

@@ -12,6 +12,7 @@ import com.example.vmintent.catalog.CatalogModels.StepState;
 import com.example.vmintent.catalog.DefinitionParser;
 import com.example.vmintent.catalog.Templates;
 import com.example.vmintent.cel.Cel;
+import com.example.vmintent.spec.VmIdentity;
 import com.example.vmintent.workflow.Models.ReconcileRequest;
 import com.example.vmintent.workflow.Models.VmResult;
 import io.temporal.activity.ActivityOptions;
@@ -214,7 +215,7 @@ public class CatalogRunWorkflowImpl implements CatalogRunWorkflow {
      * spec hash, so if an earlier try already built it (or is building it), that VM is used.
      */
     private ActionResult createVm(Map<String, Object> with, CatalogActivities act) {
-        PreparedVm vm = act.prepareVm(with, req.blueprints(), def.blueprint(), req.params(), runVars());
+        PreparedVm vm = act.prepareVm(with, req.blueprints(), def.blueprint(), req.params(), runVars(), req.owner());
         if (!vm.problems().isEmpty()) {
             throw ApplicationFailure.newNonRetryableFailure("The VM doesn't pass the rules: "
                     + String.join("; ", vm.problems()), "InvalidStep");
@@ -238,7 +239,7 @@ public class CatalogRunWorkflowImpl implements CatalogRunWorkflow {
         }
         VmReconcileWorkflow build = Workflow.newChildWorkflowStub(VmReconcileWorkflow.class,
                 ChildWorkflowOptions.newBuilder()
-                        .setWorkflowId("vm-" + vm.specHash())
+                        .setWorkflowId(VmIdentity.buildWorkflowId(vm.specHash()))
                         .setTaskQueue(TaskQueues.INTENT)
                         .setParentClosePolicy(ParentClosePolicy.PARENT_CLOSE_POLICY_ABANDON)
                         .setWorkflowIdReusePolicy(WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE)
