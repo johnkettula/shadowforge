@@ -1,0 +1,37 @@
+[
+  {
+    "id": "01-spec-validator-test",
+    "keep": ["vm-intent/backend/src/test/java/com/example/vmintent/spec/SpecValidatorTest.java"],
+    "prompt": "Read vm-intent/backend/src/main/java/com/example/vmintent/spec/SpecValidator.java and vm-intent/backend/src/main/java/com/example/vmintent/spec/VmSpec.java. Create vm-intent/backend/src/test/java/com/example/vmintent/spec/SpecValidatorTest.java (JUnit 5, package com.example.vmintent.spec). Add a helper that builds a valid VmSpec (provider aws, region us-east, 2 vCPU, 4 GiB, 50 GiB disk, os ubuntu, ttlDays 30). One test: the valid spec has no problems. Then one test per rule in SpecValidator.problems: change only that field and assert the exact message is in the list. Include the vSphere datacenter rule and the Windows 64 GiB disk rule. Do not run mvn. Do not change any other file. When done, reply with the list of test method names."
+  },
+  {
+    "id": "02-policy-defaults-test",
+    "keep": ["vm-intent/backend/src/test/java/com/example/vmintent/intent/PolicyDefaultsTest.java"],
+    "prompt": "Read lines 1 to 60 of vm-intent/backend/src/main/java/com/example/vmintent/intent/PolicyDefaults.java. Create vm-intent/backend/src/test/java/com/example/vmintent/intent/PolicyDefaultsTest.java (JUnit 5, package com.example.vmintent.intent) with tests for: defaultOsVersion for each OS in OS_DEFAULT_VERSION, for an unknown OS (empty string) and for null; defaultTtlDays for dev, test, staging, prod, an unknown environment (30) and null (30); the vCPU and GiB of each size in SIZES; MAX_COUNT is 20. Do not run mvn. Do not change any other file. When done, reply with the list of test method names."
+  },
+  {
+    "id": "03-vocabulary-test",
+    "keep": ["vm-intent/backend/src/test/java/com/example/vmintent/intent/VocabularyTest.java"],
+    "prompt": "Read vm-intent/backend/src/main/java/com/example/vmintent/intent/Vocabulary.java. Create vm-intent/backend/src/test/java/com/example/vmintent/intent/VocabularyTest.java (JUnit 5, package com.example.vmintent.intent) that tests find, normalize and containsWord, using words that really appear in PROVIDER_WORDS, OS_WORDS and SIZE_WORDS in that file (copy them exactly). Include: a phrase found inside a sentence, a word that is not there (null), case-insensitivity if the code lowercases, and containsWord not matching inside a longer word. Do not run mvn. Do not change any other file. When done, reply with the list of test method names."
+  },
+  {
+    "id": "04-actions-test",
+    "keep": ["vm-intent/backend/src/test/java/com/example/vmintent/catalog/ActionsTest.java"],
+    "prompt": "Read vm-intent/backend/src/main/java/com/example/vmintent/catalog/Actions.java. Create vm-intent/backend/src/test/java/com/example/vmintent/catalog/ActionsTest.java (JUnit 5, package com.example.vmintent.catalog) that checks: ALL is not empty; every key in ALL equals that action's name(); every action has a non-blank summary; no field name is both in required and in optional; PROBE_FIELDS contains reachable and power. Do not run mvn. Do not change any other file. When done, reply with the list of test method names."
+  },
+  {
+    "id": "05-reply-file-test",
+    "keep": ["vm-intent/backend/src/test/java/com/example/vmintent/link/ReplyFileTest.java"],
+    "prompt": "Read vm-intent/backend/src/main/java/com/example/vmintent/link/ReplyFile.java, and find and read the LinkReply type it converts to (use grep for 'record LinkReply' or 'class LinkReply'). Create vm-intent/backend/src/test/java/com/example/vmintent/link/ReplyFileTest.java (JUnit 5, package com.example.vmintent.link) that builds a ReplyFile with example values and checks that toReply() copies each field correctly and that workflowId() returns what the code says it returns. Do not run mvn. Do not change any other file. When done, reply with the list of test method names."
+  },
+  {
+    "id": "06-audit-settings-report",
+    "keep": ["qwen-reports/audit-settings.md"],
+    "prompt": "Use grep, do not open whole files. In vm-intent/docs/AUDIT.md find every line containing VMINTENT_ and note each variable and the default the line states. For each variable, grep vm-intent/backend/src/main/resources/application.yml for its name. Write the result to qwen-reports/audit-settings.md as a markdown table: variable | default in AUDIT.md | line in application.yml | match? Add a short list of mismatches at the end (or 'none'). Do not change any other file."
+  },
+  {
+    "id": "07-definitions-defaults-report",
+    "keep": ["qwen-reports/definitions-defaults.md"],
+    "prompt": "Use grep, do not open whole files. In vm-intent/docs/DEFINITIONS.md find lines that state a default value (grep -i for 'default'). For each, find the matching value in vm-intent/backend/src/main/java/com/example/vmintent/catalog/DefinitionParser.java (grep for the field name). Write the result to qwen-reports/definitions-defaults.md as a markdown table: field | default in DEFINITIONS.md | value in DefinitionParser.java (with line number) | match? Add a short list of mismatches at the end (or 'none'). Do not change any other file."
+  }
+]
