@@ -1,6 +1,6 @@
 # Temporal features in vm-intent
 
-Last updated 2026-11-07.
+Last updated 2026-11-08.
 
 This page explains which Temporal features vm-intent uses, what each one is for, where it is in the
 code, and how to see it working. It's written for someone learning Temporal.
@@ -159,9 +159,11 @@ at least one failed), FAILED (none built, at least one failed) or DUPLICATE (all
 
 **Features:** `WorkflowReplayer` and `Workflow.getVersion`.
 
-`ReplayTest` re-runs saved histories, recorded from the code *before* these features were added,
-against today's code. If a change would make a workflow that's running during an upgrade behave
-differently from its history, the test fails before it ships.
+`ReplayTest` re-runs saved histories from `backend/src/test/resources/histories` against today's
+code. The `intent-v1-*` and `reconcile-v1-*` histories were recorded from the code *before* the
+lifecycle, update and link features were added; the three `catalog-v1-*` histories are real catalog
+runs (resumed, torn down, approved). If a change would make a workflow that's running during an
+upgrade behave differently from its history, the test fails before it ships.
 
 The build workflow gained steps (the link route and the lifecycle hand-off), so they are wrapped in
 `Workflow.getVersion("link-and-lifecycle", DEFAULT_VERSION, 1)`. Old builds replay down the old path;
@@ -172,6 +174,10 @@ To add a history from a real server:
 ```
 temporal workflow show --workflow-id intent-... --output json > backend/src/test/resources/histories/my-case.json
 ```
+
+A new file on its own is never replayed: add a `@Test` method to `ReplayTest` that names it with
+`history("<file name without .json>")` and the workflow class to replay it against, for example
+`WorkflowReplayer.replayWorkflowExecution(history("my-case"), IntentWorkflowImpl.class)`.
 
 ## 10. Catalog runs that wait instead of failing
 
@@ -231,3 +237,6 @@ One thing to know: it only skips ahead while a timer is waiting. To wait for a w
 | `CountPhrasingTest` | "3 web servers" vs "a RHEL 9 server" |
 | `BatchWorkflowTest` | Batches in shards: rollbacks, duplicates in one batch, throttled creates retried |
 | `VsphereRoutesWorkflowTest` | vSphere builds through the mock vCenter 9 and VCF Automation 9, their rollbacks, and a catalog run that deploys a blueprint and tears it down |
+| `RequestControllerTest` | Answering or cancelling a request: 409 once it has finished or can't take it, 404 for an unknown ID |
+| `VmControllerTest` | Day-2 changes: 404 for a spec hash that matches no VM, 409 for a VM that exists but can't be changed, 400 for a malformed hash |
+| `RequestOwnerFlowTest` | Each request's owner comes from sign-in on the server (`anonymous` when sign-in is off), never from `userId` or `requestedBy`: a single request, a multi-VM request, a batch, preview and the legacy endpoint |

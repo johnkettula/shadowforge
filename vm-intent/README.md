@@ -1,6 +1,6 @@
 # vm-intent: natural-language VM requests on Temporal
 
-Last updated 2026-11-07.
+Last updated 2026-11-08.
 
 You type a request for a VM in plain English. One canonical, cloud-neutral spec
 comes out, and a Temporal workflow builds it on vSphere, AWS, Azure or Google
@@ -91,7 +91,8 @@ any listed phrasing stops producing the expected spec.
 
 ```
 backend/src/main/java/com/example/vmintent/
-  spec/       VmSpec (the canonical spec), canonical form + SHA-256 hash, policy checks
+  spec/       VmSpec (the canonical spec), canonical form + SHA-256 hash, policy checks;
+              VmIdentity: the one place that computes a VM's spec hash and its vm-/life- workflow IDs
   intent/     Words -> spec: RuleBasedIntentExtractor, LlmIntentExtractor (optional),
               Vocabulary (synonyms), PolicyDefaults (size catalog and defaults)
   workflow/   IntentWorkflow (interpret, clarify, confirm) and
@@ -112,7 +113,8 @@ backend/src/main/java/com/example/vmintent/
   audit/      Decision log, optional OPA, the write-once history archive, audit replay
   workflow/   also CatalogRunWorkflow (steps, resume or tear down) and ArchiveSweepWorkflow
   legacy/     The old JSON format -> the same spec (no AI)
-  api/        REST endpoints used by the React app
+  api/        REST endpoints used by the React app; RequestOwner: the request's owner, taken from
+              sign-in ('anonymous' when sign-in is off)
 frontend/src/ App.tsx (the whole UI), api.ts (typed REST calls)
 deploy/       docker-compose.yml for Linux, deploy/linux/ scripts and systemd units,
               deploy/kubernetes/ (kustomize), deploy/catalog/ (publishing definitions from Git)
