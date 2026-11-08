@@ -159,11 +159,22 @@ at least one failed), FAILED (none built, at least one failed) or DUPLICATE (all
 
 **Features:** `WorkflowReplayer` and `Workflow.getVersion`.
 
-`ReplayTest` re-runs saved histories from `backend/src/test/resources/histories` against today's
-code. The `intent-v1-*` and `reconcile-v1-*` histories were recorded from the code *before* the
-lifecycle, update and link features were added; the three `catalog-v1-*` histories are real catalog
-runs (resumed, torn down, approved). If a change would make a workflow that's running during an
-upgrade behave differently from its history, the test fails before it ships.
+`ReplayTest` replays every file in `backend/src/test/resources/histories` against today's code. It
+picks the workflow class from the file name's prefix: `intent-` → `IntentWorkflowImpl`, `reconcile-` →
+`VmReconcileWorkflowImpl`, `catalog-` → `CatalogRunWorkflowImpl`, `lifecycle-` → `VmLifecycleWorkflowImpl`.
+A file with any other prefix fails the test with its name, so no history is skipped. It also checks
+that the seven `*-v1-*` histories below are all still there.
+
+- `intent-v1-*` and `reconcile-v1-*` were recorded from the code *before* the lifecycle, update and
+  link features were added; the three `catalog-v1-*` histories are real catalog runs (resumed, torn
+  down, approved).
+- `intent-v2-multi-existing` is a request for two VMs where one already existed; the other is built
+  by a `vm-` child workflow.
+- `lifecycle-v1-renewed` is a VM's lifecycle (`life-` workflow) that took a `renew` update, saved
+  while it was still running.
+
+If a change would make a workflow that's running during an upgrade behave differently from its
+history (a new step, a timer moved, a child workflow ID that changed), the test fails before it ships.
 
 The build workflow gained steps (the link route and the lifecycle hand-off), so they are wrapped in
 `Workflow.getVersion("link-and-lifecycle", DEFAULT_VERSION, 1)`. Old builds replay down the old path;
@@ -175,9 +186,16 @@ To add a history from a real server:
 temporal workflow show --workflow-id intent-... --output json > backend/src/test/resources/histories/my-case.json
 ```
 
-A new file on its own is never replayed: add a `@Test` method to `ReplayTest` that names it with
-`history("<file name without .json>")` and the workflow class to replay it against, for example
-`WorkflowReplayer.replayWorkflowExecution(history("my-case"), IntentWorkflowImpl.class)`.
+To record one in the repository instead, write a `TestWorkflowEnvironment` scenario that ends with
+`HistoryRecorder.record(client, workflowId, "intent-my-case")` (see `RecordedHistoriesTest`) and run:
+
+```
+cd backend && mvn test -Dhistories.record=true
+```
+
+`HistoryRecorder` writes only files that are missing; it never overwrites or deletes one, and a plain
+`mvn test` writes nothing. Name the file with one of the prefixes above and `ReplayTest` replays it
+from then on. Saved histories are append-only: record a new file rather than changing an old one.
 
 ## 10. Catalog runs that wait instead of failing
 
@@ -232,7 +250,9 @@ One thing to know: it only skips ahead while a timer is waiting. To wait for a w
 | `LinkFilesTest` | The real file-based link with the simulated domain 3 |
 | `IntentWorkflowTest` | Answer, confirm and cancel updates (with a replay round trip), several VMs at once, search attributes |
 | `InventoryCheckTest` | Missing VMs and orphans |
-| `ReplayTest` | Old histories against new code, including real catalog runs (resumed, torn down, approved) |
+| `ReplayTest` | Every saved history against new code, the workflow class picked by file-name prefix (a file with no known prefix fails), and the seven `*-v1-*` histories still present |
+| `RecordedHistoriesTest` | The scenarios behind `intent-v2-multi-existing` (two VMs, one already there) and `lifecycle-v1-renewed` (a renewal); with `-Dhistories.record=true` they save missing histories |
+| `HistoryRecorderTest` | `HistoryRecorder` writes nothing without `-Dhistories.record=true`, writes a missing file that replays, and leaves an existing file byte-for-byte unchanged |
 | `CatalogRunWorkflowTest` | Steps in order, resume with partial work, teardown, 30-day auto teardown, approvals, blueprints |
 | `CountPhrasingTest` | "3 web servers" vs "a RHEL 9 server" |
 | `BatchWorkflowTest` | Batches in shards: rollbacks, duplicates in one batch, throttled creates retried |
