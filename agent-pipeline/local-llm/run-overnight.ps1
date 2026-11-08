@@ -23,6 +23,8 @@ git checkout -q qwen/tests 2>$null; if ($LASTEXITCODE -ne 0) { git checkout -q -
 
 # Project settings for OpenCode: the local model, and what it may do without asking (edit files,
 # read-only git); everything else on the shell is refused, so a night run never waits for a yes.
+# timeout and chunkTimeout (ms): OpenCode otherwise gives up quickly while waiting for an answer, and on basement's CPU
+# Qwen can read a long prompt for longer than that (the first night's task 1 timed out and retried).
 $cfg = Join-Path $repo 'opencode.json'
 @'
 {
@@ -31,7 +33,7 @@ $cfg = Join-Path $repo 'opencode.json'
     "ollama": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Ollama (local)",
-      "options": { "baseURL": "http://127.0.0.1:11434/v1" },
+      "options": { "baseURL": "http://127.0.0.1:11434/v1", "timeout": 2700000, "chunkTimeout": 2700000 },
       "models": { "qwen3.5:4b": { "name": "Qwen 3.5 4B" } }
     }
   },
