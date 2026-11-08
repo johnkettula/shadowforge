@@ -62,6 +62,7 @@ test('the local agent reads, edits through the policy and hands in its result wi
   const names = (seen[0].tools as { function: { name: string } }[]).map((t) => t.function.name);
   assert.deepEqual(names.sort(), ['Bash', 'Edit', 'Glob', 'Grep', 'Read', 'Write', 'submit']);
   assert.equal(seen[0].stream, true);
+  assert.equal((seen[0].options as { num_predict: number }).num_predict, 4096, 'every reply has an output cap');
 });
 
 test('the local agent is refused what the policy refuses (a protected file, a command not on the list)', async () => {

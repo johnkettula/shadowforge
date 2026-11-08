@@ -33,6 +33,11 @@ export interface LocalAgentConfig {
   maxMinutes?: number;
   /** Most model calls in one run. */
   maxTurns?: number;
+  /**
+   * Most tokens the model may write in one reply (Ollama's num_predict). Without a cap, a reply that
+   * runs on can occupy Ollama for an hour and every other request waits behind it (2026-11-08 morning).
+   */
+  maxOutputTokens?: number;
 }
 
 export const DAILY_DOCS_TITLE_PREFIX = 'Daily docs';
@@ -258,7 +263,7 @@ Use the tools to look at the code before deciding. When you are done, call the s
     const t = setTimeout(() => ctl.abort(), Math.max(1000, deadline - Date.now()));
     const tick = setInterval(beat, 30_000);
     try {
-      const payload = JSON.stringify({ model: local.model, messages, tools, stream: true, think: false, options: { num_ctx: local.numCtx ?? 16384, temperature: 0.2 } });
+      const payload = JSON.stringify({ model: local.model, messages, tools, stream: true, think: false, options: { num_ctx: local.numCtx ?? 16384, temperature: 0.2, num_predict: local.maxOutputTokens ?? 4096 } });
       const r = this.fetchImpl
         ? await this.fetchImpl(`${url}/api/chat`, { method: 'POST', signal: ctl.signal, headers: { 'content-type': 'application/json' }, body: payload }).then((x) => ({ status: x.status, body: x.body as unknown as AsyncIterable<Uint8Array>, text: () => x.text() }))
         : await postStream(`${url}/api/chat`, payload, ctl.signal);
