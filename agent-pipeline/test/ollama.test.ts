@@ -164,18 +164,26 @@ test('routing runner: stages not routed locally go straight to Claude', async ()
   assert.equal(claude.calls, 1);
 });
 
-test('trim removes older tool results first, keeping the system prompt, task and latest messages', () => {
+test('trim does nothing under the limit, then cuts older tool results in one go (keeps Ollama\'s cache)', () => {
   const big = 'x'.repeat(5000);
   const m = [
     { role: 'system', content: 's' }, { role: 'user', content: 'task' },
     { role: 'tool', content: big }, { role: 'assistant', content: 'a' }, { role: 'tool', content: big },
     { role: 'assistant', content: 'b' }, { role: 'tool', content: big }, { role: 'assistant', content: 'c' },
+    { role: 'tool', content: big }, { role: 'assistant', content: 'd' },
   ];
-  trim(m, 8000);
+  const before = JSON.stringify(m);
+  assert.equal(trim(m, 25000), false, 'under the limit: nothing changes');
+  assert.equal(JSON.stringify(m), before);
+  assert.equal(trim(m, 18000), true);
   assert.equal(m[0].content, 's');
   assert.equal(m[1].content, 'task');
   assert.match(m[2].content, /removed/);
-  assert.equal(m[6].content, big, 'the latest tool result is kept');
+  assert.match(m[4].content, /removed/, 'cut down to about half the limit, not just under it');
+  assert.equal(m[8].content, big, 'the latest tool result is kept');
+  const after = JSON.stringify(m);
+  assert.equal(trim(m, 18000), false, 'right after a cut there is room again, so the next call changes nothing');
+  assert.equal(JSON.stringify(m), after);
 });
 
 test('the default transport (node:http) streams a reply that is slow to start', async () => {

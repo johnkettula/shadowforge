@@ -201,7 +201,7 @@ export class OllamaAgentRunner implements AgentRunner {
     const local = cfg.agent.local!;
     const url = (local.url ?? 'http://127.0.0.1:11434').replace(/\/$/, '');
     const started = Date.now();
-    const deadline = started + (local.maxMinutes ?? 45) * 60_000;
+    const deadline = started + (local.maxMinutes ?? 20) * 60_000;
     const maxTurns = local.maxTurns ?? 40;
     const ctx: PolicyContext = { cfg, role: task.role, root: task.cwd, stagingHosts: task.stagingHosts };
     const allowed = toolsFor(task.role).filter((t) => TOOL_DEFS[t]);
@@ -221,7 +221,7 @@ Use the tools to look at the code before deciding. When you are done, call the s
 
     while (turns < maxTurns && Date.now() < deadline && !output) {
       turns++;
-      trim(messages, (local.numCtx ?? 16384) * 3);
+      trim(messages, (local.numCtx ?? 16384) * 2.5);
       const msg = await this.chat(url, local, messages, tools, deadline, () => heartbeat({ role: task.role, turns, local: local.model }));
       messages.push(msg);
       text = msg.content || text;
@@ -248,7 +248,7 @@ Use the tools to look at the code before deciding. When you are done, call the s
       }
     }
     const seconds = (Date.now() - started) / 1000;
-    const why = output ? undefined : Date.now() >= deadline ? `ran out of time (${local.maxMinutes ?? 45} min)` : turns >= maxTurns ? `ran out of turns (${maxTurns})` : 'stopped without a result';
+    const why = output ? undefined : Date.now() >= deadline ? `ran out of time (${local.maxMinutes ?? 20} min)` : turns >= maxTurns ? `ran out of turns (${maxTurns})` : 'stopped without a result';
     return { output, text: why ? `local model ${local.model}: ${why}` : text, usage: { costUsd: 0, turns, seconds }, denied };
   }
 
@@ -288,12 +288,21 @@ Use the tools to look at the code before deciding. When you are done, call the s
   }
 }
 
-/** Keeps the conversation within roughly the context window: older tool results are cut first. */
-export function trim(messages: ChatMessage[], maxChars: number): void {
+/**
+ * Keeps the conversation within roughly the context window. It does nothing until the conversation
+ * passes maxChars, then cuts older tool results in one go, down to about half of that. Cutting rarely
+ * matters on a CPU: Ollama reuses what it has already read as long as the start of the conversation
+ * is unchanged, and an edit to an early message makes it read everything again (cycle 22 slowed to
+ * minutes per call because the old version trimmed a little on every call).
+ */
+export function trim(messages: ChatMessage[], maxChars: number): boolean {
   const size = () => messages.reduce((n, m) => n + (m.content?.length ?? 0), 0);
-  for (let i = 2; i < messages.length - 4 && size() > maxChars; i++) {
+  if (size() <= maxChars) return false;
+  const target = maxChars / 2;
+  for (let i = 2; i < messages.length - 4 && size() > target; i++) {
     if (messages[i].role === 'tool' && messages[i].content.length > 200) messages[i].content = '(older tool result removed to save space)';
   }
+  return true;
 }
 
 function parseJson(text: string | undefined): Record<string, unknown> | undefined {

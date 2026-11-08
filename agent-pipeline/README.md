@@ -71,7 +71,7 @@ picked the wrong item.
   Ollama is down), any half-made edits are undone and Claude does the stage. Reports say which
   model did each stage (`[local qwen3.5:4b]` or `… done by Claude`).
 - Settings, in `pipeline.config.json`:
-  `"agent": { "mode": "claude", "effort": "high", "local": { "model": "qwen3.5:4b", "roles": ["requirements", "reviewer"], "dailyDocsDeveloper": false, "numCtx": 32768, "maxMinutes": 45 } }`.
+  `"agent": { "mode": "claude", "effort": "high", "local": { "model": "qwen3.5:4b", "roles": ["requirements", "reviewer"], "dailyDocsDeveloper": false, "numCtx": 32768, "maxMinutes": 20 } }`.
   Leave `local` out to run everything on Claude. A running pipeline takes a new `agent` setting
   through the `updateConfig` signal (send the whole `agent` object).
 - Basement has no graphics card, so local stages run on the CPU: about 10 to 13 words a second,
@@ -81,6 +81,9 @@ picked the wrong item.
 - First hybrid cycle (22, 2026-11-08): the local docs developer used its whole 45 minutes and Claude
   then did the step in 90 seconds for $0.22, so John moved the docs developer back to Claude
   (`dailyDocsDeveloper: false`). Requirements and the reviewer stay local.
+- Overnight 2026-11-08 every local stage used its full 45 minutes and Claude then did it in 2 to 4
+  minutes, so John set the local limit to 20 minutes (`maxMinutes`), and long conversations are now
+  trimmed rarely and in one go, so Ollama can reuse what it has already read.
 
 ## Set up on basement
 
