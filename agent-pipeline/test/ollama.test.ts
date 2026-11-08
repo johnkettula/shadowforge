@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import http from 'node:http';
 import { defaultConfig } from '../src/config.js';
 import { OllamaAgentRunner, RoutingAgentRunner, routesLocal, trim, usableOutput } from '../src/agents/ollama.js';
 import type { AgentOutcome, AgentRunner, AgentTask } from '../src/agents/runner.js';
@@ -175,4 +176,26 @@ test('trim removes older tool results first, keeping the system prompt, task and
   assert.equal(m[1].content, 'task');
   assert.match(m[2].content, /removed/);
   assert.equal(m[6].content, big, 'the latest tool result is kept');
+});
+
+test('the default transport (node:http) streams a reply that is slow to start', async () => {
+  // Ollama on a slow CPU sends nothing until it has read the whole prompt; Node's fetch would give up
+  // after 5 minutes without headers (cycle 22). The runner's own transport has no such limit.
+  const server = http.createServer((req, res) => {
+    let b = '';
+    req.on('data', (c) => (b += c));
+    req.on('end', () => setTimeout(() => {
+      res.writeHead(200, { 'content-type': 'application/x-ndjson' });
+      res.write(JSON.stringify({ message: { role: 'assistant', content: '' } }) + '\n');
+      setTimeout(() => res.end(JSON.stringify({ message: { role: 'assistant', content: '', tool_calls: [call('submit', { found: false, reason: 'slow but fine' })] }, done: true }) + '\n'), 50);
+    }, 300));
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
+  const port = (server.address() as { port: number }).port;
+  try {
+    const o = await new OllamaAgentRunner().run({ role: 'requirements', cwd: worktree(), prompt: 'pick', schema: REQUIREMENT_SCHEMA }, cfgWithLocal({ url: `http://127.0.0.1:${port}` }), () => {});
+    assert.deepEqual(o.output, { found: false, reason: 'slow but fine' });
+  } finally {
+    server.close();
+  }
 });

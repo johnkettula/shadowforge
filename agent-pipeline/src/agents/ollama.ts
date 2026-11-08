@@ -9,6 +9,7 @@
 // any half-made edits are undone, so a weak local answer costs time, never a failed cycle.
 
 import { spawn } from 'node:child_process';
+import http from 'node:http';
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { matchesAny, toPosix } from '../glob.js';
@@ -172,8 +173,29 @@ export async function runTool(name: string, input: Record<string, unknown>, root
 
 interface ChatMessage { role: string; content: string; tool_calls?: { function: { name: string; arguments: unknown } }[]; tool_name?: string }
 
+/**
+ * POSTs JSON and streams the reply, with no time limit of its own (the caller's AbortSignal decides).
+ * Node's built-in fetch gives up after 5 minutes without response headers, and on basement's CPU
+ * Ollama can spend longer than that reading a long prompt before it sends anything (cycle 22).
+ */
+function postStream(url: string, body: string, signal: AbortSignal): Promise<{ status: number; body: AsyncIterable<Uint8Array>; text: () => Promise<string> }> {
+  return new Promise((resolve, reject) => {
+    const req = http.request(url, { method: 'POST', headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) }, signal }, (res) => {
+      resolve({
+        status: res.statusCode ?? 0,
+        body: res,
+        text: async () => { let t = ''; for await (const c of res) t += c.toString(); return t; },
+      });
+    });
+    req.setTimeout(0);
+    req.on('error', reject);
+    req.end(body);
+  });
+}
+
 export class OllamaAgentRunner implements AgentRunner {
-  constructor(private readonly fetchImpl: typeof fetch = fetch) {}
+  /** fetchImpl is for tests; by default the runner uses postStream (no 5-minute limit). */
+  constructor(private readonly fetchImpl?: typeof fetch) {}
 
   async run(task: AgentTask, cfg: PipelineConfig, heartbeat: (detail?: unknown) => void): Promise<AgentOutcome> {
     const local = cfg.agent.local!;
@@ -236,18 +258,16 @@ Use the tools to look at the code before deciding. When you are done, call the s
     const t = setTimeout(() => ctl.abort(), Math.max(1000, deadline - Date.now()));
     const tick = setInterval(beat, 30_000);
     try {
-      const r = await this.fetchImpl(`${url}/api/chat`, {
-        method: 'POST',
-        signal: ctl.signal,
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ model: local.model, messages, tools, stream: true, think: false, options: { num_ctx: local.numCtx ?? 16384, temperature: 0.2 } }),
-      });
-      if (!r.ok || !r.body) throw new Error(`Ollama answered ${r.status}: ${(await r.text()).slice(0, 300)}`);
+      const payload = JSON.stringify({ model: local.model, messages, tools, stream: true, think: false, options: { num_ctx: local.numCtx ?? 16384, temperature: 0.2 } });
+      const r = this.fetchImpl
+        ? await this.fetchImpl(`${url}/api/chat`, { method: 'POST', signal: ctl.signal, headers: { 'content-type': 'application/json' }, body: payload }).then((x) => ({ status: x.status, body: x.body as unknown as AsyncIterable<Uint8Array>, text: () => x.text() }))
+        : await postStream(`${url}/api/chat`, payload, ctl.signal);
+      if (r.status !== 200 || !r.body) throw new Error(`Ollama answered ${r.status}: ${(await r.text()).slice(0, 300)}`);
       let content = '';
       const toolCalls: ChatMessage['tool_calls'] = [];
       let buf = '';
       const dec = new TextDecoder();
-      for await (const chunk of r.body as unknown as AsyncIterable<Uint8Array>) {
+      for await (const chunk of r.body) {
         buf += dec.decode(chunk, { stream: true });
         let nl;
         while ((nl = buf.indexOf('\n')) >= 0) {
@@ -300,6 +320,7 @@ export class RoutingAgentRunner implements AgentRunner {
     } catch (e) {
       problem = (e as Error).message;
     }
+    if (problem) console.warn(`[local ${model}] ${task.role}: no usable result (${problem}); Claude does this stage`);
     if (!problem && localOutcome) return { ...localOutcome, text: `[local ${model}] ${localOutcome.text}`.slice(0, 4000) };
     // Unusable: undo anything it half-did, then let Claude do the stage.
     if (task.role === 'developer' || task.role === 'tester' || task.role === 'redesign') await this.resetWorktree(task.cwd);
