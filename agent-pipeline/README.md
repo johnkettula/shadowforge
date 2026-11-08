@@ -63,8 +63,7 @@ picked the wrong item.
 |---|---|
 | Requirements | local `qwen3.5:4b` |
 | Reviewer | local `qwen3.5:4b` |
-| Developer on the daily docs cycle | local `qwen3.5:4b` |
-| Developer (features), tester, design review | Claude |
+| Developer (features and daily docs), tester, design review | Claude |
 
 - The local agent gets the same tools (Read, Glob, Grep, Bash, Edit, Write) and every call goes
   through the same policy, so all the guardrails above still apply.
@@ -72,13 +71,16 @@ picked the wrong item.
   Ollama is down), any half-made edits are undone and Claude does the stage. Reports say which
   model did each stage (`[local qwen3.5:4b]` or `… done by Claude`).
 - Settings, in `pipeline.config.json`:
-  `"agent": { "mode": "claude", "effort": "high", "local": { "model": "qwen3.5:4b", "roles": ["requirements", "reviewer"], "dailyDocsDeveloper": true, "numCtx": 16384, "maxMinutes": 45 } }`.
+  `"agent": { "mode": "claude", "effort": "high", "local": { "model": "qwen3.5:4b", "roles": ["requirements", "reviewer"], "dailyDocsDeveloper": false, "numCtx": 32768, "maxMinutes": 45 } }`.
   Leave `local` out to run everything on Claude. A running pipeline takes a new `agent` setting
   through the `updateConfig` signal (send the whole `agent` object).
 - Basement has no graphics card, so local stages run on the CPU: about 10 to 13 words a second,
   and reading a long prompt takes minutes. A local reviewer is a weaker gate than Claude; the
   staging checks and acceptance tests still run before every review.
 - Install or re-run the benchmark: `local-llm/install-and-benchmark.cmd`.
+- First hybrid cycle (22, 2026-11-08): the local docs developer used its whole 45 minutes and Claude
+  then did the step in 90 seconds for $0.22, so John moved the docs developer back to Claude
+  (`dailyDocsDeveloper: false`). Requirements and the reviewer stay local.
 
 ## Set up on basement
 
