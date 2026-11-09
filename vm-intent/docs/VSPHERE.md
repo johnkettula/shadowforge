@@ -1,7 +1,5 @@
 # vSphere: vCenter 9 and VCF Automation 9 blueprints
 
-Last updated 2026-11-09.
-
 A vSphere request (`provider: vsphere`, region `dc1` or `dc2`) can be built three ways. Each
 datacenter has its own **route**:
 
@@ -196,9 +194,6 @@ build and catalog workflows:
 
 - `VcenterBackendTest`, `VcfaBackendTest`: every call and rule above.
 - `VsphereRoutesWorkflowTest`: a dc1 build through vCenter and a dc2 build through a blueprint, each with a failed build rolled back, and a catalog run with `blueprint.deploy` torn down.
-- `VsphereControllerTest`: the status codes of the endpoints above: 503 when vCenter or VCF
-  Automation isn't set up, 404 for an unknown blueprint, 502 for a sign-in the backend refuses, and a
-  status response that leaves out empty fields.
 
 They have not been run against a real vCenter 9 or VCF Automation 9. For the first real try, use a
 test folder, then:

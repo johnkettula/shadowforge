@@ -1,6 +1,6 @@
 # vm-intent: natural-language VM requests on Temporal
 
-Last updated 2026-11-09.
+Last updated 2026-11-08.
 
 You type a request for a VM in plain English. One canonical, cloud-neutral spec
 comes out, and a Temporal workflow builds it on vSphere, AWS, Azure or Google
@@ -144,8 +144,7 @@ takes a little longer.
 ## MCP server (use the app from Claude)
 
 `mcp-server/` is an MCP server with tools to preview requests, run workflows, read the inventory
-and audit trail, run the phrasing tests, and start a batch of VMs and follow its progress
-(`vm_batch_submit`, `vm_batch_status`). Double-click `4-setup-mcp.cmd` to build it and register
+and audit trail, and run the phrasing tests. Double-click `4-setup-mcp.cmd` to build it and register
 it with the Claude desktop app, then restart the app. Add your GitLab address to `gitlab-host.txt`
 first to register GitLab's own MCP server too. See `mcp-server/README.md`.
 
