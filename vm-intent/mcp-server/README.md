@@ -1,5 +1,7 @@
 # vm-intent MCP server
 
+Last updated 2026-11-09.
+
 Lets Claude (or any MCP client) drive the vm-intent app running on this PC.
 
 | Tool | What it does |
@@ -29,6 +31,9 @@ Settings, set in the Claude config's `env` block:
 
 - `VMINTENT_API_BASE`: backend address, default `http://localhost:8080`
 - `VMINTENT_HOME`: project folder, default the folder above `mcp-server`
+- `VMINTENT_API_TOKEN`: an Entra ID access token, for an API with sign-in on. It's sent as
+  `Authorization: Bearer <token>` on every API call. Empty (the default) sends no token. See
+  `docs/SECURITY.md`.
 
 ## GitLab
 

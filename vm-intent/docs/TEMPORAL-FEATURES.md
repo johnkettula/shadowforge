@@ -1,6 +1,6 @@
 # Temporal features in vm-intent
 
-Last updated 2026-11-08.
+Last updated 2026-11-09.
 
 This page explains which Temporal features vm-intent uses, what each one is for, where it is in the
 code, and how to see it working. It's written for someone learning Temporal.
@@ -126,7 +126,9 @@ cloud it lists the VMs and compares them with the inventory:
 - Clouds behind the one-way link are skipped, because domain 2 can't look into domain 3.
 
 Change the timing with `VMINTENT_INVENTORY_CHECK_CRON` and `_TZ`. Pause it or run it now in the
-Temporal UI under **Schedules**, or with `POST /api/v2/inventory-checks`.
+Temporal UI under **Schedules**, or with `POST /api/v2/inventory-checks`. To turn the nightly check
+off, set `VMINTENT_INVENTORY_CHECK=false` (default `true`): the next time the app starts, it removes
+the `vm-inventory-check` schedule.
 
 - Code: `config/InventorySchedule.java`, `workflow/InventoryCheckWorkflowImpl.java`
 
