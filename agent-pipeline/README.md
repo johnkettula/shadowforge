@@ -84,6 +84,15 @@ picked the wrong item.
 - Overnight 2026-11-08 every local stage used its full 45 minutes and Claude then did it in 2 to 4
   minutes, so John set the local limit to 20 minutes (`maxMinutes`), and long conversations are now
   trimmed rarely and in one go, so Ollama can reuse what it has already read.
+- **Turned off on 2026-11-08 (evening).** John's rule was to take the local model out if that night
+  went badly again. In cycle 26 both local stages used their full 20 minutes without a usable result
+  (requirements: Claude then took 5 minutes, $1.50; reviewer: Claude then took 33 seconds, $0.16),
+  making 0 of 8 local pipeline stages usable. `local` was removed from the running pipeline and from
+  `pipeline.config.json`; every stage runs on Claude. Ollama and `qwen3.5:4b` stay installed, and the
+  code above is unchanged, so putting the `local` block back turns it on again.
+- Qwen did better on small, fully specified jobs sent straight to Ollama: of five unit-test classes
+  it wrote on 2026-11-08, three passed and caught planted bugs (`SpecValidatorTest`, after a one-line
+  import fix; `PolicyDefaultsTest`; `ReplyFileTest`) and are on `main`.
 
 ## Set up on basement
 
