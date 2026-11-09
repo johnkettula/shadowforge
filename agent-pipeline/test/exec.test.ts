@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, mkdirSync, symlinkSync, writeFileSync, existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { killListeners, killPostgresIn, processNamed, removeDir } from '../src/exec.js';
+import { killListeners, killPostgresIn, processesUsing, processNamed, removeDir, stopProcessesUsing } from '../src/exec.js';
 
 const alive = (pid: number) => {
   try {
@@ -61,4 +61,42 @@ test('killListeners stops what listens on the given ports, and nothing else', { 
   assert.equal(alive(bystander.pid!), true, 'a process on another port was left alone');
   assert.deepEqual(killListeners([port]), [], 'nothing left to stop');
   process.kill(bystander.pid!, 'SIGKILL');
+});
+
+test('processes using a deploy folder are found and stopped, and a folder with a longer name is not', { skip: process.platform === 'win32' }, async () => {
+  // Stand-ins for a backend running a jar copied into the folder, and one in a sibling whose name
+  // starts the same way (state/live vs state/live2).
+  const base = mkdtempSync(path.join(os.tmpdir(), 'ap-using-'));
+  const dir = path.join(base, 'live');
+  const sibling = path.join(base, 'live2');
+  mkdirSync(path.join(dir, 'run'), { recursive: true });
+  mkdirSync(path.join(sibling, 'run'), { recursive: true });
+  const start = (jar: string) => spawn(process.execPath, ['-e', 'setInterval(()=>{},1000)', path.join(jar, 'run', 'app.jar')], { detached: true, stdio: 'ignore' });
+  const backend = start(dir);
+  const bystander = start(sibling);
+  backend.unref();
+  bystander.unref();
+  await new Promise((r) => setTimeout(r, 300));
+  assert.deepEqual(processesUsing(dir), [backend.pid]);
+  assert.deepEqual(await stopProcessesUsing(dir, 10_000), [], 'nothing left after waiting');
+  assert.equal(alive(backend.pid!), false, 'the process using the folder was stopped');
+  assert.equal(alive(bystander.pid!), true, 'the one using the other folder was left alone');
+  process.kill(bystander.pid!, 'SIGKILL');
+});
+
+test('stopping waits until the processes are gone, and gives up after its time limit', async () => {
+  // A process that takes three looks to go away: the stop must wait for it, not start early.
+  let looks = 0;
+  const slow = () => (++looks <= 3 ? [999_999_901] : []);
+  assert.deepEqual(await stopProcessesUsing('/x/state/live', 20_000, slow), []);
+  assert.equal(looks, 4, 'it looked until nothing was left');
+  // One that never goes away: reported back once the time limit is up.
+  const stuck = () => [999_999_902];
+  const t0 = Date.now();
+  assert.deepEqual(await stopProcessesUsing('/x/state/live', 3_000, stuck), [999_999_902]);
+  assert.ok(Date.now() - t0 < 8_000, 'it gave up after about its time limit');
+});
+
+test('processesUsing never matches something as broad as a root folder', () => {
+  assert.deepEqual(processesUsing('/'), []);
 });

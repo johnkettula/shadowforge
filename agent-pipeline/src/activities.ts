@@ -11,7 +11,7 @@ import type { AgentRunner, AgentOutcome, AgentTask } from './agents/runner.js';
 import { checkWrite, type PolicyContext } from './agents/policy.js';
 import { developerPrompt, redesignPrompt, requirementsPrompt, reviewerPrompt, testerPrompt } from './agents/prompts.js';
 import { DEVELOPER_SCHEMA, REDESIGN_SCHEMA, REQUIREMENT_SCHEMA, REVIEW_SCHEMA, TESTER_SCHEMA } from './agents/schemas.js';
-import { fill, fillEnv, git, killListeners, killPostgresIn, killTree, removeDir, run, startService, waitForUrl } from './exec.js';
+import { fill, fillEnv, git, killListeners, killPostgresIn, killTree, removeDir, run, startService, stopProcessesUsing, waitForUrl } from './exec.js';
 import { matchesAny, toPosix } from './glob.js';
 import type {
   AgentUsage,
@@ -162,6 +162,7 @@ export async function cleanupCycle(cfg: PipelineConfig, prep: CyclePrep): Promis
   const repo = dirs(cfg).repo;
   const stateDir = path.join(dirs(cfg).staging, `cycle-${pad(prep.cycle)}`);
   killPostgresIn(stateDir);
+  await freeStateDir(stateDir);
   git(repo, ['worktree', 'remove', '--force', prep.worktree], true);
   const left: string[] = [];
   if (!removeDir(prep.worktree)) left.push(prep.worktree);
@@ -359,12 +360,25 @@ async function stopDeploy(cfg: PipelineConfig, handle: StagingHandle): Promise<v
   if (handle.pids.length && killListeners(deployPorts(handle.vars)).length) await new Promise((r) => setTimeout(r, 1500));
   // The backend's embedded Postgres runs on its own: stop it too.
   if (handle.vars.stateDir && killPostgresIn(handle.vars.stateDir).length) await new Promise((r) => setTimeout(r, 1500));
+  // Then make sure nothing is still using the deploy's folder (a backend or Postgres that lost its
+  // parent), and wait until it has really exited before anything starts there again.
+  if (handle.vars.stateDir) await freeStateDir(handle.vars.stateDir, handle.logDir);
+}
+
+/** Stops whatever still uses a deploy's state folder and waits for it; notes stragglers in the log. */
+async function freeStateDir(stateDir: string, logDir?: string): Promise<void> {
+  const left = await stopProcessesUsing(stateDir);
+  if (left.length && logDir) {
+    mkdirSync(logDir, { recursive: true });
+    appendFileSync(path.join(logDir, 'stop.log'), `${new Date().toISOString()} still running in ${stateDir} after waiting: pids ${left.join(', ')}\n`);
+  }
 }
 
 export async function deployStaging(cfg: PipelineConfig, prep: CyclePrep, attempt: number): Promise<{ ok: boolean; handle?: StagingHandle; tail: string }> {
   if (cfg.staging.mode === 'none') return { ok: true, handle: { apiUrl: fill(cfg.staging.apiUrl, vars(cfg, prep)), pids: [], stopCommands: [], vars: {}, logDir: '' }, tail: '' };
   const v = vars(cfg, prep);
   killPostgresIn(v.stateDir);
+  await freeStateDir(v.stateDir);
   removeDir(v.stateDir);
   const r = await startDeploy(cfg, cfg.staging, v, path.join(dirs(cfg).logs, `cycle-${pad(prep.cycle)}`, `attempt-${attempt}-staging`));
   if (!r.ok) await stopDeploy(cfg, r.handle);
@@ -609,7 +623,19 @@ export async function deployLive(cfg: PipelineConfig): Promise<{ ok: boolean; ap
     const old = JSON.parse(readFileSync(stateFile, 'utf8')) as StagingHandle;
     await stopDeploy(cfg, old);
   }
-  const r = await startDeploy(cfg, cfg.live, v, path.join(dirs(cfg).logs, 'live'));
+  const logDir = path.join(dirs(cfg).logs, 'live');
+  // Belt and braces: nothing from an earlier live run (recorded or not) may still hold its folder.
+  if (v.stateDir) await freeStateDir(v.stateDir, logDir);
+  let r = await startDeploy(cfg, cfg.live, v, logDir);
+  if (!r.ok) {
+    // One more try before the caller reverts a merge: a start that failed because the machine was
+    // busy or an old process was slow to let go usually works the second time.
+    await stopDeploy(cfg, r.handle);
+    await new Promise((res) => setTimeout(res, 15_000));
+    const second = await startDeploy(cfg, cfg.live, v, logDir);
+    if (!second.ok) second.tail = `first try:\n${r.tail}\n\nsecond try:\n${second.tail}`;
+    r = second;
+  }
   mkdirSync(dirs(cfg).state, { recursive: true });
   writeFileSync(stateFile, JSON.stringify(r.handle));
   return { ok: r.ok, apiUrl: r.handle.apiUrl, tail: r.tail };

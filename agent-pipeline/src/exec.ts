@@ -247,3 +247,62 @@ export function killListeners(ports: number[]): number[] {
   }
   return [...pids];
 }
+
+/**
+ * Processes whose command line names a path inside `dir` (the deploy's backend runs a jar copied
+ * into it, and its embedded Postgres runs with its data folder there). Finds them even when they
+ * outlived their recorded parent and listen on no port. Never includes this process.
+ */
+export function processesUsing(dir: string): number[] {
+  const want = path.resolve(dir).replace(/[\\/]+$/, '');
+  if (!want || want.length < 8) return []; // never match something as broad as a drive root
+  const pids = new Set<number>();
+  if (process.platform === 'win32') {
+    // Followed by a separator, so state\live never matches state\live2. $PID leaves out this
+    // PowerShell itself, whose own command line contains the folder.
+    const needle = (want.replace(/\//g, '\\') + '\\').toLowerCase().replace(/'/g, "''");
+    const ps =
+      `$n = '${needle}'; ` +
+      'Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | ' +
+      "Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -and $_.CommandLine.Replace('/', '\\').ToLower().Contains($n) } | " +
+      'Select-Object -ExpandProperty ProcessId';
+    const r = spawnSync('powershell', ['-NoProfile', '-Command', ps], { encoding: 'utf8', windowsHide: true });
+    for (const line of (r.stdout ?? '').split(/\r?\n/)) if (/^\d+$/.test(line.trim())) pids.add(Number(line.trim()));
+  } else {
+    let entries: string[] = [];
+    try {
+      entries = readdirSync('/proc').filter((n) => /^\d+$/.test(n));
+    } catch {
+      return [];
+    }
+    for (const n of entries) {
+      try {
+        const cmd = readFileSync(`/proc/${n}/cmdline`, 'utf8').replace(/\0/g, ' ');
+        if (cmd.includes(want + '/')) pids.add(Number(n));
+      } catch {
+        /* gone meanwhile */
+      }
+    }
+  }
+  pids.delete(process.pid);
+  pids.delete(0);
+  return [...pids];
+}
+
+/**
+ * Stops every process using `dir` (see processesUsing) and waits until none is left, so a new
+ * deploy doesn't start while the old one still holds its files (on 2026-11-08 the live backend
+ * crashed with "could not lock …\pgdata\epg-lock" because the old one hadn't exited yet).
+ * Returns what was still running when it gave up; empty means the folder is free.
+ */
+export async function stopProcessesUsing(dir: string, timeoutMs = 90_000, find = processesUsing): Promise<number[]> {
+  const until = Date.now() + timeoutMs;
+  let left = find(dir);
+  while (left.length) {
+    for (const pid of left) killTree(pid);
+    if (Date.now() >= until) break;
+    await new Promise((r) => setTimeout(r, 2000));
+    left = find(dir);
+  }
+  return left;
+}
