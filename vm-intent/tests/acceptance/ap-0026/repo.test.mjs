@@ -210,7 +210,9 @@ test("criterion 5: no AP-0026 commit adds, removes or changes a 'Last updated' l
       const m = /^\+\+\+ b\/(.*)$/.exec(l) || /^--- a\/(.*)$/.exec(l);
       if (m) { file = m[1]; continue; }
       if (/^diff --git a\/(\S+)/.test(l)) { file = /^diff --git a\/(\S+)/.exec(l)[1]; continue; }
-      if (/^[+-](?![+-]{2} )/.test(l) && /Last updated/.test(l)) {
+      // A dated line ('Last updated 2026-11-09.', perhaps inside HTML tags), not test code that mentions the phrase.
+      if (file && file.startsWith('vm-intent/tests/acceptance/')) continue;
+      if (/^[+-](?![+-]{2} )/.test(l) && /^[+-]\s*(<[^>]*>\s*)*[*_]*Last updated \d{4}-\d{2}-\d{2}/.test(l)) {
         assert.ok(allowed.has(file), `${sha.slice(0, 8)} changes a 'Last updated' line in ${file}: ${l}`);
       }
     }
