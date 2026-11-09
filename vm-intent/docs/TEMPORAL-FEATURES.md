@@ -161,9 +161,10 @@ at least one failed), FAILED (none built, at least one failed) or DUPLICATE (all
 
 `ReplayTest` replays every file in `backend/src/test/resources/histories` against today's code. It
 picks the workflow class from the file name's prefix: `intent-` → `IntentWorkflowImpl`, `reconcile-` →
-`VmReconcileWorkflowImpl`, `catalog-` → `CatalogRunWorkflowImpl`, `lifecycle-` → `VmLifecycleWorkflowImpl`.
+`VmReconcileWorkflowImpl`, `catalog-` → `CatalogRunWorkflowImpl`, `lifecycle-` → `VmLifecycleWorkflowImpl`,
+`batchshard-` → `BatchShardWorkflowImpl`.
 A file with any other prefix fails the test with its name, so no history is skipped. It also checks
-that the seven `*-v1-*` histories below are all still there.
+that the seven `*-v1-*` histories below and the four recorded ones after them are all still there.
 
 - `intent-v1-*` and `reconcile-v1-*` were recorded from the code *before* the lifecycle, update and
   link features were added; the three `catalog-v1-*` histories are real catalog runs (resumed, torn
@@ -172,6 +173,14 @@ that the seven `*-v1-*` histories below are all still there.
   by a `vm-` child workflow.
 - `lifecycle-v1-renewed` is a VM's lifecycle (`life-` workflow) that took a `renew` update, saved
   while it was still running.
+- `batchshard-v1-duplicate` is a batch shard given the same spec twice: one `vm-` child workflow builds
+  the VM, the second start finds that workflow already there and counts as a duplicate.
+- `catalog-v2-existing-vm` is a catalog run whose VM was already RUNNING (built by an earlier run with
+  the same spec): the `ExistingVm` activity finds it and the run uses it ("already built with this
+  spec") without starting a `vm-` child workflow.
+
+These four were recorded before per-user identity changes the spec hash, and so the `vm-` child
+workflow IDs, to show that executions started before that change still replay.
 
 If a change would make a workflow that's running during an upgrade behave differently from its
 history (a new step, a timer moved, a child workflow ID that changed), the test fails before it ships.
@@ -250,10 +259,10 @@ One thing to know: it only skips ahead while a timer is waiting. To wait for a w
 | `LinkFilesTest` | The real file-based link with the simulated domain 3 |
 | `IntentWorkflowTest` | Answer, confirm and cancel updates (with a replay round trip), several VMs at once, search attributes |
 | `InventoryCheckTest` | Missing VMs and orphans |
-| `ReplayTest` | Every saved history against new code, the workflow class picked by file-name prefix (a file with no known prefix fails), and the seven `*-v1-*` histories still present |
-| `RecordedHistoriesTest` | The scenarios behind `intent-v2-multi-existing` (two VMs, one already there) and `lifecycle-v1-renewed` (a renewal); with `-Dhistories.record=true` they save missing histories |
+| `ReplayTest` | Every saved history against new code, the workflow class picked by file-name prefix (a file with no known prefix fails), and the seven `*-v1-*` histories and the four recorded ones still present |
+| `RecordedHistoriesTest` | The scenarios behind `intent-v2-multi-existing` (two VMs, one already there), `lifecycle-v1-renewed` (a renewal) and `batchshard-v1-duplicate` (a shard with the same spec twice); with `-Dhistories.record=true` they save missing histories |
 | `HistoryRecorderTest` | `HistoryRecorder` writes nothing without `-Dhistories.record=true`, writes a missing file that replays, and leaves an existing file byte-for-byte unchanged |
-| `CatalogRunWorkflowTest` | Steps in order, resume with partial work, teardown, 30-day auto teardown, approvals, blueprints |
+| `CatalogRunWorkflowTest` | Steps in order, resume with partial work, teardown, 30-day auto teardown, approvals, blueprints, reusing a VM already built with the same spec (the scenario behind `catalog-v2-existing-vm`) |
 | `CountPhrasingTest` | "3 web servers" vs "a RHEL 9 server" |
 | `BatchWorkflowTest` | Batches in shards: rollbacks, duplicates in one batch, throttled creates retried |
 | `VsphereRoutesWorkflowTest` | vSphere builds through the mock vCenter 9 and VCF Automation 9, their rollbacks, and a catalog run that deploys a blueprint and tears it down |

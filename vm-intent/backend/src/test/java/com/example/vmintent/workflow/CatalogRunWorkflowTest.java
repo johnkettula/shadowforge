@@ -53,7 +53,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Catalog runs: steps in order; a failed step stops the run and waits; Resume runs only the failed
  * step again and it picks up its own partial work; Tear down undoes everything; nobody deciding
- * within the wait tears it down. The real actions run against temporary folders.
+ * within the wait tears it down. The real actions run against temporary folders. One scenario also
+ * records a history for ReplayTest (see HistoryRecorder).
  */
 class CatalogRunWorkflowTest {
 
@@ -336,6 +337,46 @@ class CatalogRunWorkflowTest {
         Map<String, Object> params = RunInputs.check(def, Map.of("app", "twin", "extra", "never.txt")).params();
         start(def, params);
         assertThrows(WorkflowExecutionAlreadyStarted.class, () -> start(def, params));
+    }
+
+    /**
+     * catalog-v2-existing-vm: a run whose VM was already RUNNING (built by an earlier run with the
+     * same spec), so ExistingVm finds it and the run uses it instead of starting a vm- child workflow.
+     * Saved with -Dhistories.record=true for ReplayTest.
+     */
+    @Test
+    void aRunReusesAVmAlreadyBuiltWithTheSameSpec() throws Exception {
+        Definition def = parse("""
+                kind: Provisioning
+                name: reuse
+                version: 1
+                inputs:
+                  ticket: { type: string, required: true }
+                steps:
+                  - id: create
+                    action: vm.create
+                    with: { name: shared-vm, provider: aws, region: us-east, os: ubuntu, size: small, env: test, ttlDays: 7 }
+                """);
+        RunStatus first = waitFor(start(def, Map.of("ticket", "CHG-1")), "COMPLETED");
+        String hash = (String) step(first, "create").output().get("specHash");
+        assertEquals(false, step(first, "create").output().get("reused"));
+        assertEquals("RUNNING", records.state.get(hash), "the VM is running before the recorded run starts");
+        int createdBefore = cloud.created.get();
+        assertEquals(1, createdBefore);
+
+        // Other inputs, so another run ID, but the same VM spec and so the same spec hash.
+        RunStatus s = waitFor(start(def, Map.of("ticket", "CHG-2")), "COMPLETED");
+        assertTrue(!s.runId().equals(first.runId()), s.runId());
+        StepState create = step(s, "create");
+        assertEquals(hash, create.output().get("specHash"));
+        assertEquals(true, create.output().get("reused"));
+        assertTrue(s.history().stream().anyMatch(h -> h.contains("Step create done: using ")
+                && h.contains(", already built with this spec")), s.history().toString());
+        assertEquals(createdBefore, cloud.created.get(), "no second VM");
+
+        io.temporal.testing.WorkflowReplayer.replayWorkflowExecution(
+                env.getWorkflowClient().fetchHistory(s.runId()), CatalogRunWorkflowImpl.class);
+        HistoryRecorder.record(env.getWorkflowClient(), s.runId(), "catalog-v2-existing-vm");
     }
 
     // ------------------------------------------------------------------ helpers

@@ -41,7 +41,8 @@ class ReplayTest {
             "intent-", IntentWorkflowImpl.class,
             "reconcile-", VmReconcileWorkflowImpl.class,
             "catalog-", CatalogRunWorkflowImpl.class,
-            "lifecycle-", VmLifecycleWorkflowImpl.class);
+            "lifecycle-", VmLifecycleWorkflowImpl.class,
+            "batchshard-", BatchShardWorkflowImpl.class);
 
     /**
      * Histories recorded before the lifecycle, update and link features (intent-, reconcile-), and
@@ -51,6 +52,13 @@ class ReplayTest {
     static final List<String> VERSION_1 = List.of(
             "intent-v1-completed", "intent-v1-cancelled", "intent-v1-open", "reconcile-v1-completed",
             "catalog-v1-resumed", "catalog-v1-torn-down", "catalog-v1-approved");
+
+    /**
+     * Histories recorded with HistoryRecorder (RecordedHistoriesTest, CatalogRunWorkflowTest) before
+     * per-user identity changes the spec hash and so the vm- child workflow IDs. None may go missing.
+     */
+    static final List<String> RECORDED = List.of(
+            "intent-v2-multi-existing", "lifecycle-v1-renewed", "batchshard-v1-duplicate", "catalog-v2-existing-vm");
 
     @TestFactory
     Stream<DynamicTest> everySavedHistoryReplays() throws Exception {
@@ -71,7 +79,16 @@ class ReplayTest {
 
     @Test
     void theVersion1HistoriesAreAllStillThere() throws Exception {
-        for (String name : VERSION_1) {
+        assertAllThere(VERSION_1);
+    }
+
+    @Test
+    void theRecordedHistoriesAreAllStillThere() throws Exception {
+        assertAllThere(RECORDED);
+    }
+
+    private static void assertAllThere(List<String> names) throws Exception {
+        for (String name : names) {
             if (!Files.exists(HistoryRecorder.DIR.resolve(name + ".json"))) fail("history " + name + " is missing");
             assertTrue(history(name).getEvents().size() > 1, name);
         }
