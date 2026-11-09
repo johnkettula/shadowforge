@@ -13,7 +13,11 @@ An automated pipeline that keeps improving vm-intent on its own; you read a **sy
    pipeline runs *every* acceptance test so far, the API contract test and a small load test;
 6. a **reviewer agent**, who never saw the developer's reasoning, approves or sends it back;
 8. it's **merged to `main` and pushed**, the **live deployment is rebuilt and checked**, and if live
-   breaks, the merge is **reverted automatically** and the pipeline pauses.
+   breaks, the merge is **reverted automatically** and the pipeline pauses. Before a deploy starts,
+   everything still using its folder from the previous run is stopped and waited for, and live gets
+   a second try at starting before a merge is reverted (added 2026-11-08 after cycle 26's good docs
+   change was reverted because the old live backend hadn't let go of its database yet).
+   `check-live-processes.cmd` lists what is using the live folder.
 
 Any failure goes back to the developer with the error (up to 3 attempts), then the requirement is
 abandoned. Every 5th cycle is a **redesign review**: an agent writes a design review and puts up to 3
