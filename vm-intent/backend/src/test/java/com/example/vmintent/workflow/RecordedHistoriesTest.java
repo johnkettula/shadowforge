@@ -2,9 +2,12 @@ package com.example.vmintent.workflow;
 
 import com.example.vmintent.spec.SpecCanonicalizer;
 import com.example.vmintent.spec.VmSpec;
+import com.example.vmintent.workflow.Models.BatchItem;
 import com.example.vmintent.workflow.Models.IntentRequest;
 import com.example.vmintent.workflow.Models.ReconcileRequest;
 import com.example.vmintent.workflow.Models.RequestStatus;
+import com.example.vmintent.workflow.Models.ShardProgress;
+import com.example.vmintent.workflow.Models.ShardRequest;
 import com.example.vmintent.workflow.Models.VmLifecycle;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
@@ -16,6 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -88,6 +92,25 @@ class RecordedHistoriesTest {
 
         WorkflowReplayer.replayWorkflowExecution(env.getWorkflowClient().fetchHistory(id), VmLifecycleWorkflowImpl.class);
         HistoryRecorder.record(env.getWorkflowClient(), id, "lifecycle-v1-renewed");
+    }
+
+    /** batchshard-v1-duplicate: a shard given the same spec twice; one vm- child builds it, the other is a duplicate. */
+    @Test
+    void batchShardWithADuplicateItem() throws Exception {
+        BatchItem same = TestFakes.item("twin", 0);
+        String id = BatchProvisionWorkflowImpl.shardId("batch-recorded", 0);
+        BatchShardWorkflow shard = env.getWorkflowClient().newWorkflowStub(BatchShardWorkflow.class,
+                WorkflowOptions.newBuilder().setTaskQueue(TaskQueues.INTENT).setWorkflowId(id).build());
+        ShardProgress p = shard.run(new ShardRequest("batch-recorded", 0, List.of(same, same), 2, "jdoe"));
+
+        assertEquals(1, p.running());
+        assertEquals(1, p.duplicate());
+        assertEquals(0, p.failed());
+        assertEquals(1, cloud.created.get(), "one VM for the two identical items");
+        assertEquals(1, records.count("DUPLICATE"));
+
+        WorkflowReplayer.replayWorkflowExecution(env.getWorkflowClient().fetchHistory(id), BatchShardWorkflowImpl.class);
+        HistoryRecorder.record(env.getWorkflowClient(), id, "batchshard-v1-duplicate");
     }
 
     /** Starts a request and confirms the spec it shows. */
