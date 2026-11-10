@@ -1,5 +1,7 @@
 # vSphere: vCenter 9 and VCF Automation 9 blueprints
 
+Last updated 2026-11-10.
+
 A vSphere request (`provider: vsphere`, region `dc1` or `dc2`) can be built three ways. Each
 datacenter has its own **route**:
 
@@ -24,17 +26,19 @@ variables, never in the file:
 ```yaml
 vmintent:
   vsphere:
-    route: simulated                       # the default for datacenters without their own route
+    route: simulated                       # VMINTENT_VSPHERE_ROUTE: the default for datacenters without their own route
     vcenter:
       url: https://vcenter.example.com      # VMINTENT_VCENTER_URL
       username: svc-vmintent@vsphere.local  # VMINTENT_VCENTER_USER
       password: ...                         # VMINTENT_VCENTER_PASSWORD
       ca-file: /etc/vm-intent/vcenter-ca.pem   # VMINTENT_VCENTER_CA_FILE; empty = the JVM's trusted CAs
-      content-library: vm-intent-templates
+      content-library: vm-intent-templates  # VMINTENT_VCENTER_LIBRARY; default vm-intent-templates
     automation:
       url: https://vcfa.example.com         # VMINTENT_VCFA_URL
       org: vm-apps                          # VMINTENT_VCFA_ORG: the VM Apps organization (tenant)
       api-token: ...                        # VMINTENT_VCFA_API_TOKEN
+      auth: tenant-oauth                    # VMINTENT_VCFA_AUTH: tenant-oauth (default) | iaas-login (Aria Automation 8.x)
+      ca-file: /etc/vm-intent/vcfa-ca.pem   # VMINTENT_VCFA_CA_FILE; empty = the JVM's trusted CAs
       project: vm-intent                    # VMINTENT_VCFA_PROJECT: name or ID
     datacenters:
       dc1:
@@ -194,6 +198,9 @@ build and catalog workflows:
 
 - `VcenterBackendTest`, `VcfaBackendTest`: every call and rule above.
 - `VsphereRoutesWorkflowTest`: a dc1 build through vCenter and a dc2 build through a blueprint, each with a failed build rolled back, and a catalog run with `blueprint.deploy` torn down.
+- `VsphereControllerTest`: each vSphere failure type maps to one HTTP status; templates and
+  blueprints give 503 when vCenter or VCF Automation isn't set up; the status response leaves out
+  empty fields; and with vSphere set up, an unknown blueprint gives 404.
 
 They have not been run against a real vCenter 9 or VCF Automation 9. For the first real try, use a
 test folder, then:

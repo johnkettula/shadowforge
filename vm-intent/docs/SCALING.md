@@ -1,6 +1,6 @@
 # Scaling vm-intent to 2,000 VM builds at once
 
-Last updated 2026-11-07.
+Last updated 2026-11-10.
 
 This page explains how the provisioning engine runs thousands of VM builds at the same time,
 what limits it, and what the load tests showed.
@@ -127,3 +127,11 @@ see [VSPHERE.md](VSPHERE.md)), and real Azure is being built ([AZURE.md](AZURE.m
 `describeVm` and `deleteVm` get real API calls the same way: for AWS, `RunInstances` with `ClientToken` = spec
 hash, `DescribeInstances`, and `TerminateInstances`. Nothing in the workflows changes. The load-test results
 above are all against the simulated clouds.
+
+The simulator's settings (`vmintent.sim.*` in `application.yml`) shape those results:
+
+| Variable | Default | What it sets |
+|---|---|---|
+| `VMINTENT_SIM_BOOT_MIN`, `VMINTENT_SIM_BOOT_MAX` | 20 s, 60 s | The simulated boot time: each VM boots in between these two |
+| `VMINTENT_SIM_LATENCY_MS` | 250 | The delay of each simulated cloud call, in milliseconds (on average: each call waits between half and one and a half times this) |
+| `VMINTENT_SIM_THROTTLE` | 0.02 | The share of cloud calls refused as throttled (like an HTTP 429) |

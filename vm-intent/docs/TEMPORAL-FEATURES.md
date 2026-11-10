@@ -1,6 +1,6 @@
 # Temporal features in vm-intent
 
-Last updated 2026-11-08.
+Last updated 2026-11-10.
 
 This page explains which Temporal features vm-intent uses, what each one is for, where it is in the
 code, and how to see it working. It's written for someone learning Temporal.
@@ -126,7 +126,9 @@ cloud it lists the VMs and compares them with the inventory:
 - Clouds behind the one-way link are skipped, because domain 2 can't look into domain 3.
 
 Change the timing with `VMINTENT_INVENTORY_CHECK_CRON` and `_TZ`. Pause it or run it now in the
-Temporal UI under **Schedules**, or with `POST /api/v2/inventory-checks`.
+Temporal UI under **Schedules**, or with `POST /api/v2/inventory-checks`. To turn the nightly check
+off, set `VMINTENT_INVENTORY_CHECK=false` (default `true`): the next time the app starts, it removes
+the `vm-inventory-check` schedule.
 
 - Code: `config/InventorySchedule.java`, `workflow/InventoryCheckWorkflowImpl.java`
 
@@ -269,3 +271,4 @@ One thing to know: it only skips ahead while a timer is waiting. To wait for a w
 | `RequestControllerTest` | Answering or cancelling a request: 409 once it has finished or can't take it, 404 for an unknown ID |
 | `VmControllerTest` | Day-2 changes: 404 for a spec hash that matches no VM, 409 for a VM that exists but can't be changed, 400 for a malformed hash |
 | `RequestOwnerFlowTest` | Each request's owner comes from sign-in on the server (`anonymous` when sign-in is off), never from `userId` or `requestedBy`: a single request, a multi-VM request, a batch, preview and the legacy endpoint |
+| `VmIdentityTest` | Golden values: today's canonical strings and spec hash are pinned; for now the hash is the same for every owner (`anonymous` keeps today's hash); the `vm-` and `life-` workflow IDs are built from the hash |
