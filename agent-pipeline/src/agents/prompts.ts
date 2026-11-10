@@ -64,6 +64,11 @@ Your tests are kept and re-run against every later cycle's branch and the live d
 - Don't run the project's build or unit-test suites (mvn, npm test, npm run build) from a test.
   The pipeline's build gates already run them on every change; repeating them makes every later
   cycle much slower. Check what a running server does, or read files, instead.
+- Don't read build outputs either (anything under target/, dist/ or build/, such as surefire
+  reports, class files or jars). Where your tests are re-run they may be missing, or left over from
+  an older build without your requirement's classes (cycle 29's live checks failed that way after a
+  good merge). Read the source files instead: for a unit test, check that the test method exists in
+  the test source and asserts the right thing; the build gates already make sure it passes.
 - A "must not change" check looks only at commits whose subject starts with this requirement's ID
   (for example git log --format=%H --grep '^AP-0012:'), never at the whole branch against main.
   Otherwise it fails as soon as a later requirement legitimately changes that area.`,
