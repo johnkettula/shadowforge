@@ -1,5 +1,6 @@
 package com.example.vmintent.provider.vsphere;
 
+import com.example.vmintent.spec.VmIdentity;
 import com.example.vmintent.spec.VmSpec;
 import com.example.vmintent.workflow.Models.VmStatus;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -14,6 +15,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -46,6 +48,61 @@ class VcfaBackendTest {
     @AfterEach
     void tearDown() {
         vcfa.close();
+    }
+
+    static final String HASH = "9f86d081884c7d65", OTHER_HASH = "60303ae22b998861";
+
+    private long requests() {
+        return vcfa.calls.stream().filter(c -> c.startsWith("POST /blueprint/api/blueprint-requests")).count();
+    }
+
+    private boolean anyDelete() {
+        return vcfa.calls.stream().anyMatch(c -> c.startsWith("DELETE "));
+    }
+
+    @Test
+    void theBuildKeyIsReadBackFromTheDeploymentsDescription() {
+        assertEquals(HASH + "-run00001", VcfaBackend.recordedKey("vm-intent build (test), key " + HASH + "-run00001"));
+        assertNull(VcfaBackend.recordedKey("Made by hand for the monkey key team"));
+        assertNull(VcfaBackend.recordedKey(null));
+    }
+
+    @Test
+    void aNewRunOfTheSameSpecAdoptsTheDeploymentItAskedFor() {
+        String id = backend.createVm(spec("api-10"), VmIdentity.buildKey(HASH, "run00001"));
+        assertEquals(id, backend.createVm(spec("api-10"), VmIdentity.buildKey(HASH, "run00002")));
+        assertEquals(1, vcfa.deployments.size());
+        assertEquals(1, requests(), "no second blueprint request");
+    }
+
+    @Test
+    void aDeploymentBuiltForAnotherSpecIsRefusedAndLeftAlone() {
+        backend.createVm(spec("api-11"), VmIdentity.buildKey(HASH, "run00001"));
+        MockVcfa.Dep d = vcfa.byName("api-11");
+        ApplicationFailure e = assertThrows(ApplicationFailure.class,
+                () -> backend.createVm(spec("api-11"), VmIdentity.buildKey(OTHER_HASH, "run00002")));
+        assertEquals("InvalidSpec", e.getType());
+        assertTrue(e.isNonRetryable());
+        assertTrue(e.getOriginalMessage().contains("another request"), e.getOriginalMessage());
+        assertEquals(1, vcfa.deployments.size());
+        assertEquals(1, requests(), "nothing requested");
+        assertEquals("CREATE_INPROGRESS", d.status, "not removed");
+        assertFalse(anyDelete(), vcfa.calls.toString());
+    }
+
+    @Test
+    void aDeploymentWithoutAVmIntentKeyIsRefused() {
+        // VCF Automation has no ownership tag: a same-named deployment without our key isn't ours.
+        MockVcfa.Dep d = vcfa.addDeployment("legacy-01", "Made by hand");
+        ApplicationFailure e = assertThrows(ApplicationFailure.class,
+                () -> backend.createVm(spec("legacy-01"), VmIdentity.buildKey(HASH, "run00001")));
+        assertEquals("InvalidSpec", e.getType());
+        assertTrue(e.isNonRetryable());
+        assertTrue(e.getOriginalMessage().contains("didn't build"), e.getOriginalMessage());
+        assertEquals(1, vcfa.deployments.size());
+        assertEquals(0, requests(), "nothing requested");
+        assertEquals("CREATE_SUCCESSFUL", d.status, "not removed");
+        assertFalse(anyDelete(), vcfa.calls.toString());
     }
 
     @Test

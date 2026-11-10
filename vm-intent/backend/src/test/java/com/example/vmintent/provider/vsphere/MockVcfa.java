@@ -76,6 +76,14 @@ public final class MockVcfa implements AutoCloseable {
         server.stop(0);
     }
 
+    /** A finished deployment someone made with this description (e.g. one vm-intent didn't build: no key). */
+    public Dep addDeployment(String name, String description) {
+        Dep d = new Dep("dep-" + ids.incrementAndGet(), name, "bp-1", JSON.createObjectNode().put("description", description));
+        d.status = "CREATE_SUCCESSFUL";
+        deployments.put(d.id, d);
+        return d;
+    }
+
     public Dep byName(String name) {
         return deployments.values().stream().filter(d -> d.name.equals(name)).findFirst().orElse(null);
     }
@@ -168,7 +176,8 @@ public final class MockVcfa implements AutoCloseable {
             List<Map<String, Object>> out = new ArrayList<>();
             for (Dep d : deployments.values()) {
                 if (q.containsKey("search") && !d.name.contains(q.get("search"))) continue;
-                out.add(Map.of("id", d.id, "name", d.name, "status", d.status));
+                String description = d.request == null ? "" : d.request.path("description").asText("");
+                out.add(Map.of("id", d.id, "name", d.name, "status", d.status, "description", description));
             }
             return new Reply(200, page(out));
         }
