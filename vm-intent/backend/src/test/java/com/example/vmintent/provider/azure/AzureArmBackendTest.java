@@ -1,5 +1,6 @@
 package com.example.vmintent.provider.azure;
 
+import com.example.vmintent.spec.VmIdentity;
 import com.example.vmintent.spec.VmSpec;
 import com.example.vmintent.workflow.Models.VmStatus;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -112,6 +113,50 @@ class AzureArmBackendTest {
         assertEquals("InvalidSpec", e.getType());
         assertTrue(e.isNonRetryable());
         assertEquals(0, changes(), arm.calls.toString());
+    }
+
+    static final String HASH = "9f86d081884c7d65", OTHER_HASH = "60303ae22b998861";
+
+    String build(String name, String key) {
+        return retried(() -> backend.createVm(spec(name, "ubuntu", "eu-west"), null, key));
+    }
+
+    long vms() {
+        return arm.resources.keySet().stream().filter(k -> k.contains("/virtualmachines/")).count();
+    }
+
+    @Test
+    void aNewRunOfTheSameSpecAdoptsTheVmItBuilt() {
+        String id = build("web-10", VmIdentity.buildKey(HASH, "run00001"));
+        arm.calls.clear();
+        assertEquals(id, backend.createVm(spec("web-10", "ubuntu", "eu-west"), null, VmIdentity.buildKey(HASH, "run00002")));
+        assertEquals(0, changes(), arm.calls.toString());
+        assertEquals(1, vms());
+    }
+
+    @Test
+    void aVmBuiltForAnotherSpecIsRefusedAndLeftAlone() {
+        build("web-11", VmIdentity.buildKey(HASH, "run00001"));
+        arm.calls.clear();
+        ApplicationFailure e = assertThrows(ApplicationFailure.class,
+                () -> backend.createVm(spec("web-11", "ubuntu", "eu-west"), null, VmIdentity.buildKey(OTHER_HASH, "run00002")));
+        assertEquals("InvalidSpec", e.getType());
+        assertTrue(e.isNonRetryable());
+        assertTrue(e.getOriginalMessage().contains("another request"), e.getOriginalMessage());
+        assertEquals(0, changes(), arm.calls.toString());
+        assertEquals(1, vms());
+        assertEquals(HASH + "-run00001", arm.resource(VM, "web-11").path("tags").path("vm-intent-key").asText(), "the VM is untouched");
+    }
+
+    @Test
+    void aManagedVmWithNoKeyTagIsStillAdopted() {
+        // Built before keys were read back: tagged vm-intent=managed but no vm-intent-key, so adopted as before.
+        untagged(VM, "old-01");
+        arm.resource(VM, "old-01").putObject("tags").put("vm-intent", "managed");
+        assertEquals("arm:" + MockArm.RESOURCE_GROUP + ":old-01",
+                backend.createVm(spec("old-01", "ubuntu", "eu-west"), null, VmIdentity.buildKey(HASH, "run00001")));
+        assertEquals(0, changes(), arm.calls.toString());
+        assertEquals(1, vms());
     }
 
     @Test

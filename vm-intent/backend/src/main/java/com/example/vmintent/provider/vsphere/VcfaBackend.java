@@ -1,5 +1,6 @@
 package com.example.vmintent.provider.vsphere;
 
+import com.example.vmintent.spec.VmIdentity;
 import com.example.vmintent.spec.VmSpec;
 import com.example.vmintent.workflow.Models.ProviderPlan;
 import com.example.vmintent.workflow.Models.VmStatus;
@@ -22,7 +23,8 @@ import java.util.regex.Pattern;
  * and snapshot are the machine's day-2 actions.
  *
  * VM IDs look like "vcfa:<deployment ID>". The deployment name is the VM's name, which makes a create
- * idempotent: a retried call finds the deployment it already asked for.
+ * idempotent: a retried call finds the deployment it already asked for. It is adopted only when the key in
+ * its description has the same spec hash; one without a vm-intent key, or built for another spec, is refused.
  *
  * Also used directly by the catalog's blueprint.deploy step, for blueprints that build more than one VM.
  */
@@ -31,6 +33,7 @@ public class VcfaBackend {
     public static final String PREFIX = "vcfa:";
     private static final Logger log = LoggerFactory.getLogger(VcfaBackend.class);
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{([a-zA-Z]+)}");
+    private static final Pattern DESCRIPTION_KEY = Pattern.compile("vm-intent build \\([^)]*\\), key (\\S+)");
 
     /** Day-2 action IDs of a vSphere machine resource. */
     static final String POWER_ON = "Cloud.vSphere.Machine.PowerOn";
@@ -121,14 +124,32 @@ public class VcfaBackend {
 
     public String createVm(VmSpec spec, String idempotencyKey) {
         VsphereProperties.Datacenter dc = props.datacenter(spec.region());
-        Optional<String> existing = client.findDeployment(spec.name());
-        if (existing.isPresent()) return PREFIX + existing.get();
+        Optional<VcfAutomationClient.NamedDeployment> existing = client.findNamedDeployment(spec.name());
+        if (existing.isPresent()) {
+            // No ownership tag here: the key in the description is what says vm-intent built it, and for which spec.
+            String recorded = recordedKey(existing.get().description());
+            if (recorded == null) {
+                throw ApplicationFailure.newNonRetryableFailure("VCF Automation already has a deployment called '" + spec.name()
+                        + "' that vm-intent didn't build; choose another name", "InvalidSpec");
+            }
+            if (!VmIdentity.sameBuild(recorded, idempotencyKey)) {
+                throw ApplicationFailure.newNonRetryableFailure("VCF Automation's deployment '" + spec.name()
+                        + "' was built by vm-intent for another request; choose another name", "InvalidSpec");
+            }
+            return PREFIX + existing.get().id();
+        }
         VcfAutomationClient.Blueprint bp = client.blueprint(blueprintFor(dc, spec));
         String version = version(dc, bp.id());
         VcfAutomationClient.Requested r = client.requestDeployment(bp.id(), version, spec.name(), inputsFor(dc, spec),
                 "vm-intent build (" + spec.env() + "), key " + idempotencyKey);
         log.info("[vcf-automation] requested {} from blueprint {} {} (deployment {})", spec.name(), bp.name(), version, r.deploymentId());
         return PREFIX + r.deploymentId();
+    }
+
+    /** The build key in a deployment's description ("vm-intent build (dev), key ..."), or null when there is none. */
+    static String recordedKey(String description) {
+        Matcher m = DESCRIPTION_KEY.matcher(description == null ? "" : description);
+        return m.find() ? m.group(1) : null;
     }
 
     public VmStatus describeVm(String vmId) {

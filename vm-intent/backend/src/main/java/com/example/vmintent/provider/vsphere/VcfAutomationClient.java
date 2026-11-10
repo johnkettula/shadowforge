@@ -221,9 +221,17 @@ public class VcfAutomationClient {
 
     /** The project's deployment with exactly this name, if any (not counting deleted ones). */
     public Optional<String> findDeployment(String name) {
+        return findNamedDeployment(name).map(NamedDeployment::id);
+    }
+
+    /** A deployment found by name, with its description ("" if none). */
+    public record NamedDeployment(String id, String description) {}
+
+    /** Like findDeployment, with the deployment's description (where vm-intent records the build key). */
+    public Optional<NamedDeployment> findNamedDeployment(String name) {
         for (JsonNode n : pages("/deployment/api/deployments?projects=" + q(projectId()) + "&search=" + q(name))) {
             if (name.equals(n.path("name").asText()) && !"DELETE_SUCCESSFUL".equals(n.path("status").asText())) {
-                return Optional.of(n.path("id").asText());
+                return Optional.of(new NamedDeployment(n.path("id").asText(), n.path("description").asText("")));
             }
         }
         return Optional.empty();
