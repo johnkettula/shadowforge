@@ -99,13 +99,6 @@ Day 2:
 - **Idempotent by name.** vCenter has no client token, so a VM's name in the folder is its identity.
   A retried create finds the deploy it already started (kept in the `vsphere_deploy` table, so every
   worker and a restart see it). A VM with that name and vm-intent's tag is the one it built.
-- **Adopts a VM only when it was built for the same spec.** The deploy writes the build key into the VM's notes
-  ("Key <spec hash>-<run>"); vm-intent reads it back (`GET /sdk/vim25/{release}/VirtualMachine/{vm}/config`,
-  `annotation`). An existing VM with the requested name is adopted only when its recorded vm-intent key has the
-  same spec hash (a retry, or a new run of the same VM). Otherwise the build stops with non-retryable
-  `InvalidSpec` ("was built by vm-intent for another request; choose another name"): nothing is deployed and
-  nothing is removed. The same goes for a deploy of that name that is still cloning. A tagged VM with no readable
-  key in its notes (built before keys were read back) is still adopted.
 - **Never touches what it didn't build.** A VM with the same name *without* the tag stops the build ("choose another name"), and vm-intent won't remove it.
 - **Failures come back with vCenter's reason**, for example "Insufficient resources in cluster…", and the build rolls back. A removal while the clone is still running cancels the clone.
 - **Busy or unreachable vCenter** (429, 502–504, timeouts) is retried with backoff for up to 30 minutes, like a throttled cloud. Bad settings and refused permissions are not retried.
@@ -154,11 +147,6 @@ For **Aria Automation 8.x**, set `auth: iaas-login`. vm-intent then signs in wit
 - **Remove:** `DELETE /deployment/api/deployments/{id}`.
 - **Inventory check:** lists the project's deployments.
 - **Idempotent** by deployment name in the project: a retried create finds the deployment it already asked for.
-  The request's description records the build key ("vm-intent build (env), key <spec hash>-<run>"). An existing
-  deployment with the requested name is adopted only when its recorded vm-intent key has the same spec hash;
-  otherwise the build stops with non-retryable `InvalidSpec` and nothing is requested or removed. VCF Automation
-  has no ownership tag, so on this route a same-named deployment **without a vm-intent key** in its description
-  is refused too ("that vm-intent didn't build; choose another name").
 - **API versions:** blueprint and deployment calls send `apiVersion=2019-09-12` (setting `automation.api-version`).
 
 ### The `blueprint.deploy` catalog step

@@ -38,8 +38,6 @@ public final class MockVcenter implements AutoCloseable {
         public int cpu;
         public long memMiB;
         public String ip;
-        /** The VM's notes (VI JSON config.annotation): the deploy's description. */
-        public String notes = "";
 
         Vm(String name, String folder, int cpu, long memMiB) {
             this.name = name;
@@ -99,22 +97,11 @@ public final class MockVcenter implements AutoCloseable {
         return id;
     }
 
-    /** A VM tagged as vm-intent's, with these notes (e.g. one built before keys were read back: no key). */
-    public String addTaggedVm(String name, String notes) {
-        String id = addForeignVm(name);
-        vms.get(id).notes = notes;
-        tagged.add(id);
-        return id;
-    }
-
     /** Every running deploy task finishes: its VM appears, powered on, without an IP yet. */
     public void finishDeploys() {
         tasks.forEach((id, t) -> {
             if ("RUNNING".equals(t.status())) {
-                Vm vm = new Vm(t.vmName(), t.folder(), t.cpu(), t.memMiB());
-                JsonNode body = deployBodies.get(t.vmName());
-                if (body != null) vm.notes = body.path("description").asText("");
-                vms.put("vm-" + ids.incrementAndGet(), vm);
+                vms.put("vm-" + ids.incrementAndGet(), new Vm(t.vmName(), t.folder(), t.cpu(), t.memMiB()));
                 tasks.put(id, new Task("SUCCEEDED", null, t.vmName(), t.cpu(), t.memMiB(), t.folder()));
             }
         });
@@ -342,11 +329,6 @@ public final class MockVcenter implements AutoCloseable {
             if (!vms.containsKey(x.group(1))) return err(404, "no VM");
             snapshots.add(x.group(1) + ":" + body.path("name").asText());
             return ok(Map.of("_typeName", "ManagedObjectReference", "type", "Task", "value", "task-snap-" + ids.incrementAndGet()));
-        }
-        if (method.equals("GET") && (x = m("/sdk/vim25/9\\.0\\.0\\.0/VirtualMachine/([^/]+)/config", path)) != null) {
-            Vm v = vms.get(x.group(1));
-            if (v == null) return err(404, "no VM");
-            return ok(Map.of("_typeName", "VirtualMachineConfigInfo", "name", v.name, "annotation", v.notes));
         }
         return err(404, "mock vCenter has no " + method + " " + path);
     }

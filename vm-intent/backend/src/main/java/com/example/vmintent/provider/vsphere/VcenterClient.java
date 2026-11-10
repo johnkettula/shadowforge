@@ -15,7 +15,7 @@ import static com.example.vmintent.provider.vsphere.HttpJson.q;
 
 /**
  * The parts of the vCenter 9 APIs vm-intent uses. Everything is the vSphere Automation REST API
- * (/api/...), except snapshots and a VM's notes, which it only has in the VI JSON API (/sdk/vim25/...). Both accept the
+ * (/api/...), except snapshots, which it only has in the VI JSON API (/sdk/vim25/...). Both accept the
  * same session.
  *
  *   sign in        POST /api/session (basic auth) -> session ID, sent as vmware-api-session-id
@@ -28,7 +28,6 @@ import static com.example.vmintent.provider.vsphere.HttpJson.q;
  *   remove         DELETE /api/vcenter/vm/{vm}
  *   ownership tag  /api/cis/tagging/category, /tag, /tag-association/{tag}?action=attach|list-attached-objects
  *   snapshot       POST /sdk/vim25/{release}/VirtualMachine/{vm}/CreateSnapshot_Task
- *   notes          GET  /sdk/vim25/{release}/VirtualMachine/{vm}/config (annotation: the build key)
  *
  * Thread-safe: one session is shared, and replaced when vCenter says it has expired.
  */
@@ -211,12 +210,6 @@ public class VcenterClient {
         body.put("quiesce", false);
         JsonNode r = call("POST", "/sdk/vim25/" + release() + "/VirtualMachine/" + q(vm) + "/CreateSnapshot_Task", body);
         return r.path("value").asText(r.asText());
-    }
-
-    /** The VM's notes (the deploy's "description"), from the VI JSON API's config.annotation; "" if none. */
-    public String annotation(String vm) {
-        return callOrMissing("GET", "/sdk/vim25/" + release() + "/VirtualMachine/" + q(vm) + "/config", null)
-                .map(n -> n.path("annotation").asText("")).orElse("");
     }
 
     private String release() {

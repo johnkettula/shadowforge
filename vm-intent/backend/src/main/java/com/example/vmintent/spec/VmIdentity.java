@@ -40,31 +40,4 @@ public final class VmIdentity {
     public static String lifecycleWorkflowId(String hash) {
         return "life-" + hash;
     }
-
-    /**
-     * The build key a cloud records on the VM it builds: the spec hash, or the hash + "-" + the first
-     * 8 characters of the build's run ID (null or "" = just the hash).
-     */
-    public static String buildKey(String hash, String runIdPrefix) {
-        return runIdPrefix == null || runIdPrefix.isEmpty() ? hash : hash + "-" + runIdPrefix;
-    }
-
-    /**
-     * The spec hash part of a build key (the part before the first "-"). Two keys with the same hash
-     * are builds of the same VM; null stays null.
-     */
-    public static String hashOfBuildKey(String key) {
-        if (key == null) return null;
-        int i = key.indexOf('-');
-        return i < 0 ? key : key.substring(0, i);
-    }
-
-    /**
-     * True when two build keys have the same spec hash: a retry, or a new run of the same VM. A cloud
-     * adopts an existing VM with the requested name only then.
-     */
-    public static boolean sameBuild(String recordedKey, String newKey) {
-        String h = hashOfBuildKey(recordedKey);
-        return h != null && !h.isEmpty() && h.equals(hashOfBuildKey(newKey));
-    }
 }

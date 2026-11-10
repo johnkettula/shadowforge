@@ -1,6 +1,5 @@
 package com.example.vmintent.provider.vsphere;
 
-import com.example.vmintent.spec.VmIdentity;
 import com.example.vmintent.spec.VmSpec;
 import com.example.vmintent.workflow.Models.ProviderPlan;
 import com.example.vmintent.workflow.Models.VmStatus;
@@ -14,8 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * vSphere through vCenter 9 directly: each VM is deployed from a VM template in a content library,
@@ -24,8 +21,7 @@ import java.util.regex.Pattern;
  *
  * VM IDs look like "vcenter:dc1:app-db-01": the vm-intent datacenter and the VM's name. The name is
  * what makes a create idempotent (vCenter has no client token): a VM with that name in the folder,
- * tagged as ours and with the same spec hash in the key in its notes, is the one we built; one that
- * isn't tagged as ours, or was built for another spec, is never touched.
+ * tagged as ours, is the one we built; one that isn't tagged as ours is never touched.
  */
 public class VcenterBackend {
 
@@ -132,15 +128,7 @@ public class VcenterBackend {
                 throw ApplicationFailure.newNonRetryableFailure("vCenter already has a VM called '" + spec.name()
                         + "' that vm-intent didn't build; choose another name", "InvalidSpec");
             }
-            // Ours, but adopted only when built for the same spec. No readable key = built before keys were read: adopted.
-            String recorded = recordedKey(client.annotation(existing.get().vm()));
-            if (recorded != null && !VmIdentity.sameBuild(recorded, idempotencyKey)) throw builtForAnotherRequest(spec.name());
             journal.found(ref.key(), existing.get().vm(), true);
-            return ref.vmId();
-        }
-        // Not in the inventory yet, but a deploy of this name may still be cloning.
-        if (started.isPresent() && started.get().taskId() != null && stillDeploying(started.get().taskId())) {
-            if (!VmIdentity.sameBuild(started.get().idempotencyKey(), idempotencyKey)) throw builtForAnotherRequest(spec.name());
             return ref.vmId();
         }
         String filter = datacenterFilter(ref.dc(), dc);
@@ -175,23 +163,6 @@ public class VcenterBackend {
         journal.started(ref.key(), idempotencyKey, task);
         log.info("[vcenter] deploying {} from {} (task {})", spec.name(), template, task);
         return ref.vmId();
-    }
-
-    private static final Pattern NOTES_KEY = Pattern.compile("\\bKey (\\S+)");
-
-    /** The build key in a VM's notes ("Built by vm-intent (dev). Key ..."), or null when there is none. */
-    static String recordedKey(String notes) {
-        Matcher m = NOTES_KEY.matcher(notes == null ? "" : notes);
-        return m.find() ? m.group(1) : null;
-    }
-
-    private static ApplicationFailure builtForAnotherRequest(String name) {
-        return ApplicationFailure.newNonRetryableFailure("vCenter's VM '" + name
-                + "' was built by vm-intent for another request; choose another name", "InvalidSpec");
-    }
-
-    private boolean stillDeploying(String taskId) {
-        return client.task(taskId).filter(t -> !t.failed() && !t.succeeded()).isPresent();
     }
 
     // ------------------------------------------------------------------ status

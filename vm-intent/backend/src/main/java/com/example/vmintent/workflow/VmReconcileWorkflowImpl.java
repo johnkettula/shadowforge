@@ -1,7 +1,6 @@
 package com.example.vmintent.workflow;
 
 import com.example.vmintent.provider.ProviderActivities;
-import com.example.vmintent.spec.VmIdentity;
 import com.example.vmintent.workflow.Models.LifecycleRequest;
 import com.example.vmintent.workflow.Models.LinkReply;
 import com.example.vmintent.workflow.Models.ProviderPlan;
@@ -79,8 +78,9 @@ public class VmReconcileWorkflowImpl implements VmReconcileWorkflow {
         int version = Workflow.getVersion(LINK_AND_LIFECYCLE, Workflow.DEFAULT_VERSION, 1);
         Route route = version >= 1 ? CloudOps.linkStub().route(cloudName) : Route.DIRECT;
         // One build = one idempotency key. Builds started before this change used the spec hash alone.
-        String buildKey = VmIdentity.buildKey(request.specHash(),
-                version >= 1 ? Workflow.getInfo().getRunId().substring(0, 8) : null);
+        String buildKey = version >= 1
+                ? request.specHash() + "-" + Workflow.getInfo().getRunId().substring(0, 8)
+                : request.specHash();
         cloud = new CloudOps(cloudName, route, request.specHash(), buildKey, request.requestedBy());
         if (early != null) cloud.receive(early);
 

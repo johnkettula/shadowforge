@@ -379,35 +379,3 @@ Risk: low. Attempts: 1. Built: 2026-11-10.
 
 00:07:51 attempt 1: developer: I updated five docs for AP-0028; no code, tests, OpenAPI files or protected files were touched. The reverted AP-0026 doc changes are put back (taken from d5a5567 and checked against the code again), a
 00:37:26 attempt 1: review: approved: This docs-only change meets all 10 acceptance criteria, and I checked each new statement against the code. (1) mcp-server/README.md now lists VMINTENT_API_TOKEN. The api() helper in index.ts is the on
-
-## AP-0029: Adopt an existing cloud VM only when it was built for the same identity (design review 0025 #1): VmIdentity.buildKey and hashOfBuildKey; VcenterBackend, VcfaBackend and AzureArmBackend read back the b
-
-Today the three real backends take over any existing vm-intent VM that has the requested name. VcenterBackend.createVm adopts any tagged VM. VcfaBackend.createVm adopts any deployment with the name and doesn't check ownership at all. AzureArmBackend.createVm adopts any VM with the managed tag. Each backend records the build key: in the vCenter VM description ('Key ...'), in the VCF-A deployment description ('key ...') and in Azure's vm-intent-key tag. None of them reads it back. So two different specs with the same name (web-01 small, then web-01 large) share one cloud VM, and a resize or decommission of one changes or deletes the other. Per-user identity, the backlog's next feature, would make this normal: another user's same-named request would take over the first user's VM. Review 0025 orders this before that feature and before Azure A2b (docs/redesign/review-0025.md, proposal 1 and 'Suggested order').
-
-Rules:
-- The build key is the spec hash, or the hash + '-' + the first 8 characters of the run ID (VmReconcileWorkflowImpl lines 81-83). VmIdentity.buildKey(hash, runIdPrefix) builds it. VmIdentity.hashOfBuildKey(key) returns the part before the first '-'. VmReconcileWorkflowImpl uses buildKey and produces the same string as today, so the recorded histories still replay.
-- When createVm finds an existing VM with the name: adopt it if hashOfBuildKey of its recorded key equals hashOfBuildKey of the new key (a retry, or a new run of the same VM). Otherwise throw the existing non-retryable 'InvalidSpec' with a message that it was built for another request and to choose another name. Build nothing and delete nothing.
-- On vCenter and Azure, a tagged VM with no readable key is still adopted, as today, so VMs built before keys were recorded keep working. On VCF-A, which has no ownership tag, a same-named deployment with no vm-intent key is now refused. This behaviour change is on that route only.
-- No new failure type string, no API or OpenAPI change, no workflow interface change.
-- Keep the source-text pins that the ap-0014, ap-0016 and ap-0017 repo tests check. For example, AzureArmBackend.createVm still ends in 'return vmId(name);', its tags Map.of(TAG, MANAGED, KEY_TAG, idempotencyKey) stays, and the 'didn't build; choose another name' messages for untagged VMs stay.
-
-Staging and live run only the simulator, which already keys VMs on the build key. So the live API should behave exactly as before, and the proof is in mvn test against MockVcenter, MockVcfa and MockArm. Risk is medium, not high: nothing about sign-in, security or deletion changes (deletion only gets safer), there is no migration, and no workflow interface changes.
-
-Note: the backlog lists the three review-0025 proposals under 'Done' only because they were added to the end of the file, below that heading. A person may want to move them to an 'Open' section.
-
-Acceptance criteria:
-- mvn test passes in vm-intent/backend, including ReplayTest (every history under backend/src/test/resources/histories/ still replays), VcenterBackendTest, VcfaBackendTest and AzureArmBackendTest. The surefire reports show 0 failures and 0 errors.
-- VmIdentity (backend/src/main/java/com/example/vmintent/spec/VmIdentity.java) has public static methods buildKey(String hash, String runIdPrefix) and hashOfBuildKey(String key). A unit test shows: buildKey(h, null) or buildKey(h, "") returns h; buildKey(h, "abcd1234") returns h + "-abcd1234"; hashOfBuildKey returns h for both. The test passes in the surefire reports.
-- VmReconcileWorkflowImpl builds its build key through VmIdentity.buildKey and no longer joins specHash + "-" + runId by hand. The string has the same value (ReplayTest passes unchanged, and no file under backend/src/test/resources/histories/ is modified or deleted by any commit for this requirement).
-- A new test (parameterised or one case per backend) runs createVm against MockVcenter (VcenterBackend), MockVcfa (VcfaBackend) and MockArm (AzureArmBackend). For each backend it checks: (a) the same name and same spec hash with a different run suffix in the key adopts the existing VM, returns the same vmId and starts no new deploy, deployment or VM; (b) the same name with a different spec hash throws an ApplicationFailure of type "InvalidSpec" that is non-retryable, and the mock's VM or deployment count is unchanged and the existing VM isn't deleted. The test's methods pass in the surefire reports.
-- Tests show that on vCenter and on Azure, an existing VM that is tagged as built by vm-intent but has no readable vm-intent key is still adopted (createVm returns its vmId and nothing new is built). They also show that on VCF Automation, an existing deployment with the requested name and no vm-intent key in its description is refused with non-retryable "InvalidSpec".
-- VcenterBackendTest.aRetriedCreateDoesNotDeployTwice still exists and passes.
-- No commit for this requirement adds a new failure type string. Every ApplicationFailure type thrown by the changed createVm methods is one that already existed in the codebase (InvalidSpec for the new refusal).
-- docs/openapi.json and docs/openapi.yaml are not modified by any commit for this requirement, and GET /v3/api-docs on the running server still matches docs/openapi.json (as the existing ap-0008 checks verify).
-- On the running server (simulator), the behaviour is unchanged. POST /api/v2/requests for a new single VM reaches COMPLETED. Sending the same text again gives a DUPLICATE result for that VM and builds nothing new (GET /api/v2/vms lists the VM once). All existing acceptance tests (ap-0002 to ap-0028) still pass.
-- docs/VSPHERE.md and docs/AZURE.md (or, if docs/AZURE.md doesn't exist, the Azure section of README.md or DEFINITIONS.md) each say that an existing VM with the requested name is adopted only when its recorded vm-intent key has the same spec hash, and is otherwise refused with InvalidSpec. VSPHERE.md also notes that on the VCF Automation route a same-named deployment without a vm-intent key is refused.
-
-Risk: medium. Attempts: 1. Built: 2026-11-10.
-
-01:44:21 attempt 1: developer: AP-0029 is built: vCenter, VCF Automation and Azure now take over an existing VM with the requested name only when its recorded vm-intent key has the same spec hash. A different hash gives a non-retry
-02:17:17 attempt 1: review: approved: I approve this change. It meets all ten acceptance criteria.
