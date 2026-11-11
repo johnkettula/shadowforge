@@ -77,7 +77,11 @@ used by `AzureProvider` yet**: Azure requests stay simulated. Part A2b connects 
 - **Resources**, all in `resource-group` and `location`: the public IP `<name>-pip` (Standard, static), the NIC
   `<name>-nic` on `subnet-id` with that public IP, and the VM `<name>` (OS disk removed with it).
 - **Tags** on all three: `vm-intent=managed` and `vm-intent-key=<idempotency key>`. A resource without
-  `vm-intent=managed` is never changed or removed.
+  `vm-intent=managed` is never changed or removed. An existing VM with the requested name is adopted only when
+  its recorded vm-intent key (`vm-intent-key`) has the same spec hash as the new build key (a retry, or a new run
+  of the same VM); otherwise it is refused with non-retryable `InvalidSpec` ("was built by vm-intent for another
+  request; choose another name") and nothing is sent. A `vm-intent=managed` VM with no `vm-intent-key` tag (built
+  before keys were read back) is still adopted.
 - **Settings** (`AzureVmProperties`, next to `AzureProperties`): `subnet-id` (`VMINTENT_AZURE_SUBNET_ID`, the full
   ARM ID of an existing subnet), `admin-username` (`VMINTENT_AZURE_ADMIN_USERNAME`, default `azureuser`) and
   `admin-ssh-public-key` (`VMINTENT_AZURE_ADMIN_SSH_PUBLIC_KEY`). VMs get SSH key sign-in only, no password.
@@ -92,7 +96,7 @@ Each call reads what ARM has, moves at most one step with `begin` and returns or
 |---|---|---|
 | `createVm` | checks the settings | non-retryable `NotSetUp` naming what is missing; nothing is sent |
 | | checks the spec: an image for the OS, a region that maps to `location`, a catalog size | non-retryable `InvalidSpec`, before any PUT |
-| | a VM of that name exists: tagged, returns its ID (no PUT); untagged | non-retryable `InvalidSpec`, nothing sent |
+| | a VM of that name exists: tagged, with the same spec hash in `vm-intent-key` (or no key), returns its ID (no PUT); untagged, or built for another spec | non-retryable `InvalidSpec`, nothing sent |
 | | public IP: PUT if missing; wait for `Succeeded` | retryable `CloudBusy` (`CloudError` if `Failed`) |
 | | NIC: the same | the same |
 | | VM: PUT, then return its ID at once | - |

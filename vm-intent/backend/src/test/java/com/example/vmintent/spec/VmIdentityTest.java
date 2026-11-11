@@ -3,6 +3,9 @@ package com.example.vmintent.spec;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Golden values: a VM's hash must never change for existing VMs. The literals were worked out
@@ -56,5 +59,26 @@ class VmIdentityTest {
                 VmIdentity.buildWorkflowId(NAMED_HASH));
         assertEquals("life-2a616b09f0ae398fdb96bb9ccb6b15a79d901fa4b8a4bb670c35d3a333148d4a",
                 VmIdentity.lifecycleWorkflowId(NAMED_HASH));
+    }
+
+    @Test
+    void theBuildKeyIsTheHashOrTheHashAndTheRunIdPrefix() {
+        // VmReconcileWorkflowImpl's build key: the recorded histories replay only while this stays the same.
+        assertEquals(NAMED_HASH, VmIdentity.buildKey(NAMED_HASH, null));
+        assertEquals(NAMED_HASH, VmIdentity.buildKey(NAMED_HASH, ""));
+        assertEquals(NAMED_HASH + "-abcd1234", VmIdentity.buildKey(NAMED_HASH, "abcd1234"));
+        assertEquals(NAMED_HASH, VmIdentity.hashOfBuildKey(VmIdentity.buildKey(NAMED_HASH, null)));
+        assertEquals(NAMED_HASH, VmIdentity.hashOfBuildKey(VmIdentity.buildKey(NAMED_HASH, "")));
+        assertEquals(NAMED_HASH, VmIdentity.hashOfBuildKey(VmIdentity.buildKey(NAMED_HASH, "abcd1234")));
+        assertNull(VmIdentity.hashOfBuildKey(null));
+    }
+
+    @Test
+    void twoBuildsAreTheSameOnlyWithTheSameHash() {
+        assertTrue(VmIdentity.sameBuild(NAMED_HASH + "-abcd1234", NAMED_HASH + "-ffff0000"), "a new run of the same VM");
+        assertTrue(VmIdentity.sameBuild(NAMED_HASH, NAMED_HASH + "-ffff0000"), "built before run IDs were added");
+        assertFalse(VmIdentity.sameBuild(UNNAMED_HASH + "-abcd1234", NAMED_HASH + "-abcd1234"), "another spec");
+        assertFalse(VmIdentity.sameBuild(null, NAMED_HASH));
+        assertFalse(VmIdentity.sameBuild("", NAMED_HASH));
     }
 }
