@@ -1,5 +1,6 @@
 package com.example.vmintent.provider.vsphere;
 
+import com.example.vmintent.spec.VmIdentity;
 import com.example.vmintent.spec.VmSpec;
 import com.example.vmintent.workflow.Models.ProviderPlan;
 import com.example.vmintent.workflow.Models.VmStatus;
@@ -120,6 +121,76 @@ class VcenterBackendTest {
         assertEquals("InvalidSpec", e.getType());
         assertThrows(ApplicationFailure.class, () -> backend.deleteVm("vcenter:dc1:legacy-db"));
         assertNotNull(vc.byName("legacy-db"));
+    }
+
+    static final String HASH = "9f86d081884c7d65", OTHER_HASH = "60303ae22b998861";
+
+    /** Builds a VM with this key and lets it finish and be tagged, as the first run of a build would. */
+    private String built(String name, String key) {
+        String id = backend.createVm(spec(name, "ubuntu", "24.04", "ssd"), key);
+        vc.finishDeploys();
+        backend.describeVm(id);
+        return id;
+    }
+
+    @Test
+    void theBuildKeyIsReadBackFromTheVmsNotes() {
+        assertEquals(HASH + "-run00001", VcenterBackend.recordedKey("Built by vm-intent (dev). Key " + HASH + "-run00001"));
+        assertNull(VcenterBackend.recordedKey("Built by vm-intent (dev)."));
+        assertNull(VcenterBackend.recordedKey(null));
+    }
+
+    @Test
+    void aNewRunOfTheSameSpecAdoptsTheVmItBuilt() {
+        String id = built("app-10", VmIdentity.buildKey(HASH, "run00001"));
+        int vms = vc.vms.size();
+        assertEquals(id, backend.createVm(spec("app-10", "ubuntu", "24.04", "ssd"), VmIdentity.buildKey(HASH, "run00002")));
+        assertEquals(1, vc.tasks.size(), "no second deploy");
+        assertEquals(vms, vc.vms.size());
+    }
+
+    @Test
+    void aNewRunOfTheSameSpecAdoptsTheDeployStillCloning() {
+        String id = backend.createVm(spec("app-11", "ubuntu", "24.04", "ssd"), VmIdentity.buildKey(HASH, "run00001"));
+        assertEquals(id, backend.createVm(spec("app-11", "ubuntu", "24.04", "ssd"), VmIdentity.buildKey(HASH, "run00002")));
+        assertEquals(1, vc.tasks.size(), "no second deploy");
+    }
+
+    @Test
+    void aVmBuiltForAnotherSpecIsRefusedAndLeftAlone() {
+        built("app-12", VmIdentity.buildKey(HASH, "run00001"));
+        String vm = vc.idByName("app-12");
+        int vms = vc.vms.size();
+        ApplicationFailure e = assertThrows(ApplicationFailure.class,
+                () -> backend.createVm(spec("app-12", "ubuntu", "24.04", "ssd"), VmIdentity.buildKey(OTHER_HASH, "run00002")));
+        assertEquals("InvalidSpec", e.getType());
+        assertTrue(e.isNonRetryable());
+        assertTrue(e.getOriginalMessage().contains("another request"), e.getOriginalMessage());
+        assertEquals(1, vc.tasks.size(), "nothing deployed");
+        assertEquals(vms, vc.vms.size());
+        assertNotNull(vc.vms.get(vm), "the VM is still there");
+        assertFalse(vc.calls.stream().anyMatch(c -> c.startsWith("DELETE ")), vc.calls.toString());
+    }
+
+    @Test
+    void aDeployStillCloningForAnotherSpecIsRefused() {
+        backend.createVm(spec("app-13", "ubuntu", "24.04", "ssd"), VmIdentity.buildKey(HASH, "run00001"));
+        ApplicationFailure e = assertThrows(ApplicationFailure.class,
+                () -> backend.createVm(spec("app-13", "ubuntu", "24.04", "ssd"), VmIdentity.buildKey(OTHER_HASH, "run00002")));
+        assertEquals("InvalidSpec", e.getType());
+        assertTrue(e.isNonRetryable());
+        assertEquals(1, vc.tasks.size(), "nothing deployed");
+        assertFalse(vc.calls.stream().anyMatch(c -> c.contains("action=cancel")), "the running deploy isn't cancelled");
+    }
+
+    @Test
+    void aTaggedVmWithNoKeyInItsNotesIsStillAdopted() {
+        // Built before keys were read back (or its notes were edited): tagged as ours, so adopted as before.
+        String vm = vc.addTaggedVm("old-01", "Built by vm-intent (dev).");
+        assertEquals("vcenter:dc1:old-01", backend.createVm(spec("old-01", "ubuntu", "24.04", "ssd"), VmIdentity.buildKey(HASH, "run00001")));
+        assertTrue(vc.tasks.isEmpty(), "nothing deployed");
+        assertTrue(vc.deployBodies.isEmpty());
+        assertNotNull(vc.vms.get(vm));
     }
 
     @Test

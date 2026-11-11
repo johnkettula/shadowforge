@@ -1,6 +1,7 @@
 package com.example.vmintent.provider.azure;
 
 import com.example.vmintent.provider.ProviderCatalog;
+import com.example.vmintent.spec.VmIdentity;
 import com.example.vmintent.spec.VmSpec;
 import com.example.vmintent.workflow.Models.ProviderPlan;
 import com.example.vmintent.workflow.Models.VmStatus;
@@ -20,7 +21,8 @@ import java.util.Map;
  * Every call fits an activity's time limit: it moves at most one step with ArmClient's non-blocking begin and
  * get, and throws a retryable "CloudBusy" while Azure is still working, so Temporal's retries do the waiting. It
  * keeps no state: what Azure reports is the state. VM IDs look like "arm:rg-vmintent:app-db-01". A resource is
- * ours only when tagged vm-intent=managed; one that isn't is never changed or removed.
+ * ours only when tagged vm-intent=managed; one that isn't is never changed or removed. An existing VM of ours
+ * is adopted only when its vm-intent-key tag has the same spec hash as the new build key.
  */
 public class AzureArmBackend {
 
@@ -89,6 +91,7 @@ public class AzureArmBackend {
         JsonNode existing = find(path(COMPUTE, "virtualMachines", name));
         if (existing != null) {
             if (!managed(existing)) throw invalid("Azure already has a VM called '" + name + "' that vm-intent didn't build; choose another name");
+            requireSameBuild(existing, name, idempotencyKey);
             return vmId(name);
         }
         Map<String, String> tags = Map.of(TAG, MANAGED, KEY_TAG, idempotencyKey);
@@ -208,6 +211,17 @@ public class AzureArmBackend {
 
     static boolean managed(JsonNode r) {
         return MANAGED.equals(r.path("tags").path(TAG).asText());
+    }
+
+    /**
+     * An existing VM of ours is adopted only when its vm-intent-key tag has the same spec hash (a retry, or a
+     * new run of the same VM). No key tag = built before keys were read back: still adopted.
+     */
+    private static void requireSameBuild(JsonNode r, String name, String idempotencyKey) {
+        String recorded = r.path("tags").path(KEY_TAG).asText("");
+        if (!recorded.isBlank() && !VmIdentity.sameBuild(recorded, idempotencyKey)) {
+            throw invalid("Azure's VM '" + name + "' was built by vm-intent for another request; choose another name");
+        }
     }
 
     static String state(JsonNode r) {
