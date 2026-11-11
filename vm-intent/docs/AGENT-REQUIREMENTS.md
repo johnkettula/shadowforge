@@ -379,3 +379,54 @@ Risk: low. Attempts: 1. Built: 2026-11-10.
 
 00:07:51 attempt 1: developer: I updated five docs for AP-0028; no code, tests, OpenAPI files or protected files were touched. The reverted AP-0026 doc changes are put back (taken from d5a5567 and checked against the code again), a
 00:37:26 attempt 1: review: approved: This docs-only change meets all 10 acceptance criteria, and I checked each new statement against the code. (1) mcp-server/README.md now lists VMINTENT_API_TOKEN. The api() helper in index.ts is the on
+
+## AP-0031: Daily docs 2026-11-11: describe the Kubernetes overlays' one-way-link settings, dev HPA ranges and per-pod grace periods; list a catalog run's states and the check.until / approval.wait limits; name t
+
+This is today's documentation update. The only code merge since the last daily docs update (AP-0028) was AP-0029, which was reverted (89138ee). Commit 52dd638 changed only agent-pipeline/, and review-0030 only adds a design review. So main's code is the same as at AP-0028, and this cycle is a full re-check of every doc against the code.
+
+Gaps found, each checked against the source:
+
+(1) The Kubernetes overlays send clouds over the one-way link, and KUBERNETES.md doesn't say so. deploy/kubernetes/overlays/dev/kustomization.yaml sets VMINTENT_LINK_PROVIDERS=gcp and VMINTENT_LINK_SIMULATE=true. overlays/prod/kustomization.yaml sets VMINTENT_LINK_PROVIDERS=* (every cloud), so in prod the nightly inventory check skips every cloud. ONE-WAY-LINK.md and TEMPORAL-FEATURES section 6 both say clouds behind the link are skipped. KUBERNETES.md's overlay lines say only 'one pod of each, sign-in off, a throwaway database password' and 'three API pods, Entra ID sign-in, OPA, an Ingress with TLS'.
+
+(2) The dev overlay patches both HPAs to minReplicas 1 and maxReplicas 3. KUBERNETES.md's pods table gives only 2-10 (prod 2-20) and 2-8.
+
+(3) KUBERNETES.md says a removed pod finishes its tasks with terminationGracePeriodSeconds: 60. That is true for both worker deployments, but deploy/kubernetes/base/api.yaml uses 30.
+
+(4) DEFINITIONS.md never lists a catalog run's states. CatalogRunWorkflowImpl sets STARTING, RUNNING, AWAITING_APPROVAL, AWAITING_RECOVERY, COMPLETED, TEARING_DOWN, TORN_DOWN and TEARDOWN_INCOMPLETE, and GET /api/v2/runs/{runId} and the web app's Catalog card show them. DEFINITIONS.md names only AWAITING_RECOVERY, TORN_DOWN and TEARDOWN_INCOMPLETE.
+
+(5) DEFINITIONS.md's Actions table gives only defaults where the code also clamps a range. In CatalogRunWorkflowImpl, check.until has everySeconds 5-3600 (default 30) and timeoutMinutes 1-1440 (default 30), and approval.wait has timeoutHours 1-72 (default 24). If nobody answers an approval in time (ApprovalTimeout) or it is rejected, the step fails and the run stops in AWAITING_RECOVERY like any failed step (runStep catches TemporalFailure). A step's own timeoutMinutes is 1-1440, default 30 (DefinitionParser:270), but the YAML comment gives only the default.
+
+(6) README's database section says to set vmintent.db.embedded and spring.datasource.url and username in application.yml. It doesn't name the environment variables application.yml reads: VMINTENT_DB_EMBEDDED (default true), VMINTENT_DB_URL (default jdbc:postgresql://localhost:5432/vmintent), VMINTENT_DB_USER (default vmintent) and VMINTENT_DB_POOL (connection pool size, default 30). docker-compose, the Kubernetes configmap and deploy/linux/setup-db.sh all use these variables.
+
+(7) SCALING.md says a worker 'can hold thousands of cached workflows'. It doesn't name VMINTENT_WORKFLOW_CACHE or VMINTENT_WORKFLOW_THREADS (spring.temporal.workflow-cache max-instances and max-threads, both default 4000). Its Postgres sizing row (max_connections 400+) doesn't name VMINTENT_DB_POOL, the pool each process opens.
+
+Checked and still correct, so no criterion covers them:
+- API.md: 42 operations match docs/openapi.json; batch MAX_ITEMS 10,000; listVms LIMIT 200; renew 1-90 days and 365 days ahead.
+- USER-GUIDE.md: 20 VMs per request and 5 at a time (PolicyDefaults.MAX_COUNT, MAX_PARALLEL_BUILDS); 24-hour wait; size table; TTL defaults; 02:00 UTC cron; hourly archive at minute 17.
+- TEMPORAL-FEATURES: HISTORY_LIMIT 2,000; one-hour decommission retry; 6-hour warning; replay prefixes and the 11 histories; test table.
+- AZURE.md: CALL_BUDGET 10 s, REQUEST_TIMEOUT 5 s, api-versions, 5-minute token renewal, CloudOps 30 s / 15 s timeouts, AzureVmProperties variables; A2a still not connected.
+- AUDIT.md settings; ONE-WAY-LINK.md settings, inbox folders and audit events; VSPHERE.md settings and blueprint.deploy ranges (5-1440, 10-600); simulated VM IDs (vm-, az-vm-).
+- SCALING.md rate limits (25/8/25/15), shard size 500, and status-check timings (15 s, up to 30 s).
+- README's LLM defaults (claude-sonnet-5-5, llama3.2, 30 / 120 s) and docker-compose WORKERS default 3.
+- mcp-server/README.md: its 12 tools match index.ts.
+
+USER-GUIDE.md doesn't change, so frontend/public/user-guide.html isn't rebuilt. docs/SECURITY.md needs no change. AP-0029's requirement record was removed by its revert, which is right: AGENT-REQUIREMENTS.md lists merged requirements only.
+
+Note for the tester: the pipeline's own 'AP-NNNN: acceptance tests' commit matches git log --grep=^AP-NNNN:, so history checks must skip tests/acceptance/. Acceptance checks for this requirement only read files, so don't read backend/target/.
+
+Acceptance criteria:
+- docs/KUBERNETES.md says the dev overlay sends Google Cloud over the one-way link to a simulated domain 3 (VMINTENT_LINK_PROVIDERS=gcp, VMINTENT_LINK_SIMULATE=true). It says the prod overlay sends every cloud over the link (VMINTENT_LINK_PROVIDERS=*), so in prod the nightly inventory check skips every cloud, and it links to ONE-WAY-LINK.md. These values match deploy/kubernetes/overlays/dev/kustomization.yaml and overlays/prod/kustomization.yaml.
+- docs/KUBERNETES.md gives the dev overlay's autoscaling range: both worker HPAs scale 1-3 in dev. The base ranges (worker-workflows 2-10, worker-clouds 2-8) and prod's 2-20 for worker-workflows are still there. All of these match deploy/kubernetes/base/autoscaling.yaml and the two overlays.
+- docs/KUBERNETES.md gives the grace period for each kind of pod: worker pods get terminationGracePeriodSeconds 60 and the API pod 30. This matches deploy/kubernetes/base/worker-workflows.yaml, worker-clouds.yaml and api.yaml.
+- docs/DEFINITIONS.md lists a catalog run's states with a short meaning for each: STARTING, RUNNING, AWAITING_APPROVAL, AWAITING_RECOVERY, COMPLETED, TEARING_DOWN, TORN_DOWN and TEARDOWN_INCOMPLETE. Every one appears as a state string in backend/src/main/java/com/example/vmintent/workflow/CatalogRunWorkflowImpl.java, and the list names no state that doesn't.
+- docs/DEFINITIONS.md gives check.until's limits as everySeconds 5-3600 (default 30) and timeoutMinutes 1-1440 (default 30), and approval.wait's timeoutHours as 1-72 (default 24). It says that when nobody answers an approval in time, or it is rejected, the step fails and the run stops in AWAITING_RECOVERY like any failed step. It gives a step's own timeoutMinutes as 1-1440 (default 30). All of these match CatalogRunWorkflowImpl and DefinitionParser.
+- README.md's 'Database (Postgres) and audit trail' section names the environment variables for an external Postgres, with application.yml's defaults: VMINTENT_DB_EMBEDDED (default true; false uses the server below), VMINTENT_DB_URL (default jdbc:postgresql://localhost:5432/vmintent), VMINTENT_DB_USER (default vmintent), VMINTENT_DB_PASSWORD and VMINTENT_DB_POOL (connection pool size, default 30).
+- docs/SCALING.md names VMINTENT_WORKFLOW_CACHE and VMINTENT_WORKFLOW_THREADS (both default 4000, from spring.temporal.workflow-cache in application.yml) as the settings for how many workflows a worker process keeps cached. Its sizing guide's Postgres row names VMINTENT_DB_POOL (default 30) as the connection pool each process opens. Everything SCALING.md already says, including the 'What is still simulated' table of VMINTENT_SIM_* settings, is still there.
+- The line straight under the title (after one blank line) of each of these four files is exactly 'Last updated 2026-11-11.': README.md, docs/SCALING.md, docs/KUBERNETES.md and docs/DEFINITIONS.md. It is added to KUBERNETES.md and DEFINITIONS.md, which have none, and replaces the older date in README.md and SCALING.md. No commit for this requirement changes the 'Last updated' line of any other doc.
+- Outside vm-intent/tests/acceptance/, no commit for this requirement changes any file except vm-intent/README.md, vm-intent/docs/SCALING.md, vm-intent/docs/KUBERNETES.md, vm-intent/docs/DEFINITIONS.md and vm-intent/docs/AGENT-REQUIREMENTS.md. In particular, no commit for this requirement touches vm-intent/backend/, vm-intent/frontend/, vm-intent/deploy/, vm-intent/docs/openapi.json, vm-intent/docs/openapi.yaml or any protected file, and none adds a new file outside vm-intent/tests/acceptance/.
+- mvn test, the API contract test and the existing acceptance suites still pass, unchanged.
+
+Risk: low. Attempts: 1. Built: 2026-11-11.
+
+00:10:02 attempt 1: developer: I updated four docs for AP-0031's daily docs. No code, deploy files, OpenAPI files, protected files or acceptance tests changed, and no files were added. I checked every value against the source befor
+00:40:48 attempt 1: review: approved: Docs-only change. It meets all ten acceptance criteria, and I checked each new statement against the source. KUBERNETES.md: the one-way-link settings match the overlays (dev has VMINTENT_LINK_PROVIDER
