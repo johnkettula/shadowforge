@@ -1,6 +1,6 @@
 # Scaling vm-intent to 2,000 VM builds at once
 
-Last updated 2026-11-10.
+Last updated 2026-11-11.
 
 This page explains how the provisioning engine runs thousands of VM builds at the same time,
 what limits it, and what the load tests showed.
@@ -32,7 +32,7 @@ VmReconcileWorkflow x 2,000  "vm-<spec hash>"
 | **Server-side rate limits** | `maxTaskQueueActivitiesPerSecond` is enforced by Temporal across all workers, so adding workers never breaks a cloud's API limit. Defaults: 25 creates/s for AWS and Google Cloud, 8 for Azure (its documented limit), 15 for vSphere. |
 | **Throttling is retried, not failed** | A cloud "429" is retried with exponential backoff (2 s doubling to 60 s), for up to 30 minutes. |
 | **Separate API and worker processes** | The same jar runs as `api` (REST only) or `worker` (workflows only). To scale, add workers; nothing else changes. |
-| **Virtual threads (Java 21)** | Workflow and activity threads are virtual, so a worker can hold thousands of cached workflows. |
+| **Virtual threads (Java 21)** | Workflow and activity threads are virtual, so a worker can hold thousands of cached workflows: `VMINTENT_WORKFLOW_CACHE` (how many it keeps cached) and `VMINTENT_WORKFLOW_THREADS` (threads for them), both default 4000 (`spring.temporal.workflow-cache` in `application.yml`). |
 | **Status from the database, not from workflows** | `GET /api/v2/batches/{id}` counts the audit trail in Postgres. It answers at once, even while workers restart. |
 | **Graceful shutdown** | On stop, workers finish their running tasks before the database pool closes. Anything unfinished is retried by another worker. |
 
@@ -117,7 +117,7 @@ in-memory test server, with timers skipped and a fake cloud. It checks:
 | Workers | 3 processes, 2 vCPU and 2 GB each (the 2-vCPU sandbox ran 2,000 with two) |
 | API | 1 process (2 for availability) |
 | Temporal | Postgres-backed, 512 history shards (set at first start; see `deploy/docker-compose.yml`). For production use Temporal's Helm chart with 3+ history nodes, or Temporal Cloud. |
-| Postgres | `max_connections` 400+. About 7 small writes per VM. |
+| Postgres | `max_connections` 400+. About 7 small writes per VM. Each API and worker process opens a connection pool of `VMINTENT_DB_POOL` connections (default 30), so allow for that many per process. |
 | Cloud limits | Set `vmintent.workers.rate.*` to your accounts' API limits and check vCPU quotas: 2,000 VMs of 4 vCPU is 8,000 vCPU. |
 
 ## What is still simulated

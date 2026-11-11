@@ -1,5 +1,7 @@
 # Running on Kubernetes
 
+Last updated 2026-11-11.
+
 All of vm-intent's workers run on Kubernetes. The manifests are in `deploy/kubernetes`, as
 kustomize bases and overlays:
 
@@ -19,14 +21,25 @@ Temporal and Postgres aren't in these manifests. Use Temporal's Helm chart (or T
 managed Postgres, and set `TEMPORAL_ADDRESS` and `VMINTENT_DB_URL` in the overlay. Both overlays
 build with `kustomize build` and pass `kubernetes-validate --strict` for Kubernetes 1.30.
 
+Both overlays also send clouds over the [one-way link to domain 3](ONE-WAY-LINK.md):
+
+| Overlay | Settings | What it means |
+|---|---|---|
+| dev | `VMINTENT_LINK_PROVIDERS=gcp`, `VMINTENT_LINK_SIMULATE=true` | Google Cloud goes over the link, to a simulated domain 3 (vm-intent answers the orders itself); the other clouds are called directly |
+| prod | `VMINTENT_LINK_PROVIDERS=*` | every cloud goes over the link, so the nightly inventory check skips every cloud |
+
+Change `VMINTENT_LINK_PROVIDERS` in the overlay to call a cloud directly.
+
 ## The pods
 
 | Deployment | Profile | Task queues | Scales |
 |---|---|---|---|
 | `vm-intent-api` | `api` | none (it starts workflows, runs none) | replicas |
-| `vm-intent-worker-workflows` | `worker` | `intent-q`: every workflow, and their database and file activities | HPA, 2-10 (prod 2-20) |
-| `vm-intent-worker-clouds` | `worker` | every cloud's `-q` and `-read-q` | HPA, 2-8 |
+| `vm-intent-worker-workflows` | `worker` | `intent-q`: every workflow, and their database and file activities | HPA, 2-10 (prod 2-20, dev 1-3) |
+| `vm-intent-worker-clouds` | `worker` | every cloud's `-q` and `-read-q` | HPA, 2-8 (dev 1-3) |
 | `vm-intent-web` | | nginx with the web app; forwards `/api` to the API | replicas |
+
+The HPAs add pods at 70% CPU (`base/autoscaling.yaml`). The dev overlay sets both to 1-3 pods.
 
 `VMINTENT_WORKER_QUEUES` decides which task queues a pod works on (empty = all). To scale one cloud
 on its own, copy `worker-clouds.yaml` as `worker-aws.yaml` with `VMINTENT_WORKER_QUEUES=aws-q,aws-read-q`
@@ -35,8 +48,9 @@ pods, because Temporal enforces them on the server.
 
 Adding a worker pod needs nothing else: work is shared through the task queues. When a pod is
 removed (scale-down, rollout, node drain), it stops taking work and lets its running tasks finish
-(`terminationGracePeriodSeconds: 60`); anything unfinished is retried by another pod. Pod disruption
-budgets let drains take one pod at a time.
+(`terminationGracePeriodSeconds`: 60 for worker pods, 30 for the API pod, which runs no tasks);
+anything unfinished is retried by another pod. Pod disruption budgets let drains take one pod at a
+time.
 
 ## Health checks
 

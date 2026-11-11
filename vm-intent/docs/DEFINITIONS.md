@@ -1,5 +1,7 @@
 # Catalog definitions and runs
 
+Last updated 2026-11-11.
+
 Technical operators describe repeatable provisioning jobs in YAML. vm-intent checks each file when
 it's published and runs it as a Temporal workflow. There are two kinds of file:
 
@@ -49,7 +51,7 @@ steps:
       size: ${ params.size }
       env: ${ params.env }
     attempts: 2                 # tries before the run stops and waits (1-10, default 3)
-    timeoutMinutes: 60          # longest one try may take (default 30)
+    timeoutMinutes: 60          # longest one try may take (1-1440, default 30)
 
   - id: site
     action: files.copy
@@ -112,9 +114,15 @@ so expressions stay valid if it's swapped for cel-java later.
 | `tools.stage` | `vm`, `bundle`, `version` | removing the bundle, or putting the earlier version back | skipped if installed at that version; a half install is removed and done again |
 | `files.copy` | `vm`, `files` (paths or folders in the file store), `to` | deleting the files it copied (files that were there before are kept) | files already there with the same SHA-256 are skipped; leftover `.part` files are removed |
 | `config.apply` | `vm`, `settings` (a map) | putting the old values back | only values that differ are written |
-| `check.until` | `vm`, `until`; optional `everySeconds` (30), `timeoutMinutes` (30) | nothing (it only looks) | looks again |
-| `approval.wait` | `message`; optional `approvers` (a list of names), `timeoutHours` (24) | nothing | waits again |
+| `check.until` | `vm`, `until`; optional `everySeconds` (5-3600, default 30), `timeoutMinutes` (1-1440, default 30) | nothing (it only looks) | looks again |
+| `approval.wait` | `message`; optional `approvers` (a list of names), `timeoutHours` (1-72, default 24) | nothing | waits again |
 | `blueprint.deploy` | `blueprint`, `name` (the deployment's name); optional `version` (default: newest released), `inputs` (a map), `timeoutMinutes` (90), `everySeconds` (30) | removing the deployment | a deployment with that name that is running or done is used; a failed one is removed and asked for again |
+
+A `with:` number outside its range is moved to the nearest end when the step runs. A step's own
+`attempts` (1-10) or `timeoutMinutes` (1-1440) outside its range is refused when the definition is
+published. If nobody answers an `approval.wait` within
+`timeoutHours`, or the approval is rejected, the step fails and the run stops in **AWAITING_RECOVERY**
+like any failed step (see below).
 
 `blueprint.deploy` requests a VCF Automation 9 blueprint (cloud template) and waits until the deployment is done; its output has `deploymentId`, `resources` and `addresses`. See [VSPHERE.md](VSPHERE.md).
 
@@ -138,6 +146,21 @@ theirs.
 in for MinIO or an SSH file server, and each VM has a folder (`VMINTENT_TARGETS_DIR`) standing in
 for its disk. Swapping in real SSH or MinIO means changing `TargetStore` and `CatalogActivitiesImpl`;
 the partial-work rules above stay the same.
+
+## A run's states
+
+`GET /api/v2/runs/{runId}` and the web app's Catalog card show the run's state:
+
+| State | Meaning |
+|---|---|
+| `STARTING` | the workflow has started but hasn't set up its steps yet |
+| `RUNNING` | steps are running, one after another |
+| `AWAITING_APPROVAL` | an `approval.wait` step is waiting for an answer (the run can also be torn down here) |
+| `AWAITING_RECOVERY` | a step failed; the run waits for Resume or Tear down (below) |
+| `COMPLETED` | every step is done (the run has ended) |
+| `TEARING_DOWN` | the run is undoing its steps, newest first |
+| `TORN_DOWN` | everything the run did is undone (the run has ended) |
+| `TEARDOWN_INCOMPLETE` | tear down finished but some undo failed; those steps are marked UNDO_FAILED (the run has ended) |
 
 ## When a step fails: resume or tear down, never start again
 

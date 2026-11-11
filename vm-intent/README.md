@@ -1,6 +1,6 @@
 # vm-intent: natural-language VM requests on Temporal
 
-Last updated 2026-11-10.
+Last updated 2026-11-11.
 
 You type a request for a VM in plain English. One canonical, cloud-neutral spec
 comes out, and a Temporal workflow builds it on vSphere, AWS, Azure or Google
@@ -138,8 +138,16 @@ takes a little longer.
   VM_CREATED, RUNNING, ROLLED_BACK, COMPLETED, PARTIAL, FAILED, CANCELLED, DUPLICATE, plus each VM's
   lifecycle events (EXPIRY_WARNING, RENEWED, RESIZED, POWERED_ON, POWERED_OFF, SNAPSHOT, DELETED and others).
 - API: `GET /api/v2/audit?requestId=...` or `?specHash=...`. The UI shows it under "Audit trail".
-- To use a real Postgres server, set `vmintent.db.embedded: false` in `application.yml` and fill in
-  `spring.datasource.url`, `username` and `VMINTENT_DB_PASSWORD`.
+- To use a real Postgres server, set these environment variables (`application.yml` reads them;
+  docker-compose, the Kubernetes configmap and `deploy/linux/setup-db.sh` use the same names):
+
+  | Variable | Default | What it sets |
+  |---|---|---|
+  | `VMINTENT_DB_EMBEDDED` | `true` | `true` starts the embedded Postgres; `false` uses the server below (`vmintent.db.embedded`) |
+  | `VMINTENT_DB_URL` | `jdbc:postgresql://localhost:5432/vmintent` | the server's JDBC address (`spring.datasource.url`) |
+  | `VMINTENT_DB_USER` | `vmintent` | the user name |
+  | `VMINTENT_DB_PASSWORD` | empty | the password |
+  | `VMINTENT_DB_POOL` | `30` | the connection pool size, per process |
 
 ## MCP server (use the app from Claude)
 
