@@ -47,7 +47,7 @@ svg .lines path { fill: none; stroke: var(--quiet); stroke-width: 1.25; } svg .h
 <div class="top"><a href="/">&larr; Back to the app</a><a href="/swagger-ui.html">API documentation (Swagger)</a></div>
 <h1>vm-intent User Guide</h1>
 
-<p class="updated">Last updated 2026-11-07.</p>
+<p class="updated">Last updated 2026-11-12.</p>
 <nav class="toc" aria-label="Contents"><strong>Contents</strong><ol><li><a href='#what-vm-intent-does'>What vm-intent does</a></li><li><a href='#opening-the-app'>Opening the app</a></li><li><a href='#requesting-one-vm'>Requesting one VM</a></li><li><a href='#following-a-request'>Following a request</a></li><li><a href='#several-vms-in-one-request'>Several VMs in one request</a></li><li><a href='#looking-after-a-vm-expiry-and-changes'>Looking after a VM: expiry and changes</a></li><li><a href='#the-nightly-inventory-check'>The nightly inventory check</a></li><li><a href='#catalog-runs-ready-made-jobs-from-operators'>Catalog runs: ready-made jobs from operators</a></li><li><a href='#compliance-decisions-archive-and-replay'>Compliance: decisions, archive and replay</a></li><li><a href='#building-many-vms-at-once'>Building many VMs at once</a></li><li><a href='#legacy-json-and-the-inventory'>Legacy JSON and the inventory</a></li><li><a href='#sign-in-and-roles'>Sign-in and roles</a></li><li><a href='#for-other-services-the-rest-api'>For other services: the REST API</a></li><li><a href='#starting-and-stopping-the-app-on-windows'>Starting and stopping the app on Windows</a></li><li><a href='#troubleshooting'>Troubleshooting</a></li></ol></nav>
 
 <h2 id='what-vm-intent-does'>What vm-intent does</h2>
@@ -270,7 +270,7 @@ svg .lines path { fill: none; stroke: var(--quiet); stroke-width: 1.25; } svg .h
 <li><strong>Missing:</strong> a VM the inventory says is running, but the cloud no longer has (someone deleted it by hand). It's marked MISSING.</li>
 <li><strong>Unrecorded:</strong> a VM in the cloud that the inventory never recorded. These are only listed, never deleted; deciding what to do is up to a person.</li>
 </ul>
-<p>Press <strong>Run now</strong> to check straight away (admins only when sign-in is on). Clouds reached over the one-way link to domain 3 are skipped. To change the time or pause it, use the Temporal UI's <strong>Schedules</strong> page.</p>
+<p>Press <strong>Run now</strong> to check straight away (admins only when sign-in is on). Clouds reached over the one-way link to domain 3 are skipped. An administrator sets the time with <code>VMINTENT_INVENTORY_CHECK_CRON</code> (default 02:00) and <code>VMINTENT_INVENTORY_CHECK_TZ</code> (default UTC). The backend writes the schedule again from these settings every time it starts, so a change made in the Temporal UI lasts only until the next restart. <code>VMINTENT_INVENTORY_CHECK=false</code> turns the nightly check off.</p>
 <h2 id='catalog-runs-ready-made-jobs-from-operators'>Catalog runs: ready-made jobs from operators</h2>
 <p>The <strong>Catalog</strong> card runs jobs that technical operators have written in YAML: build a VM, install tools, copy files, set its configuration, check it's ready. Each job is a <em>definition</em>; how to write one is in <code>docs/DEFINITIONS.md</code>.</p>
 <ol>
@@ -477,6 +477,10 @@ svg .lines path { fill: none; stroke: var(--quiet); stroke-width: 1.25; } svg .h
 <tr>
 <td>The request FAILED</td>
 <td>Open <em>Audit trail</em> for the reason. The VM was rolled back, so nothing needs cleaning up. A name containing "fail" always fails, on purpose.</td>
+</tr>
+<tr>
+<td>The request FAILED saying the VM "was built by vm-intent for another request; choose another name"</td>
+<td>This happens only when vSphere is connected to a real vCenter or VCF Automation: a different VM already has that name there. Pick another name and submit again.</td>
 </tr>
 <tr>
 <td>A 401 or 403 error</td>

@@ -1,6 +1,6 @@
 # Temporal features in vm-intent
 
-Last updated 2026-11-10.
+Last updated 2026-11-12.
 
 This page explains which Temporal features vm-intent uses, what each one is for, where it is in the
 code, and how to see it working. It's written for someone learning Temporal.
@@ -125,7 +125,9 @@ cloud it lists the VMs and compares them with the inventory:
 - **Unrecorded (orphans):** in the cloud but never recorded here. Reported only, never deleted.
 - Clouds behind the one-way link are skipped, because domain 2 can't look into domain 3.
 
-Change the timing with `VMINTENT_INVENTORY_CHECK_CRON` and `_TZ`. Pause it or run it now in the
+Change the timing with `VMINTENT_INVENTORY_CHECK_CRON` and `_TZ`. The app writes the
+`vm-inventory-check` schedule again from these settings every time it starts, so a timing changed in
+the Temporal UI lasts only until the next start. Pause it or run it now in the
 Temporal UI under **Schedules**, or with `POST /api/v2/inventory-checks`. To turn the nightly check
 off, set `VMINTENT_INVENTORY_CHECK=false` (default `true`): the next time the app starts, it removes
 the `vm-inventory-check` schedule.
@@ -166,7 +168,8 @@ picks the workflow class from the file name's prefix: `intent-` → `IntentWorkf
 `VmReconcileWorkflowImpl`, `catalog-` → `CatalogRunWorkflowImpl`, `lifecycle-` → `VmLifecycleWorkflowImpl`,
 `batchshard-` → `BatchShardWorkflowImpl`.
 A file with any other prefix fails the test with its name, so no history is skipped. It also checks
-that the seven `*-v1-*` histories below and the four recorded ones after them are all still there.
+that the seven pinned histories (the `intent-v1-*`, `reconcile-v1-*` and `catalog-v1-*` files) and the
+four recorded ones after them are all still there.
 
 - `intent-v1-*` and `reconcile-v1-*` were recorded from the code *before* the lifecycle, update and
   link features were added; the three `catalog-v1-*` histories are real catalog runs (resumed, torn
@@ -261,7 +264,7 @@ One thing to know: it only skips ahead while a timer is waiting. To wait for a w
 | `LinkFilesTest` | The real file-based link with the simulated domain 3 |
 | `IntentWorkflowTest` | Answer, confirm and cancel updates (with a replay round trip), several VMs at once, search attributes |
 | `InventoryCheckTest` | Missing VMs and orphans |
-| `ReplayTest` | Every saved history against new code, the workflow class picked by file-name prefix (a file with no known prefix fails), and the seven `*-v1-*` histories and the four recorded ones still present |
+| `ReplayTest` | Every saved history against new code, the workflow class picked by file-name prefix (a file with no known prefix fails), and the seven pinned histories (`intent-v1-*`, `reconcile-v1-*`, `catalog-v1-*`) and the four recorded ones (`intent-v2-multi-existing`, `lifecycle-v1-renewed`, `batchshard-v1-duplicate`, `catalog-v2-existing-vm`) still present |
 | `RecordedHistoriesTest` | The scenarios behind `intent-v2-multi-existing` (two VMs, one already there), `lifecycle-v1-renewed` (a renewal) and `batchshard-v1-duplicate` (a shard with the same spec twice); with `-Dhistories.record=true` they save missing histories |
 | `HistoryRecorderTest` | `HistoryRecorder` writes nothing without `-Dhistories.record=true`, writes a missing file that replays, and leaves an existing file byte-for-byte unchanged |
 | `CatalogRunWorkflowTest` | Steps in order, resume with partial work, teardown, 30-day auto teardown, approvals, blueprints, reusing a VM already built with the same spec (the scenario behind `catalog-v2-existing-vm`) |

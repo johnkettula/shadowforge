@@ -1,6 +1,6 @@
 # vm-intent User Guide
 
-Last updated 2026-11-07.
+Last updated 2026-11-12.
 
 ## What vm-intent does
 
@@ -148,7 +148,7 @@ Every night at 02:00 UTC the app compares each cloud with its inventory. The *In
 - **Missing:** a VM the inventory says is running, but the cloud no longer has (someone deleted it by hand). It's marked MISSING.
 - **Unrecorded:** a VM in the cloud that the inventory never recorded. These are only listed, never deleted; deciding what to do is up to a person.
 
-Press **Run now** to check straight away (admins only when sign-in is on). Clouds reached over the one-way link to domain 3 are skipped. To change the time or pause it, use the Temporal UI's **Schedules** page.
+Press **Run now** to check straight away (admins only when sign-in is on). Clouds reached over the one-way link to domain 3 are skipped. An administrator sets the time with `VMINTENT_INVENTORY_CHECK_CRON` (default 02:00) and `VMINTENT_INVENTORY_CHECK_TZ` (default UTC). The backend writes the schedule again from these settings every time it starts, so a change made in the Temporal UI lasts only until the next restart. `VMINTENT_INVENTORY_CHECK=false` turns the nightly check off.
 
 ## Catalog runs: ready-made jobs from operators
 
@@ -280,5 +280,6 @@ For running on Linux or Azure, see `README.md` and `deploy/`.
 | A request stays in PROVISIONING | Simulated VMs take 20 to 60 seconds to boot. If it is still there after a few minutes, check that the backend window is running. |
 | The request says DUPLICATE | An identical VM already exists. Change something, such as the name, to build another. |
 | The request FAILED | Open *Audit trail* for the reason. The VM was rolled back, so nothing needs cleaning up. A name containing "fail" always fails, on purpose. |
+| The request FAILED saying the VM "was built by vm-intent for another request; choose another name" | This happens only when vSphere is connected to a real vCenter or VCF Automation: a different VM already has that name there. Pick another name and submit again. |
 | A 401 or 403 error | Sign-in is on. Get a token or certificate with the role the operation needs (see *Sign-in and roles*). |
 | The first backend start is slow | It downloads its dependencies and a database the first time. Later starts take seconds. |

@@ -1,6 +1,6 @@
 # Catalog definitions and runs
 
-Last updated 2026-11-11.
+Last updated 2026-11-12.
 
 Technical operators describe repeatable provisioning jobs in YAML. vm-intent checks each file when
 it's published and runs it as a Temporal workflow. There are two kinds of file:
@@ -137,7 +137,14 @@ API and `vm.create`). Its build workflow ID is `vm-` + hash and its lifecycle wo
 name, or `anonymous` when sign-in is off. It is never taken from `userId`, `requestedBy` or anything
 else the client sends; those are still only the names recorded in the audit trail. Today the owner
 does not change the hash: every owner gets the same hash for the same spec, so existing VMs keep
-theirs.
+theirs. Each build also gets a build key, which the cloud records on the VM it builds: the spec hash,
+or the hash + `-` + the first 8 characters of the build's run ID (`VmIdentity.buildKey`). On a real
+cloud route (vSphere with a real vCenter 9 or VCF Automation 9), an existing VM with the requested
+name is reused only when its recorded build key has the same spec hash (`VmIdentity.sameBuild`, which
+compares `hashOfBuildKey` of both keys): a retry, or a new run of the same spec. Otherwise that build
+fails with the non-retryable `InvalidSpec` reason "... was built by vm-intent for another request;
+choose another name" (or "... that vm-intent didn't build; choose another name" when vm-intent didn't
+build it), and nothing is built or removed. The simulated clouds (the default) don't check names.
 
 `probe` (for `check.until`) has `reachable`, `power`, `vcpu`, `memoryGiB`, `tools` (a list), `files`
 (a count) and `config` (a map), for example `probe.reachable && 'nginx' in probe.tools`.

@@ -1,6 +1,6 @@
 # vm-intent REST API: guide for calling services
 
-Last updated 2026-11-07.
+Last updated 2026-11-12.
 
 The API is described by an **OpenAPI 3.0** document that the server generates from its own code, so the
 document always matches what the server does. `tests/api_contract_test.py` calls every endpoint and checks
@@ -81,7 +81,13 @@ addresses instead, set `VMINTENT_API_SERVER_URLS` (comma-separated).
 - **Idempotency.** A VM's identity is the SHA-256 of its canonical spec (`specHash`). Sending the same
   spec again while it's being built, or after it's built, does not create a second VM: a batch counts it
   under `duplicate`, the legacy endpoint returns `409`, and a request finishes as `DUPLICATE`. It is safe
-  to retry a call that timed out.
+  to retry a call that timed out. On the real vSphere routes (vCenter 9 and VCF Automation 9), a spec
+  with a different hash that uses a name already taken in the cloud by a VM vm-intent built for another
+  spec is not reused: its build fails with the non-retryable reason `InvalidSpec` ("... was built by
+  vm-intent for another request; choose another name"). A same-named VM that vm-intent didn't build is
+  refused the same way ("... that vm-intent didn't build; choose another name"); on VCF Automation that
+  is any same-named deployment with no vm-intent key in its description. The simulated clouds (the
+  default) don't check names.
 - **Long-running work is asynchronous.** Create calls return at once with an ID; poll the matching
   `GET` every 2–5 seconds. Final request states are `COMPLETED`, `PARTIAL`, `FAILED`, `CANCELLED` and
   `DUPLICATE` (`PARTIAL`: a request for several VMs where some were built and at least one failed); a
