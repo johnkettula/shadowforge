@@ -98,8 +98,13 @@ export const DAILY_DOCS_PREFIX = 'Daily docs';
  */
 export function dailyDocsDue(cfg: PipelineConfig, ledger: CycleResult[], now = new Date()): boolean {
   if (cfg.dailyDocs === false) return false;
+  const every = Math.max(1, cfg.docsEveryDays ?? 1);
   const today = now.toISOString().slice(0, 10);
-  return !ledger.some((r) => r.startedAt?.slice(0, 10) === today && r.requirement?.title?.startsWith(DAILY_DOCS_PREFIX));
+  const docs = ledger.filter((r) => r.requirement?.title?.startsWith(DAILY_DOCS_PREFIX) && r.startedAt);
+  if (docs.some((r) => r.startedAt!.slice(0, 10) === today)) return false;
+  const last = docs.map((r) => Date.parse(r.startedAt!.slice(0, 10))).sort((a, b) => b - a)[0];
+  if (last === undefined) return true;
+  return (Date.parse(today) - last) / 86_400_000 >= every;
 }
 
 export const dailyDocsTask = (today: string) => `THIS CYCLE IS TODAY'S DOCUMENTATION UPDATE (asked for by John: "we should update documentation daily"

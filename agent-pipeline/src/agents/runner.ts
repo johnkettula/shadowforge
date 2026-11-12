@@ -53,7 +53,7 @@ export class ClaudeAgentRunner implements AgentRunner {
         persistSession: false,
         maxTurns: cfg.limits.maxAgentTurns,
         maxBudgetUsd: cfg.limits.maxUsdPerAgentRun,
-        model: cfg.agent.model || undefined,
+        model: cfg.agent.stageModels?.[task.role] || cfg.agent.model || undefined,
         effort: cfg.agent.effort,
         systemPrompt: { type: 'preset', preset: 'claude_code', append: ROLE_PROMPTS[task.role] },
         outputFormat: { type: 'json_schema', schema: task.schema },

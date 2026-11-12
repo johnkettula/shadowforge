@@ -44,7 +44,13 @@ export function defaultConfig(): PipelineConfig {
     projectDir: P,
     push: true,
     git: { authorName: 'vm-intent agent pipeline', authorEmail: 'agent-pipeline@users.noreply.github.com' },
-    agent: { mode: 'claude', effort: 'high' },
+    agent: {
+      mode: 'claude',
+      effort: 'high',
+      // The developer does the coding, so it keeps the strongest model; the other stages use Sonnet (half the price).
+      stageModels: { developer: 'claude-opus-5-5', requirements: 'claude-sonnet-5-5', tester: 'claude-sonnet-5-5', reviewer: 'claude-sonnet-5-5', redesign: 'claude-sonnet-5-5' },
+    },
+    docsEveryDays: 3,
     protectedPaths: [
       'agent-pipeline/**',
       '.github/**',
@@ -121,7 +127,7 @@ export function defaultConfig(): PipelineConfig {
     stagingPortBase: 19000,
     livePortBase: 18080,
     limits: {
-      maxCyclesPerDay: 3,
+      maxCyclesPerDay: 2,
       maxUsdPerDay: 12,
       maxUsdPerCycle: 8,
       maxUsdPerAgentRun: 3,

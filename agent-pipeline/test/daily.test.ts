@@ -12,7 +12,7 @@ const row = (cycle: number, startedAt: string, title: string, outcome: CycleResu
 });
 
 test('the daily docs update is due once per UTC day, whatever happened to it', () => {
-  const cfg = defaultConfig();
+  const cfg = { ...defaultConfig(), docsEveryDays: 1 };
   const now = new Date('2026-11-06T02:00:00Z');
   assert.equal(dailyDocsDue(cfg, [], now), true);
   assert.equal(dailyDocsDue(cfg, [row(1, '2026-11-05T23:00:00Z', 'Daily docs 2026-11-05: x')], now), true, "yesterday's doesn't count");
@@ -56,4 +56,24 @@ test('the requirements prompt lists the protected files, which no criterion may 
   assert.match(p, /Protected files/);
   assert.match(p, /docs\/SECURITY\.md/);
   assert.match(PROMPTS.requirements, /Never write a criterion that needs a protected file changed/);
+});
+
+test('with docsEveryDays set, the docs update waits until that many days have passed', () => {
+  const cfg = { ...defaultConfig(), docsEveryDays: 3 };
+  const docs = (day: string) => row(1, `${day}T01:00:00Z`, 'Daily docs 2026-x: y');
+  // last docs 2 days ago (Nov 4): not due yet
+  assert.equal(dailyDocsDue(cfg, [docs('2026-11-04')], new Date('2026-11-06T02:00:00Z')), false);
+  // last docs 3 days ago (Nov 3): due
+  assert.equal(dailyDocsDue(cfg, [docs('2026-11-03')], new Date('2026-11-06T02:00:00Z')), true);
+  // already done today: never twice
+  assert.equal(dailyDocsDue(cfg, [docs('2026-11-06')], new Date('2026-11-06T02:00:00Z')), false);
+  // never done: due
+  assert.equal(dailyDocsDue(cfg, [], new Date('2026-11-06T02:00:00Z')), true);
+});
+
+test('each stage runs on its configured model, and the developer keeps the strongest one', () => {
+  const cfg = defaultConfig();
+  assert.equal(cfg.agent.stageModels?.developer, 'claude-opus-5-5');
+  for (const r of ['requirements', 'tester', 'reviewer', 'redesign'] as const) assert.equal(cfg.agent.stageModels?.[r], 'claude-sonnet-5-5');
+  assert.equal(cfg.limits.maxCyclesPerDay, 2);
 });

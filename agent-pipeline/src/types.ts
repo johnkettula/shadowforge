@@ -75,6 +75,8 @@ export interface ApprovalGates {
 export interface PipelineConfig {
   /** The first feature cycle of each day (UTC) brings the documentation up to date. Default on. */
   dailyDocs?: boolean;
+  /** Run the daily docs check every this many days (default 1). */
+  docsEveryDays?: number;
   approval?: ApprovalGates;
   /** Generated files (OpenAPI snapshots and the like): they count as files, but their lines don't count toward maxChangedLines. */
   generated?: string[];
@@ -92,6 +94,8 @@ export interface PipelineConfig {
     /** claude = Claude Agent SDK. scripted = canned behaviour, for tests and dry runs. */
     mode: 'claude' | 'scripted';
     model?: string;
+    /** Model per stage, overriding `model` (e.g. the developer on Opus, the others on Sonnet). */
+    stageModels?: Partial<Record<Role, string>>;
     effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
     /** Stages that run on a local open model through Ollama, falling back to Claude (src/agents/ollama.ts). */
     local?: import('./agents/ollama.js').LocalAgentConfig;
