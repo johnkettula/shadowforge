@@ -131,7 +131,7 @@ public class IntentWorkflowImpl implements IntentWorkflow {
                         .build());
         try {
             vm = child.reconcile(new ReconcileRequest(
-                    interpretation.spec(), interpretation.specHash(), request.userId(), requestId));
+                    interpretation.spec(), interpretation.specHash(), request.userId(), requestId, null));
             return finish("COMPLETED", "VM " + vm.vmId() + " is running at " + vm.ipAddress());
         } catch (ChildWorkflowFailure e) {
             return finish("FAILED", "Provisioning failed and was rolled back: " + rootMessage(e));
@@ -253,7 +253,7 @@ public class IntentWorkflowImpl implements IntentWorkflow {
                             .setTaskQueue(TaskQueues.INTENT)
                             .build());
             Async.function(child::reconcile,
-                            new ReconcileRequest(item.spec(), item.specHash(), request.userId(), requestId))
+                            new ReconcileRequest(item.spec(), item.specHash(), request.userId(), requestId, null))
                     .handle((result, failure) -> {
                         inFlight[0]--;
                         finished[0]++;

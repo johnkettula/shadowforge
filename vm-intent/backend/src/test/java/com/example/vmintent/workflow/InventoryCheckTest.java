@@ -73,7 +73,7 @@ class InventoryCheckTest {
         String hash = SpecCanonicalizer.hash(spec);
         VmReconcileWorkflow wf = env.getWorkflowClient().newWorkflowStub(VmReconcileWorkflow.class,
                 WorkflowOptions.newBuilder().setTaskQueue(TaskQueues.INTENT).setWorkflowId("vm-" + hash).build());
-        VmResult r = wf.reconcile(new ReconcileRequest(spec, hash, "jdoe", "req-" + name));
+        VmResult r = wf.reconcile(new ReconcileRequest(spec, hash, "jdoe", "req-" + name, null));
         LifecycleWorkflowTest.eventually(() -> records.lifecycles.containsKey(hash), "lifecycle started");
         return hash;
     }

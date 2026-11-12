@@ -132,7 +132,7 @@ class VmControllerTest {
         String hash = SpecCanonicalizer.hash(spec);
         VmReconcileWorkflow wf = env.getWorkflowClient().newWorkflowStub(VmReconcileWorkflow.class,
                 WorkflowOptions.newBuilder().setTaskQueue(TaskQueues.INTENT).setWorkflowId("vm-" + hash).build());
-        wf.reconcile(new ReconcileRequest(spec, hash, "jdoe", "req-" + name));
+        wf.reconcile(new ReconcileRequest(spec, hash, "jdoe", "req-" + name, null));
         registry.records.put(hash, record(hash, spec, "RUNNING"));
         for (int i = 0; i < 100; i++) {
             try {

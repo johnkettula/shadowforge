@@ -307,7 +307,7 @@ public class RequestController {
         try {
             String by = Caller.nameOr(null, "legacy-api");
             audit.record(null, it.specHash(), "REQUESTED", by, "legacy JSON for " + it.summary());
-            WorkflowClient.start(wf::reconcile, new ReconcileRequest(it.spec(), it.specHash(), by, null));
+            WorkflowClient.start(wf::reconcile, new ReconcileRequest(it.spec(), it.specHash(), by, null, null));
         } catch (WorkflowExecutionAlreadyStarted e) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(new ApiError("An identical VM is already being built", workflowId, null));

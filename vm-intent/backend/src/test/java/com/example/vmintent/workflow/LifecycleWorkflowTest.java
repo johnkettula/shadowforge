@@ -164,7 +164,7 @@ class LifecycleWorkflowTest {
         String hash = SpecCanonicalizer.hash(spec);
         VmReconcileWorkflow wf = env.getWorkflowClient().newWorkflowStub(VmReconcileWorkflow.class,
                 WorkflowOptions.newBuilder().setTaskQueue(TaskQueues.INTENT).setWorkflowId("vm-" + hash).build());
-        VmResult r = wf.reconcile(new ReconcileRequest(spec, hash, "jdoe", "req-" + name));
+        VmResult r = wf.reconcile(new ReconcileRequest(spec, hash, "jdoe", "req-" + name, null));
         records.state.put(hash, "RUNNING");
         assertTrue(r.vmId().startsWith("vm-"));
         eventually(() -> records.lifecycles.containsKey(hash), "the lifecycle workflow started");

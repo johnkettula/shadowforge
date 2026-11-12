@@ -90,7 +90,7 @@ class VsphereRoutesWorkflowTest {
         String hash = SpecCanonicalizer.hash(spec);
         VmReconcileWorkflow wf = env.getWorkflowClient().newWorkflowStub(VmReconcileWorkflow.class,
                 WorkflowOptions.newBuilder().setTaskQueue(TaskQueues.INTENT).setWorkflowId("vm-" + hash).build());
-        return wf.reconcile(new ReconcileRequest(spec, hash, "jdoe", "req-" + hash.substring(0, 6)));
+        return wf.reconcile(new ReconcileRequest(spec, hash, "jdoe", "req-" + hash.substring(0, 6), null));
     }
 
     @Test
