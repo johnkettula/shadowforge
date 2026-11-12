@@ -1,6 +1,6 @@
 # vm-intent: natural-language VM requests on Temporal
 
-Last updated 2026-11-11.
+Last updated 2026-11-12.
 
 You type a request for a VM in plain English. One canonical, cloud-neutral spec
 comes out, and a Temporal workflow builds it on vSphere, AWS, Azure or Google
@@ -92,7 +92,9 @@ any listed phrasing stops producing the expected spec.
 ```
 backend/src/main/java/com/example/vmintent/
   spec/       VmSpec (the canonical spec), canonical form + SHA-256 hash, policy checks;
-              VmIdentity: the one place that computes a VM's spec hash and its vm-/life- workflow IDs
+              VmIdentity: the one place that computes a VM's spec hash and its vm-/life- workflow IDs,
+              and builds a VM's build key, which the real clouds use to decide whether to reuse an
+              existing VM with the same name (same spec hash only)
   intent/     Words -> spec: RuleBasedIntentExtractor, LlmIntentExtractor (optional),
               Vocabulary (synonyms), PolicyDefaults (size catalog and defaults)
   workflow/   IntentWorkflow (interpret, clarify, confirm) and
