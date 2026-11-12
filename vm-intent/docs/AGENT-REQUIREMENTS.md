@@ -491,3 +491,40 @@ Risk: low. Attempts: 1. Built: 2026-11-12.
 
 02:21:48 attempt 1: developer: Docs-only change for AP-0034. DEFINITIONS.md identity paragraph now covers the build key (VmIdentity.buildKey), the same-spec-hash reuse rule on real cloud routes (sameBuild/hashOfBuildKey), the non-r
 02:53:18 attempt 1: review: approved: Docs-only change that meets all 11 acceptance criteria, and I checked each new statement against the code on the branch.
+
+## AP-0036: Carry the cloud name as a recorded value in the build workflow (design review 0035 #1, replaces AP-0033 / 0025 #2, no behaviour change): ReconcileRequest gets a last field cloudName (null = spec.name(
+
+The backlog's per-user identity part 2 gives the cloud-side name a short suffix (web-01-7f3a) while the API and web app keep showing 'web-01'. Today the name sent to the cloud is request.spec().name() in four cloud calls in VmReconcileWorkflowImpl: cloud.plan at :96, deleteByKeyNoWait in the saga at :103, sendAndWait("CREATE", ...) at :105 and createVm at :110. That same spec goes to records.save (:92, :97, :119, :126), which the API shows. So there is no single place to change the cloud name.
+
+Review 0025 #2 (AP-0033, which failed only because the developer ran out of credit) had the workflow call VmIdentity.cloudName(spec, owner, hash). Review 0035 found that unsafe. Part 2 exists to change that function. A build still running at the deploy (for example one waiting on the one-way link) would then replay with a different name, and its rollback would delete a name it never created. Temporal doesn't compare activity inputs on replay, so nothing would report it.
+
+The fix is to carry the cloud name as a recorded input:
+- ReconcileRequest (Models.java:31) gets a new last field, String cloudName. Old histories decode it as null, which means spec.name().
+- The five producers pass null for now: RequestController:310, IntentWorkflowImpl:133 and :256, BatchShardWorkflowImpl:91 and CatalogRunWorkflowImpl:247.
+- Part 2 will later fill it in beside the hash it already records (Interpretation, BatchItem, PreparedVm). The workflows will only copy it.
+
+No value changes, so the 11 recorded histories replay unchanged.
+
+Naming note: VmReconcileWorkflowImpl:78 already has a local variable called cloudName that holds the provider (request.spec().provider()). The developer should rename that local, for example to provider, so the two meanings don't mix. The rename doesn't change behaviour.
+
+There is no owner field on ReconcileRequest, BatchRequest or ShardRequest, and no VmIdentity.cloudName. ReconcileRequest doesn't appear in docs/openapi.json, so the snapshots don't change.
+
+The twelve existing test call sites that use the 4-argument constructor must pass null (or use a test helper).
+
+Acceptance criteria:
+- In backend/src/main/java/com/example/vmintent/workflow/Models.java, the ReconcileRequest record has exactly five components in this order: spec, specHash, requestedBy, requestId, cloudName (cloudName is a String).
+- The five main-code places that construct a ReconcileRequest pass null as cloudName: RequestController, IntentWorkflowImpl (both places), BatchShardWorkflowImpl and CatalogRunWorkflowImpl. The fifth argument at each of these 'new ReconcileRequest(' calls is the literal null.
+- VmReconcileWorkflowImpl.java has one private method, cloudSpec (or a single local built once in reconcile), that returns request.spec() when request.cloudName() is null. Otherwise it returns a copy of the spec with name = request.cloudName() and every other field unchanged. In VmReconcileWorkflowImpl, the calls to cloud.plan(, cloud.sendAndWait(, .createVm( and cloud.deleteByKeyNoWait( do not take request.spec() as an argument. Every records.save( call, and the LifecycleRequest built in startLifecycle, still use request.spec().
+- None of the workflow implementation classes (files matching backend/src/main/java/com/example/vmintent/workflow/*WorkflowImpl.java) contain 'VmIdentity.hash' or 'cloudName(' as a call to a VmIdentity method. No main source file declares a method named cloudName in VmIdentity. Checked in the source at this requirement's last commit.
+- A new or extended JUnit test class under backend/src/test/java/com/example/vmintent/workflow/ runs VmReconcileWorkflow on TestWorkflowEnvironment with a fake cloud provider that records the specs it receives. It has active @Test methods (no @Disabled) that check three things: (a) with cloudName 'web-01-test' and spec name 'web-01', the provider's plan and createVm receive a spec named 'web-01-test', while the saved VM record (or GET /api/v2/vms/{hash} in a controller test) and the audit entries say 'web-01'; (b) with cloudName null, the provider receives 'web-01'; (c) when the build fails after createVm (or on the one-way route, after CREATE was sent), the rollback deletes using the cloud spec or name ('web-01-test'), not 'web-01'. No mockStatic is used.
+- cd backend && mvn test passes, including ReplayTest. No file under backend/src/test/resources/histories/ is added, changed or removed by a commit for this requirement.
+- docs/openapi.json and docs/openapi.yaml are not changed by any commit for this requirement.
+- Behaviour on a running server is unchanged. POST /api/v2/requests with a single-VM simulator spec (for example 'a small ubuntu server on aws called ap36-web') reaches COMPLETED. GET /api/v2/vms/{specHash} then shows spec.name 'ap36-web' and state RUNNING. Sending the same request again gives DUPLICATE and builds nothing new.
+- docs/TEMPORAL-FEATURES.md (in its test table or the section that describes the build workflow) says that the build workflow takes the cloud-side name from ReconcileRequest.cloudName (null = the asked-for name) and that the workflows never compute it. It names the new test class.
+- Outside vm-intent/tests/acceptance/, every file changed by a commit for this requirement (leaving out the pipeline's own acceptance-test and record-the-requirement commits) is under vm-intent/backend/src/, or is vm-intent/docs/TEMPORAL-FEATURES.md or vm-intent/docs/AGENT-REQUIREMENTS.md. No commit for this requirement touches a protected file, vm-intent/frontend/ or vm-intent/deploy/.
+- All existing acceptance suites (ap-0002 to ap-0034) still pass unchanged.
+
+Risk: low. Attempts: 1. Built: 2026-11-12.
+
+04:33:52 attempt 1: developer: AP-0036 is built and the backend tests pass: `mvn -q test` in backend/ finished with exit code 0, including ReplayTest and the new CloudNameTest. The only error trace in the output is an existing vSph
+05:09:55 attempt 1: review: approved: AP-0036 meets the acceptance criteria. ReconcileRequest now has a fifth component, String cloudName, added last. All five main-code producers pass the literal null. In VmReconcileWorkflowImpl, the loc
