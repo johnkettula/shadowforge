@@ -66,7 +66,15 @@ run in reverse order. For the one-way link, the undo is registered *before* the 
 comes, domain 3 may have built the VM anyway, so a DELETE order goes out, matched by the build's
 idempotency key. One failed VM in a multi-VM request is rolled back on its own; the others carry on.
 
-- Code: `workflow/VmReconcileWorkflowImpl.java`
+**The cloud-side name is a recorded value.** The build workflow takes the VM's name in the cloud from
+`ReconcileRequest.cloudName` (null = the name asked for, `spec.name`). The plan, the create, the
+CREATE order over the link and the undo all use that name. The VM record, the audit trail and the
+lifecycle workflow keep the name asked for. The workflows never work the name out themselves. They
+only copy it from the request, which is stored in the history. So a build that is still running
+when new code is deployed replays with the name it started with, and its rollback deletes the VM it
+really made. Today every caller passes null, so the cloud name is the same as the name asked for.
+
+- Code: `workflow/VmReconcileWorkflowImpl.java` (`cloudSpec`)
 - Try it: name a VM with "fail" in it (`called fail-demo`).
 
 ## 4. Live status and searchable requests
@@ -261,6 +269,7 @@ One thing to know: it only skips ahead while a timer is waiting. To wait for a w
 |---|---|
 | `LifecycleWorkflowTest` | Expiry, warning, renewal, validators, day-2 changes, rebuilding a removed VM |
 | `OneWayLinkTest` | Build and changes over the link, no answer (timeout and undo), refusal |
+| `CloudNameTest` | The build workflow takes the cloud-side name from `ReconcileRequest.cloudName` (null = the name asked for) and never works it out itself: the cloud's plan and create, and the link's CREATE order, get the cloud name, while the VM record and the audit trail keep the name asked for; a rollback (direct, or the undo by key over the link) removes the VM made under the cloud name |
 | `LinkFilesTest` | The real file-based link with the simulated domain 3 |
 | `IntentWorkflowTest` | Answer, confirm and cancel updates (with a replay round trip), several VMs at once, search attributes |
 | `InventoryCheckTest` | Missing VMs and orphans |

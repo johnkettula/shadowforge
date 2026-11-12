@@ -88,7 +88,7 @@ public class BatchShardWorkflowImpl implements BatchShardWorkflow {
                         .build());
         long t0 = Workflow.currentTimeMillis();
         Promise<VmResult> result = Async.function(vm::reconcile,
-                new ReconcileRequest(item.spec(), item.specHash(), request.requestedBy(), request.batchId()));
+                new ReconcileRequest(item.spec(), item.specHash(), request.requestedBy(), request.batchId(), null));
         started++;
         inFlight++;
         peakInFlight = Math.max(peakInFlight, inFlight);

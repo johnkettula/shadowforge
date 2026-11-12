@@ -72,7 +72,7 @@ class LinkFilesTest {
         String hash = SpecCanonicalizer.hash(spec);
         VmReconcileWorkflow wf = env.getWorkflowClient().newWorkflowStub(VmReconcileWorkflow.class,
                 WorkflowOptions.newBuilder().setTaskQueue(TaskQueues.INTENT).setWorkflowId("vm-" + hash).build());
-        VmResult vm = wf.reconcile(new ReconcileRequest(spec, hash, "jdoe", "req"));
+        VmResult vm = wf.reconcile(new ReconcileRequest(spec, hash, "jdoe", "req", null));
 
         assertEquals("d3-" + hash.substring(0, 10), vm.vmId());
         assertTrue(vm.ipAddress().startsWith("172.20."));

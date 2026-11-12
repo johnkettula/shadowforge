@@ -27,8 +27,14 @@ public final class Models {
         }
     }
 
-    /** requestId = the IntentWorkflow or batch that asked for it, or null for the legacy JSON API. */
-    public record ReconcileRequest(VmSpec spec, String specHash, String requestedBy, String requestId) {}
+    /**
+     * requestId = the IntentWorkflow or batch that asked for it, or null for the legacy JSON API.
+     * cloudName = the VM's name in the cloud. It is recorded here, not worked out by the build, so a
+     * build replays with the name it started with. null (every caller today, and older histories) =
+     * spec.name().
+     */
+    public record ReconcileRequest(VmSpec spec, String specHash, String requestedBy, String requestId,
+                                   String cloudName) {}
 
     /** How a provider translates the abstract spec into its own names. */
     public record ProviderPlan(String nativeRegion, String nativeSize, String nativeImage, String summary) {}

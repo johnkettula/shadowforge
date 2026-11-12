@@ -76,7 +76,7 @@ class RecordedHistoriesTest {
         String hash = SpecCanonicalizer.hash(spec);
         VmReconcileWorkflow build = env.getWorkflowClient().newWorkflowStub(VmReconcileWorkflow.class,
                 WorkflowOptions.newBuilder().setTaskQueue(TaskQueues.INTENT).setWorkflowId("vm-" + hash).build());
-        build.reconcile(new ReconcileRequest(spec, hash, "jdoe", "req-renewed"));
+        build.reconcile(new ReconcileRequest(spec, hash, "jdoe", "req-renewed", null));
         records.state.put(hash, "RUNNING");
         LifecycleWorkflowTest.eventually(() -> records.lifecycles.containsKey(hash), "the lifecycle workflow started");
 

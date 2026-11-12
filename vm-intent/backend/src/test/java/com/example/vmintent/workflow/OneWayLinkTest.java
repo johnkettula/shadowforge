@@ -50,7 +50,7 @@ class OneWayLinkTest {
     void buildsAndChangesAVmThroughDomain3() {
         VmSpec spec = TestFakes.spec("remote", "azure", 30);
         String hash = SpecCanonicalizer.hash(spec);
-        VmResult vm = reconcile(spec, hash).reconcile(new ReconcileRequest(spec, hash, "jdoe", "req-1"));
+        VmResult vm = reconcile(spec, hash).reconcile(new ReconcileRequest(spec, hash, "jdoe", "req-1", null));
 
         assertTrue(vm.vmId().startsWith("d3-"), "the VM ID came back from domain 3");
         assertEquals("172.20.0.9", vm.ipAddress());
@@ -80,7 +80,7 @@ class OneWayLinkTest {
         VmSpec spec = TestFakes.spec("silent", "azure", 30);
         String hash = SpecCanonicalizer.hash(spec);
         VmReconcileWorkflow wf = reconcile(spec, hash);
-        WorkflowClient.start(wf::reconcile, new ReconcileRequest(spec, hash, "jdoe", "req-2"));
+        WorkflowClient.start(wf::reconcile, new ReconcileRequest(spec, hash, "jdoe", "req-2", null));
 
         // The workflow waits up to 60 minutes (FakeLink's route) for the answer; the test server skips ahead.
         WorkflowFailedException e = assertThrows(WorkflowFailedException.class,
@@ -98,7 +98,7 @@ class OneWayLinkTest {
         String hash = SpecCanonicalizer.hash(spec);
         VmReconcileWorkflow wf = reconcile(spec, hash);
         WorkflowFailedException e = assertThrows(WorkflowFailedException.class,
-                () -> wf.reconcile(new ReconcileRequest(spec, hash, "jdoe", "req-3")));
+                () -> wf.reconcile(new ReconcileRequest(spec, hash, "jdoe", "req-3", null)));
         assertTrue(VmReconcileWorkflowImpl.reason(e).contains("Domain 3 refused CREATE"), VmReconcileWorkflowImpl.reason(e));
         assertEquals(1, link.count("DELETE"));
     }
@@ -107,7 +107,7 @@ class OneWayLinkTest {
     void otherCloudsAreStillCalledDirectly() {
         VmSpec spec = TestFakes.spec("local", "aws", 30);
         String hash = SpecCanonicalizer.hash(spec);
-        reconcile(spec, hash).reconcile(new ReconcileRequest(spec, hash, "jdoe", "req-4"));
+        reconcile(spec, hash).reconcile(new ReconcileRequest(spec, hash, "jdoe", "req-4", null));
         assertEquals(1, cloud.created.get());
         assertTrue(link.sent.isEmpty());
     }

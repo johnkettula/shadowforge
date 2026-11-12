@@ -2,6 +2,7 @@ package com.example.vmintent.workflow;
 
 import com.example.vmintent.provider.ProviderActivities;
 import com.example.vmintent.spec.VmIdentity;
+import com.example.vmintent.spec.VmSpec;
 import com.example.vmintent.workflow.Models.LifecycleRequest;
 import com.example.vmintent.workflow.Models.LinkReply;
 import com.example.vmintent.workflow.Models.ProviderPlan;
@@ -75,46 +76,48 @@ public class VmReconcileWorkflowImpl implements VmReconcileWorkflow {
 
     @Override
     public VmResult reconcile(ReconcileRequest request) {
-        String cloudName = request.spec().provider();
+        String provider = request.spec().provider();
         int version = Workflow.getVersion(LINK_AND_LIFECYCLE, Workflow.DEFAULT_VERSION, 1);
-        Route route = version >= 1 ? CloudOps.linkStub().route(cloudName) : Route.DIRECT;
+        Route route = version >= 1 ? CloudOps.linkStub().route(provider) : Route.DIRECT;
         // One build = one idempotency key. Builds started before this change used the spec hash alone.
         String buildKey = VmIdentity.buildKey(request.specHash(),
                 version >= 1 ? Workflow.getInfo().getRunId().substring(0, 8) : null);
-        cloud = new CloudOps(cloudName, route, request.specHash(), buildKey, request.requestedBy());
+        cloud = new CloudOps(provider, route, request.specHash(), buildKey, request.requestedBy());
         if (early != null) cloud.receive(early);
 
+        // The cloud gets cloudSpec (its own name for the VM); our records keep the spec as asked for.
+        VmSpec cloudSpec = cloudSpec(request);
         // Saga = a list of "undo" steps, run in reverse if something fails.
         Saga saga = new Saga(new Saga.Options.Builder().build());
         String hash = request.specHash();
         // Recorded first, so the inventory shows the VM as soon as its build begins,
         // even while it waits its turn under the cloud's rate limit.
-        records.save(hash, request.spec(), "PROVISIONING", "Queued for " + cloudName, null);
+        records.save(hash, request.spec(), "PROVISIONING", "Queued for " + provider, null);
         records.audit(request.requestId(), hash, "PROVISIONING", "system",
-                "Build started on " + cloudName + (route.oneWay() ? " (over the one-way link)" : ""));
+                "Build started on " + provider + (route.oneWay() ? " (over the one-way link)" : ""));
         try {
-            ProviderPlan plan = cloud.plan(request.spec());
+            ProviderPlan plan = cloud.plan(cloudSpec);
             records.save(hash, request.spec(), "PROVISIONING", plan.summary(), null);
 
             String vmId;
             String ip;
             if (route.oneWay()) {
                 // The undo goes in BEFORE the wait: if no answer comes, domain 3 may still have built it.
-                saga.addCompensation(() -> cloud.deleteByKeyNoWait(request.spec()));
+                saga.addCompensation(() -> cloud.deleteByKeyNoWait(cloudSpec));
                 records.audit(request.requestId(), hash, "LINK_ORDER_SENT", "system", "CREATE sent to domain 3");
-                LinkReply built = cloud.sendAndWait("CREATE", request.spec(), plan, null, Map.of());
+                LinkReply built = cloud.sendAndWait("CREATE", cloudSpec, plan, null, Map.of());
                 vmId = built.vmId();
                 ip = built.ipAddress();
                 records.audit(request.requestId(), hash, "VM_CREATED", "system", vmId + " (reported by domain 3)");
             } else {
-                vmId = cloud.mutate().createVm(request.spec(), plan, buildKey);
+                vmId = cloud.mutate().createVm(cloudSpec, plan, buildKey);
                 String created = vmId;
                 saga.addCompensation(() -> cloud.mutate().deleteVm(created));
                 records.audit(request.requestId(), hash, "VM_CREATED", "system", vmId);
                 ip = waitForBoot(cloud.read(), vmId);
             }
 
-            VmResult result = new VmResult(vmId, ip, cloudName,
+            VmResult result = new VmResult(vmId, ip, provider,
                     plan.nativeRegion(), plan.nativeSize(), plan.nativeImage());
             records.save(hash, request.spec(), "RUNNING", plan.summary(), result);
             records.audit(request.requestId(), hash, "RUNNING", "system", vmId + " at " + ip);
@@ -133,6 +136,15 @@ public class VmReconcileWorkflowImpl implements VmReconcileWorkflow {
     public void linkReply(LinkReply reply) {
         if (cloud != null) cloud.receive(reply);
         else early = reply;
+    }
+
+    /**
+     * The spec as the cloud sees it: named request.cloudName(), or as asked for when that is null
+     * (every build today, and every build started before the field existed). The name is copied from
+     * the request, never worked out here, so a replay always uses the name the build started with.
+     */
+    private static VmSpec cloudSpec(ReconcileRequest request) {
+        return request.cloudName() == null ? request.spec() : request.spec().withName(request.cloudName());
     }
 
     /**
