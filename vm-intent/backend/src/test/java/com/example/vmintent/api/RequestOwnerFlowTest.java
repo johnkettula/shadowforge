@@ -2,7 +2,9 @@ package com.example.vmintent.api;
 
 import com.example.vmintent.api.ApiModels.BatchBody;
 import com.example.vmintent.api.ApiModels.BatchItemBody;
+import com.example.vmintent.api.ApiModels.BatchSubmitResponse;
 import com.example.vmintent.api.ApiModels.TextBody;
+import com.example.vmintent.audit.DecisionLog;
 import com.example.vmintent.config.SearchAttributesSetup;
 import com.example.vmintent.db.AuditLog;
 import com.example.vmintent.db.BatchStore;
@@ -13,12 +15,18 @@ import com.example.vmintent.legacy.LegacySpecTranslator;
 import com.example.vmintent.legacy.LegacyVmDefinition;
 import com.example.vmintent.provider.VmRegistry;
 import com.example.vmintent.spec.HashOwnerSpy;
+import com.example.vmintent.spec.SpecCanonicalizer;
+import com.example.vmintent.spec.VmIdentity;
 import com.example.vmintent.spec.VmSpec;
+import com.example.vmintent.workflow.BatchShardWorkflow;
 import com.example.vmintent.workflow.IntentActivities;
 import com.example.vmintent.workflow.IntentWorkflow;
+import com.example.vmintent.workflow.Models.BatchInfo;
 import com.example.vmintent.workflow.Models.BatchItem;
 import com.example.vmintent.workflow.Models.RequestStatus;
+import com.example.vmintent.workflow.Models.ShardProgress;
 import com.example.vmintent.workflow.Models.VmRecord;
+import com.example.vmintent.workflow.Models.VmResult;
 import com.example.vmintent.workflow.TestFakes;
 import com.example.vmintent.workflow.WorkflowActivitiesImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,11 +46,16 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * The owner each hash site gets comes from sign-in on the server: "anonymous" with sign-in off,
  * whatever userId or requestedBy the body claims; the signed-in name otherwise. The audit names
- * (userId, requestedBy) keep their meaning. (The catalog path is in CatalogRunWorkflowTest.)
+ * (userId, requestedBy) keep their meaning. A signed-in owner's hash covers the owner, so two users'
+ * same request builds two VMs and only the same user's repeat is a duplicate. (The catalog path is
+ * in CatalogRunWorkflowTest.)
  */
 class RequestOwnerFlowTest {
 
@@ -52,6 +65,11 @@ class RequestOwnerFlowTest {
                 new WorkflowActivitiesImpl(new IntentInterpreter(new RuleBasedIntentExtractor()), null, null);
         final List<String> calls = new CopyOnWriteArrayList<>();
         final List<String> hashOwners = Collections.synchronizedList(new ArrayList<>());
+        final TestFakes.FakeRecords records;
+
+        RecordingIntent(TestFakes.FakeRecords records) {
+            this.records = records;
+        }
 
         @Override
         public Interpretation interpret(String text, String owner) {
@@ -61,7 +79,7 @@ class RequestOwnerFlowTest {
 
         @Override
         public String findExistingVm(String specHash) {
-            return null;
+            return records.existingVm(specHash);
         }
 
         @Override
@@ -73,14 +91,18 @@ class RequestOwnerFlowTest {
 
     private TestWorkflowEnvironment env;
     private RecordingIntent intent;
+    private TestFakes.FakeCloud cloud;
+    private TestFakes.FakeRecords records;
     private RequestController requests;
     private BatchController batches;
 
     @BeforeEach
     void setUp() {
         env = TestWorkflowEnvironment.newInstance();
-        intent = new RecordingIntent();
-        TestFakes.startWorkers(env, new TestFakes.FakeCloud(), new TestFakes.FakeRecords(), new TestFakes.FakeLink(), intent);
+        cloud = new TestFakes.FakeCloud();
+        records = new TestFakes.FakeRecords();
+        intent = new RecordingIntent(records);
+        TestFakes.startWorkers(env, cloud, records, new TestFakes.FakeLink(), intent);
         IntentInterpreter interpreter = new IntentInterpreter(new RuleBasedIntentExtractor());
         VmRegistry noVms = new VmRegistry(null, new ObjectMapper()) {
             @Override
@@ -96,8 +118,13 @@ class RequestOwnerFlowTest {
             @Override
             public void create(String batchId, int total, int shardSize, String requestedBy) {}
         };
+        DecisionLog noDecisions = new DecisionLog(null, null) {
+            @Override
+            public void record(String actor, String roles, String action, String resource, boolean allowed,
+                               String policy, String reason, String classificationCode) {}
+        };
         requests = new RequestController(env.getWorkflowClient(), interpreter, new LegacySpecTranslator(interpreter),
-                noVms, noAudit, new SearchAttributesSetup(env.getWorkflowClient(), "off"), null);
+                noVms, noAudit, new SearchAttributesSetup(env.getWorkflowClient(), "off"), noDecisions);
         batches = new BatchController(env.getWorkflowClient(), interpreter, noVms, noBatches);
     }
 
@@ -168,6 +195,117 @@ class RequestOwnerFlowTest {
         owners.clear();
         HashOwnerSpy.recording(owners, () -> requests.preview(new TextBody("small debian vm on azure", "mallory")));
         assertEquals(List.of("alice"), owners);
+    }
+
+    // ------------------------------------------------------------------ per-user identity
+
+    static final String WEB_01 = "a small ubuntu server on aws called web-01";
+    static final VmSpec SHARED = new VmSpec("shared-01", "aws", "us-east", 2, 4, "ubuntu", "24.04", 80, "ssd", "test", 7, false);
+
+    @Test
+    void aSecondUsersSameRequestBuildsItsOwnVmAndTheFirstUsersRepeatIsADuplicate() {
+        RequestOwnerTest.signIn("alice");
+        RequestStatus a = requestAndConfirm(WEB_01);
+        assertEquals("COMPLETED", a.state(), a.message());
+        String aliceHash = a.interpretation().specHash();
+        assertEquals(VmIdentity.hash(a.interpretation().spec(), "alice"), aliceHash);
+        assertEquals(1, cloud.createdCount());
+
+        RequestOwnerTest.signIn("bob");
+        RequestStatus b = requestAndConfirm(WEB_01);
+        assertEquals("COMPLETED", b.state(), "not DUPLICATE: alice's VM isn't bob's. " + b.message());
+        String bobHash = b.interpretation().specHash();
+        assertNotEquals(aliceHash, bobHash);
+        assertEquals(2, cloud.createdCount(), "bob got a VM of his own");
+        assertNotEquals(a.vm().vmId(), b.vm().vmId());
+        assertEquals(a.vm().vmId(), builtBy(aliceHash).vmId(), "alice's VM came from vm-<alice's hash>");
+        assertEquals(b.vm().vmId(), builtBy(bobHash).vmId(), "bob's VM came from vm-<bob's hash>");
+
+        RequestOwnerTest.signIn("alice");
+        RequestStatus again = requestAndConfirm(WEB_01);
+        assertEquals("DUPLICATE", again.state(), again.message());
+        assertEquals(aliceHash, again.interpretation().specHash());
+        assertEquals(2, cloud.createdCount(), "nothing new was built");
+    }
+
+    @Test
+    void aSecondUsersSameBatchItemBuildsItsOwnVmAndTheFirstUsersRepeatIsADuplicate() {
+        RequestOwnerTest.signIn("alice");
+        ShardProgress a = runBatch(SHARED);
+        assertEquals(1, a.running());
+        assertEquals(1, cloud.createdCount());
+
+        RequestOwnerTest.signIn("bob");
+        ShardProgress b = runBatch(SHARED);
+        assertEquals(1, b.running(), "not a duplicate of alice's VM");
+        assertEquals(0, b.duplicate());
+        assertEquals(2, cloud.createdCount());
+        String aliceHash = VmIdentity.hash(SHARED, "alice");
+        String bobHash = VmIdentity.hash(SHARED, "bob");
+        assertNotEquals(aliceHash, bobHash);
+        assertNotEquals(builtBy(aliceHash).vmId(), builtBy(bobHash).vmId(), "each user's own vm-<hash> build");
+        assertNotNull(records.existingVm(aliceHash));
+        assertNotNull(records.existingVm(bobHash));
+        assertNull(records.existingVm(SpecCanonicalizer.hash(SHARED)), "no anonymous VM was built");
+
+        RequestOwnerTest.signIn("alice");
+        ShardProgress again = runBatch(SHARED);
+        assertEquals(0, again.running());
+        assertEquals(1, again.duplicate(), "alice's repeat is a duplicate");
+        assertEquals(2, cloud.createdCount(), "nothing new was built");
+    }
+
+    @Test
+    void aUserIdOrRequestedByInTheBodyDoesNotChangeTheHash() {
+        // Sign-in off: whatever the body claims, the hash is the anonymous one (the spec's own hash).
+        RequestStatus r = requestAndConfirm(WEB_01, "mallory");
+        assertEquals("COMPLETED", r.state(), r.message());
+        assertEquals("mallory", r.requestedBy());
+        assertEquals(SpecCanonicalizer.hash(r.interpretation().spec()), r.interpretation().specHash());
+        RequestStatus same = requestAndConfirm(WEB_01, "someone-else");
+        assertEquals("DUPLICATE", same.state(), "another userId is the same anonymous VM");
+        assertEquals(r.interpretation().specHash(), same.interpretation().specHash());
+
+        assertEquals(1, runBatch(SHARED, "mallory").running());
+        assertNotNull(records.existingVm(SpecCanonicalizer.hash(SHARED)), "built under the anonymous hash");
+        assertEquals(1, runBatch(SHARED, "someone-else").duplicate());
+
+        // Signed in: the signed-in name counts, not the one in the body.
+        RequestOwnerTest.signIn("alice");
+        IntentWorkflow wf = submit(WEB_01, "mallory");
+        RequestStatus s = waitFor(wf, "AWAITING_CONFIRMATION");
+        assertEquals(VmIdentity.hash(s.interpretation().spec(), "alice"), s.interpretation().specHash());
+        assertNotEquals(VmIdentity.hash(s.interpretation().spec(), "mallory"), s.interpretation().specHash());
+    }
+
+    private RequestStatus requestAndConfirm(String text) {
+        return requestAndConfirm(text, "body-user");
+    }
+
+    private RequestStatus requestAndConfirm(String text, String userId) {
+        IntentWorkflow wf = submit(text, userId);
+        RequestStatus s = waitFor(wf, "AWAITING_CONFIRMATION");
+        requests.confirm(s.requestId(), null);
+        return WorkflowStub.fromTyped(wf).getResult(RequestStatus.class);
+    }
+
+    private ShardProgress runBatch(VmSpec spec) {
+        return runBatch(spec, "body-user");
+    }
+
+    /** Submits a one-item batch, waits for it, and returns its only shard's counts. */
+    private ShardProgress runBatch(VmSpec spec, String requestedBy) {
+        ResponseEntity<?> r = batches.submit(new BatchBody(List.of(new BatchItemBody(null, spec)), null, null, requestedBy));
+        assertEquals(HttpStatus.ACCEPTED, r.getStatusCode(), String.valueOf(r.getBody()));
+        String id = ((BatchSubmitResponse) r.getBody()).batchId();
+        BatchInfo info = env.getWorkflowClient().newUntypedWorkflowStub(id).getResult(BatchInfo.class);
+        assertEquals(1, info.shardIds().size());
+        return env.getWorkflowClient().newWorkflowStub(BatchShardWorkflow.class, info.shardIds().get(0)).progress();
+    }
+
+    /** The result of the vm-<hash> workflow that built this hash's VM. */
+    private VmResult builtBy(String hash) {
+        return env.getWorkflowClient().newUntypedWorkflowStub(VmIdentity.buildWorkflowId(hash)).getResult(VmResult.class);
     }
 
     private static BatchBody batchOf(String requestedBy) {

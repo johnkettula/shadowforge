@@ -9,9 +9,10 @@ package com.example.vmintent.spec;
  * a userId or requestedBy in a request body. A null owner and "anonymous" both mean nobody is
  * signed in.
  *
- * <p>Today the owner doesn't change the hash: every owner gets {@link SpecCanonicalizer#hash}, so
- * existing VMs keep their hash and their workflow IDs. The per-user identity feature will change
- * only the branch for owners that aren't anonymous; the anonymous hash must never change.
+ * <p>Anonymous owners get {@link SpecCanonicalizer#hash}, which must never change. A signed-in owner
+ * gets the SHA-256 of {@link #ownedString}, which covers the owner too, so duplicates are found
+ * within one user and two users who ask for the same spec get two VMs. Nothing recomputes the hash
+ * of a VM that exists: day-2 calls, lifecycle and inventory look it up by its stored hash.
  */
 public final class VmIdentity {
 
@@ -22,8 +23,16 @@ public final class VmIdentity {
     /** The spec hash of this spec for this owner (null or "anonymous" = nobody signed in). */
     public static String hash(VmSpec spec, String owner) {
         if (isAnonymous(owner)) return SpecCanonicalizer.hash(spec);
-        // Per-user identity isn't switched on yet: a signed-in owner gets the same hash as anyone.
-        return SpecCanonicalizer.hash(spec);
+        return SpecCanonicalizer.sha256Hex(ownedString(spec, owner));
+    }
+
+    /**
+     * What a signed-in owner's hash is taken of: "owner:" + the owner's length + ":" + the owner +
+     * the spec's canonical string. A canonical string always starts with "{", so no anonymous spec
+     * hashes the same input; the length keeps owners that end in "{..." apart.
+     */
+    static String ownedString(VmSpec spec, String owner) {
+        return "owner:" + owner.length() + ":" + owner + SpecCanonicalizer.canonicalString(spec);
     }
 
     /** True for null and "anonymous": nobody is signed in. */

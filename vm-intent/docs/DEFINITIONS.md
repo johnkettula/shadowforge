@@ -135,9 +135,20 @@ canonical string (keys sorted, no `name` key when there is no name). The hash is
 API and `vm.create`). Its build workflow ID is `vm-` + hash and its lifecycle workflow ID is
 `life-` + hash. Each request also carries an owner, taken on the server from sign-in: the signed-in
 name, or `anonymous` when sign-in is off. It is never taken from `userId`, `requestedBy` or anything
-else the client sends; those are still only the names recorded in the audit trail. Today the owner
-does not change the hash: every owner gets the same hash for the same spec, so existing VMs keep
-theirs. Each build also gets a build key, which the cloud records on the VM it builds: the spec hash,
+else the client sends; those are still only the names recorded in the audit trail. The owner is
+part of the identity. With no one signed in (`anonymous`), the hash is the SHA-256 of the spec's
+canonical string, as before. A signed-in user's hash also covers their user ID: it is the SHA-256 of
+`owner:` + the user ID's length + `:` + the user ID + the canonical string, which no spec on its own
+can produce. So duplicates are found within one user: the same spec from the same user is a duplicate,
+while another user who asks for the same spec gets a VM of their own, with its own hash and its own
+`vm-` build workflow. With sign-in off, everyone is `anonymous`, so the same spec from anyone is a
+duplicate, as before. Existing VMs keep their hash: nothing recomputes it, because day-2 calls, the
+lifecycle, the inventory check and `GET /api/v2/vms/{hash}` all look a VM up by its stored hash.
+Until the cloud-side name gets a per-user suffix (part 2 of per-user identity), the cloud name is
+still just the spec's name: on a real vSphere route (vCenter 9 or VCF Automation 9), a second user's
+VM with the same name as the first user's is refused with `InvalidSpec` by the rule below, so it never
+takes over the first user's VM, while the simulated clouds (the default, keyed on the build key) build
+both. Each build also gets a build key, which the cloud records on the VM it builds: the spec hash,
 or the hash + `-` + the first 8 characters of the build's run ID (`VmIdentity.buildKey`). On a real
 cloud route (vSphere with a real vCenter 9 or VCF Automation 9), an existing VM with the requested
 name is reused only when its recorded build key has the same spec hash (`VmIdentity.sameBuild`, which
