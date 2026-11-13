@@ -379,6 +379,26 @@ class CatalogRunWorkflowTest {
         HistoryRecorder.record(env.getWorkflowClient(), s.runId(), "catalog-v2-existing-vm");
     }
 
+    /**
+     * catalog-v3-signed-in: a signed-in run (RunRequest.owner set), so prepareVm gets the owner and
+     * the VM is built by a vm- child workflow. The other catalog histories have no owner; this one
+     * pins the owner-dependent path, on code where VmIdentity.hash still ignores the owner, before
+     * per-user identity changes it. Saved with -Dhistories.record=true for ReplayTest.
+     */
+    @Test
+    void aSignedInRunPreparesItsVmForTheOwner() throws Exception {
+        CatalogRunWorkflow run = start(webServer(), Map.of("app", "alice"), List.of(), "alice", "alice-signed-in");
+        RunStatus s = waitFor(run, "COMPLETED");
+        assertEquals(List.of("alice-signed-in"), prepareOwners);
+        assertEquals(List.of("alice-signed-in"), hashOwners);
+        assertEquals(false, step(s, "create").output().get("reused"));
+        assertEquals(1, cloud.created.get());
+
+        io.temporal.testing.WorkflowReplayer.replayWorkflowExecution(
+                env.getWorkflowClient().fetchHistory(s.runId()), CatalogRunWorkflowImpl.class);
+        HistoryRecorder.record(env.getWorkflowClient(), s.runId(), "catalog-v3-signed-in");
+    }
+
     // ------------------------------------------------------------------ helpers
 
     /** Like the built-in web-server definition, with an optional extra file to copy. */

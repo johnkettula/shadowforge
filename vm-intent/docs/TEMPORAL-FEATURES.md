@@ -176,8 +176,8 @@ picks the workflow class from the file name's prefix: `intent-` → `IntentWorkf
 `VmReconcileWorkflowImpl`, `catalog-` → `CatalogRunWorkflowImpl`, `lifecycle-` → `VmLifecycleWorkflowImpl`,
 `batchshard-` → `BatchShardWorkflowImpl`.
 A file with any other prefix fails the test with its name, so no history is skipped. It also checks
-that the seven pinned histories (the `intent-v1-*`, `reconcile-v1-*` and `catalog-v1-*` files) and the
-four recorded ones after them are all still there.
+that the seven pinned histories (the `intent-v1-*`, `reconcile-v1-*` and `catalog-v1-*` files), the
+four recorded ones after them and the two signed-in ones are all still there.
 
 - `intent-v1-*` and `reconcile-v1-*` were recorded from the code *before* the lifecycle, update and
   link features were added; the three `catalog-v1-*` histories are real catalog runs (resumed, torn
@@ -194,6 +194,16 @@ four recorded ones after them are all still there.
 
 These four were recorded before per-user identity changes the spec hash, and so the `vm-` child
 workflow IDs, to show that executions started before that change still replay.
+
+All of the above have no owner (sign-in off), so they only cover the anonymous path. Two more were
+recorded with an owner set, while `VmIdentity.hash` still ignored it, so a change to the
+owner-dependent path (a new step, or another `vm-` child workflow ID) without `Workflow.getVersion`
+fails the build too:
+
+- `intent-v2-signed-in` is a request with `IntentRequest.owner` set to `alice-signed-in`; its VM is
+  built by a `vm-` child workflow.
+- `catalog-v3-signed-in` is a catalog run with `RunRequest.owner` set to `alice-signed-in`, so the
+  `PrepareVm` activity gets the owner; its VM is built by a `vm-` child workflow.
 
 If a change would make a workflow that's running during an upgrade behave differently from its
 history (a new step, a timer moved, a child workflow ID that changed), the test fails before it ships.
@@ -273,10 +283,10 @@ One thing to know: it only skips ahead while a timer is waiting. To wait for a w
 | `LinkFilesTest` | The real file-based link with the simulated domain 3 |
 | `IntentWorkflowTest` | Answer, confirm and cancel updates (with a replay round trip), several VMs at once, search attributes |
 | `InventoryCheckTest` | Missing VMs and orphans |
-| `ReplayTest` | Every saved history against new code, the workflow class picked by file-name prefix (a file with no known prefix fails), and the seven pinned histories (`intent-v1-*`, `reconcile-v1-*`, `catalog-v1-*`) and the four recorded ones (`intent-v2-multi-existing`, `lifecycle-v1-renewed`, `batchshard-v1-duplicate`, `catalog-v2-existing-vm`) still present |
-| `RecordedHistoriesTest` | The scenarios behind `intent-v2-multi-existing` (two VMs, one already there), `lifecycle-v1-renewed` (a renewal) and `batchshard-v1-duplicate` (a shard with the same spec twice); with `-Dhistories.record=true` they save missing histories |
+| `ReplayTest` | Every saved history against new code, the workflow class picked by file-name prefix (a file with no known prefix fails), and the seven pinned histories (`intent-v1-*`, `reconcile-v1-*`, `catalog-v1-*`) and the four recorded ones (`intent-v2-multi-existing`, `lifecycle-v1-renewed`, `batchshard-v1-duplicate`, `catalog-v2-existing-vm`) and the two signed-in ones (`intent-v2-signed-in`, `catalog-v3-signed-in`) still present |
+| `RecordedHistoriesTest` | The scenarios behind `intent-v2-multi-existing` (two VMs, one already there), `lifecycle-v1-renewed` (a renewal), `batchshard-v1-duplicate` (a shard with the same spec twice) and `intent-v2-signed-in` (a signed-in request); with `-Dhistories.record=true` they save missing histories |
 | `HistoryRecorderTest` | `HistoryRecorder` writes nothing without `-Dhistories.record=true`, writes a missing file that replays, and leaves an existing file byte-for-byte unchanged |
-| `CatalogRunWorkflowTest` | Steps in order, resume with partial work, teardown, 30-day auto teardown, approvals, blueprints, reusing a VM already built with the same spec (the scenario behind `catalog-v2-existing-vm`) |
+| `CatalogRunWorkflowTest` | Steps in order, resume with partial work, teardown, 30-day auto teardown, approvals, blueprints, reusing a VM already built with the same spec (the scenario behind `catalog-v2-existing-vm`), a signed-in run whose owner reaches `prepareVm` (the scenario behind `catalog-v3-signed-in`) |
 | `CountPhrasingTest` | "3 web servers" vs "a RHEL 9 server" |
 | `BatchWorkflowTest` | Batches in shards: rollbacks, duplicates in one batch, throttled creates retried |
 | `VsphereRoutesWorkflowTest` | vSphere builds through the mock vCenter 9 and VCF Automation 9, their rollbacks, and a catalog run that deploys a blueprint and tears it down |
