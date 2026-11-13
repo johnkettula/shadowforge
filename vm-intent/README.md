@@ -1,6 +1,6 @@
 # vm-intent: natural-language VM requests on Temporal
 
-Last updated 2026-11-12.
+Last updated 2026-11-13.
 
 You type a request for a VM in plain English. One canonical, cloud-neutral spec
 comes out, and a Temporal workflow builds it on vSphere, AWS, Azure or Google
@@ -86,6 +86,10 @@ default, so only do this on a network you trust.
 
 Run the tests: `cd backend` then `mvn test`. `GoldenPhrasingTest` fails the build if
 any listed phrasing stops producing the expected spec.
+Among the other tests, `SpecValidatorTest` checks the spec limits, `PolicyDefaultsTest` the sizes
+and defaults, `LlmIntentExtractorTest` the AI providers, the fallback to the rules and the startup
+settings check, and `RequestOwnerTest` that a request's owner comes from sign-in, or is 'anonymous'.
+The workflow tests are listed in [docs/TEMPORAL-FEATURES.md](docs/TEMPORAL-FEATURES.md).
 
 ## How the code is organised
 
@@ -114,6 +118,13 @@ backend/src/main/java/com/example/vmintent/
   cel/        The CEL expression engine used in definitions
   audit/      Decision log, optional OPA, the write-once history archive, audit replay
   workflow/   also CatalogRunWorkflow (steps, resume or tear down) and ArchiveSweepWorkflow
+  workflow/   also VmLifecycleWorkflow (expiry, renewal and day-2 changes) and
+              InventoryCheckWorkflow (the nightly inventory check)
+  link/       The one-way link to domain 3 (docs/ONE-WAY-LINK.md): order files written to the outbox
+              (LinkActivitiesImpl), answers read from the inbox (ReturnLinkListener, ReplyFile),
+              and Domain3Simulator, a pretend domain 3 for trying it on one PC
+  db/         Postgres: AuditLog (the audit trail), BatchStore (batches), InventoryActivitiesImpl
+              (the inventory check's database side), DatabaseConfig (embedded or real server)
   legacy/     The old JSON format -> the same spec (no AI)
   api/        REST endpoints used by the React app; RequestOwner: the request's owner, taken from
               sign-in ('anonymous' when sign-in is off)
@@ -139,6 +150,11 @@ takes a little longer.
 - Audit events: REQUESTED, QUESTION_ASKED, ANSWERED, INTERPRETED, CONFIRMED, PROVISIONING,
   VM_CREATED, RUNNING, ROLLED_BACK, COMPLETED, PARTIAL, FAILED, CANCELLED, DUPLICATE, plus each VM's
   lifecycle events (EXPIRY_WARNING, RENEWED, RESIZED, POWERED_ON, POWERED_OFF, SNAPSHOT, DELETED and others).
+  Also: BATCH_STARTED and BATCH_COMPLETED for a batch; LINK_ORDER_SENT, LINK_REPLY and
+  LINK_REPLY_UNMATCHED for the one-way link; LIFECYCLE_NOT_STARTED when a built VM's lifecycle
+  could not be started (for example, one already looks after that VM); INVENTORY_CHECK and MISSING
+  from the nightly inventory check; AUDIT_REPLAY for each audit replay; and catalog-run events such
+  as RUN_STARTED, STEP_DONE, STEP_FAILED, RUN_STOPPED, RUN_RESUMED and RUN_COMPLETED.
 - API: `GET /api/v2/audit?requestId=...` or `?specHash=...`. The UI shows it under "Audit trail".
 - To use a real Postgres server, set these environment variables (`application.yml` reads them;
   docker-compose, the Kubernetes configmap and `deploy/linux/setup-db.sh` use the same names):

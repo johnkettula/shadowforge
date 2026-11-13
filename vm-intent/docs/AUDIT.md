@@ -1,5 +1,7 @@
 # Audit: classification, retention, decisions and replay
 
+Last updated 2026-11-13.
+
 Every workflow vm-intent runs can be replayed for audit, for 1 to 5 years depending on its data
 classification, and every authorization decision is logged for as long.
 
@@ -109,6 +111,10 @@ differs. Each replay is written to the audit trail (`AUDIT_REPLAY`).
 Replay covers every workflow: requests, builds, lifecycles, batches, inventory checks, catalog runs.
 `ReplayTest` replays saved histories (including real catalog runs that were resumed, torn down and
 approved) on every build, so a code change that would break replay fails the build first.
+`AuditTest` checks the rest of this page: archive files are written once and their SHA-256 checked,
+classifications map codes to text and retention (the built-in set, and a set from a file, whose bad
+codes and retention are reported), OPA is asked after the built-in rules and both must allow, and
+replay knows every workflow type.
 
 ## Who may see what
 

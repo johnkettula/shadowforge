@@ -1,5 +1,7 @@
 # The one-way link to domain 3
 
+Last updated 2026-11-13.
+
 vm-intent runs in **domain 2**. The VMs live in **domain 3** (AWS, Azure, Google Cloud, vSphere).
 Between them is a one-way link, with a separate one-way return link in the opposite direction. Domain 2 can't
 call a cloud in domain 3 directly, so for those clouds it sends **orders as files** and gets **answers
@@ -58,6 +60,10 @@ temporary name first and renamed when complete, so the link never carries half a
 | `POWER` | `vmId`, `params.on` (`"true"` / `"false"`) | Power on or off |
 | `SNAPSHOT` | `vmId`, `params.label` | Take a snapshot; put its ID in `detail` |
 
+The `spec` in a CREATE order carries the VM's cloud-side name (`ReconcileRequest.cloudName`; today
+the same as the name asked for). The VM record and the audit trail keep the name asked for. The
+simulated domain 3 refuses a CREATE whose spec name contains "fail".
+
 **Answers** (inbox, one file per answer, any name ending in `.json`). Copy `orderId`, `type`,
 `replyTo`, `idempotencyKey` and `specHash` from the order:
 
@@ -77,6 +83,9 @@ temporary name first and renamed when complete, so the link never carries half a
 
 `ok: false` with a reason in `detail` means domain 3 refused or failed. The build rolls back and the
 request shows the reason.
+
+An answer goes to the workflow named in its `replyTo`. If `replyTo` is missing or blank, it goes to
+`vm-<specHash>` for a CREATE answer and to `life-<specHash>` for any other type (`ReplyFile.workflowId()`).
 
 ## What happens to each answer file
 
@@ -98,3 +107,11 @@ up and then domain 3 reports it built the VM after all, the trail shows it, and 
 - The provider names (instance size, region, image) are worked out in domain 2 and sent with the order.
 - The nightly inventory check skips that cloud. Domain 3 would need to run its own check and send the result back.
 - Day-2 changes (resize, power, snapshot, remove) go over the link too, and wait for their answers.
+
+## Tests
+
+| Test | What it checks |
+|---|---|
+| `OneWayLinkTest` | a VM is built and changed through domain 3; no answer in time rolls back by key; a refusal from domain 3 rolls back; other clouds are still called directly |
+| `LinkFilesTest` | an order file goes out and its answer comes back through the folders; a stray answer is set aside in `unmatched/` and audited, an unreadable one goes to `bad/` |
+| `ReplyFileTest` | copying an answer's fields, and choosing the waiting workflow (`replyTo`, or `vm-`/`life-` + spec hash when `replyTo` is missing or blank) |

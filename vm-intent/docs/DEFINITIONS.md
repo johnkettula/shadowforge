@@ -1,6 +1,6 @@
 # Catalog definitions and runs
 
-Last updated 2026-11-12.
+Last updated 2026-11-13.
 
 Technical operators describe repeatable provisioning jobs in YAML. vm-intent checks each file when
 it's published and runs it as a Temporal workflow. There are two kinds of file:
@@ -243,7 +243,17 @@ for trying things out.
 | `GET /api/v2/definitions/{kind}/{name}` | one, as data and as its YAML |
 | `POST /api/v2/definitions/validate` | check YAML without publishing |
 | `POST /api/v2/definitions` | publish (OPERATOR) |
+| `POST /api/v2/definitions/{kind}/{name}/{version}/retire` | retire a version: stops new runs of it (OPERATOR) |
 | `GET /api/v2/classifications` | the classification codes |
 | `POST /api/v2/runs` | start a run: `{"definition": "web-server", "params": {"app": "shop"}}` |
 | `GET /api/v2/runs`, `GET /api/v2/runs/{id}` | runs, and one run with every step |
 | `POST /api/v2/runs/{id}/resume`, `/teardown`, `/approve` | decide |
+
+## Tests
+
+| Test | What it checks |
+|---|---|
+| `DefinitionParserTest` | the built-in examples are valid, every problem in a file is reported at once, steps may only read earlier steps, blueprint rules are checked as CEL |
+| `CelTest` | the CEL engine: operators, fields, text and list functions, macros, clear errors, the cost limit |
+| `CatalogRunWorkflowTest` | runs: steps in order, resume after a failed step, tear down newest first, approval, blueprint rules, reusing a run or a VM already built |
+| `CatalogControllerTest` | the classifications' JSON shape and their schema in the API description |
