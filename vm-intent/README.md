@@ -96,7 +96,8 @@ The workflow tests are listed in [docs/TEMPORAL-FEATURES.md](docs/TEMPORAL-FEATU
 ```
 backend/src/main/java/com/example/vmintent/
   spec/       VmSpec (the canonical spec), canonical form + SHA-256 hash, policy checks;
-              VmIdentity: the one place that computes a VM's spec hash and its vm-/life- workflow IDs,
+              VmIdentity: the one place that computes a VM's spec hash (a signed-in user's also covers
+              their user ID, so duplicates are per user) and its vm-/life- workflow IDs,
               and builds a VM's build key, which the real clouds use to decide whether to reuse an
               existing VM with the same name (same spec hash only)
   intent/     Words -> spec: RuleBasedIntentExtractor, LlmIntentExtractor (optional),

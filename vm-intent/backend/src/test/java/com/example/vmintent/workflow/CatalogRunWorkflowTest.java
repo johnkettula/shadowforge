@@ -16,6 +16,7 @@ import com.example.vmintent.provider.ProviderActivities;
 import com.example.vmintent.provider.VmRegistry;
 import com.example.vmintent.spec.HashOwnerSpy;
 import com.example.vmintent.spec.SpecCanonicalizer;
+import com.example.vmintent.spec.VmIdentity;
 import com.example.vmintent.spec.VmSpec;
 import com.example.vmintent.workflow.Models.VmLifecycle;
 import com.example.vmintent.workflow.Models.VmRecord;
@@ -382,8 +383,8 @@ class CatalogRunWorkflowTest {
     /**
      * catalog-v3-signed-in: a signed-in run (RunRequest.owner set), so prepareVm gets the owner and
      * the VM is built by a vm- child workflow. The other catalog histories have no owner; this one
-     * pins the owner-dependent path, on code where VmIdentity.hash still ignores the owner, before
-     * per-user identity changes it. Saved with -Dhistories.record=true for ReplayTest.
+     * pins the owner-dependent path. The saved file was recorded while VmIdentity.hash still ignored
+     * the owner, before per-user identity. Saved with -Dhistories.record=true for ReplayTest.
      */
     @Test
     void aSignedInRunPreparesItsVmForTheOwner() throws Exception {
@@ -397,6 +398,25 @@ class CatalogRunWorkflowTest {
         io.temporal.testing.WorkflowReplayer.replayWorkflowExecution(
                 env.getWorkflowClient().fetchHistory(s.runId()), CatalogRunWorkflowImpl.class);
         HistoryRecorder.record(env.getWorkflowClient(), s.runId(), "catalog-v3-signed-in");
+    }
+
+    @Test
+    void theOwnerChangesThePreparedHashSoEachUserGetsTheirOwnVm() {
+        String alice = (String) step(waitFor(start(webServer(), Map.of("app", "shared"), List.of(), "x", "alice"),
+                "COMPLETED"), "create").output().get("specHash");
+        String bob = (String) step(waitFor(start(webServer(), Map.of("app", "shared"), List.of(), "x", "bob"),
+                "COMPLETED"), "create").output().get("specHash");
+        RunStatus anon = waitFor(start(webServer(), Map.of("app", "shared"), List.of(), "x", "anonymous"), "COMPLETED");
+        String anonymous = (String) step(anon, "create").output().get("specHash");
+
+        VmSpec spec = records.specs.get(alice);
+        assertEquals("shared-web", spec.name());
+        assertEquals(VmIdentity.hash(spec, "alice"), alice);
+        assertEquals(VmIdentity.hash(spec, "bob"), bob);
+        assertEquals(SpecCanonicalizer.hash(spec), anonymous, "anonymous keeps the spec's own hash");
+        assertEquals(3, Set.of(alice, bob, anonymous).size(), "the same spec, three owners, three hashes");
+        assertEquals(false, step(anon, "create").output().get("reused"), "alice's and bob's VMs aren't anyone else's");
+        assertEquals(3, cloud.created.get());
     }
 
     // ------------------------------------------------------------------ helpers

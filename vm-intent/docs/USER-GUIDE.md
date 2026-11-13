@@ -102,7 +102,7 @@ A request ends in one of five states:
 | PARTIAL | A request for several VMs where some were built and at least one failed (the failed ones were rolled back) |
 | FAILED | A build step failed. The half-built VM was rolled back (deleted) |
 | CANCELLED | You cancelled, or nobody answered or confirmed within 24 hours |
-| DUPLICATE | An identical VM (same spec hash) is already built or being built, so no second one was made |
+| DUPLICATE | An identical VM (same spec hash) is already built or being built for you (for anyone, with sign-in off), so no second one was made |
 
 **Confirming checks the spec.** **Looks right, build it** sends the spec hash you were looking at. If the request isn't waiting any more, or the spec isn't the one you saw, you get a message saying so instead of a build.
 
@@ -111,6 +111,8 @@ A request ends in one of five states:
 **Workflow history.** Open *Workflow history* for the steps the workflow ran. Its **open workflow** link shows every step, with timings and retries, in the Temporal UI.
 
 **Duplicates are safe.** Submitting the same request again, even worded differently, never builds a second copy. That also makes it safe to retry if you aren't sure a request went through.
+
+**Duplicates are per user.** When you are signed in, only your own requests count: another user's identical request no longer shows up as your duplicate, and yours isn't theirs. Each of you gets your own VM. With sign-in off, everyone is the same user, so the same request from anyone is a duplicate. VMs that already exist keep their spec hash, so their links and buttons work as before. Until VM names in the cloud get a per-user suffix (coming in a later change), there is one catch: on a real vSphere route (vCenter or VCF Automation), if another user already has a VM with the name you ask for, your build fails with InvalidSpec ("choose another name"), and their VM is left alone. The simulated clouds build both.
 
 **Finding a request again.** The *Requests* list shows recent requests, newest first. Pick *Mine*, *Waiting for confirmation* or *Failed* to filter it, and press **Open** to bring a request back onto the card.
 

@@ -90,6 +90,11 @@ public final class TestFakes {
         final List<String> extra = new CopyOnWriteArrayList<>();
         volatile boolean refuseResize;
 
+        /** How many VMs this cloud has built. */
+        public int createdCount() {
+            return created.get();
+        }
+
         @Override
         public ProviderPlan plan(VmSpec spec) {
             return ProviderCatalog.plan(spec);
@@ -203,6 +208,14 @@ public final class TestFakes {
             return hashesByEvent.getOrDefault(event, Set.of()).size();
         }
 
+        /** Like WorkflowActivitiesImpl.findExistingVm: the VM's ID if it runs, "provisioning", or null. */
+        public String existingVm(String specHash) {
+            String st = state.get(specHash);
+            if ("RUNNING".equals(st)) return results.get(specHash).vmId();
+            if ("PROVISIONING".equals(st)) return "provisioning";
+            return null;
+        }
+
         boolean has(String eventPrefix) {
             return events.stream().anyMatch(e -> e.startsWith(eventPrefix));
         }
@@ -224,10 +237,7 @@ public final class TestFakes {
 
         @Override
         public String findExistingVm(String specHash) {
-            String st = records.state.get(specHash);
-            if ("RUNNING".equals(st)) return records.results.get(specHash).vmId();
-            if ("PROVISIONING".equals(st)) return "provisioning";
-            return null;
+            return records.existingVm(specHash);
         }
 
         @Override

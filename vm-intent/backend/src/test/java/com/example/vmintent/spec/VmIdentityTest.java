@@ -2,8 +2,11 @@ package com.example.vmintent.spec;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -44,11 +47,46 @@ class VmIdentityTest {
         }
     }
 
+    /** sha256sum of "owner:5:alice" + NAMED_CANONICAL, worked out outside Java. */
+    static final String NAMED_ALICE_HASH = "55214b87cfcbc9ec28a39d76e1f8a9ad8070c55e5eed423f7640bf04077ea9b1";
+
     @Test
-    void forNowEveryOwnerGetsTheSameHash() {
-        // Per-user identity isn't switched on yet: a signed-in owner changes nothing.
-        assertEquals(NAMED_HASH, VmIdentity.hash(NAMED, "alice"));
-        assertEquals(UNNAMED_HASH, VmIdentity.hash(UNNAMED, "bob"));
+    void twoSignedInUsersGetDifferentHashesForTheSameSpec() {
+        for (Object[] c : new Object[][]{{NAMED, NAMED_HASH}, {UNNAMED, UNNAMED_HASH}}) {
+            VmSpec spec = (VmSpec) c[0];
+            String anonymous = (String) c[1];
+            String alice = VmIdentity.hash(spec, "alice");
+            String bob = VmIdentity.hash(spec, "bob");
+            assertNotEquals(alice, bob, "two users, two VMs");
+            assertNotEquals(anonymous, alice, "a signed-in user's hash isn't the anonymous one");
+            assertNotEquals(anonymous, bob);
+            for (String h : List.of(alice, bob)) {
+                assertTrue(h.matches("[0-9a-f]{64}"), "64 lowercase hex characters: " + h);
+            }
+        }
+    }
+
+    @Test
+    void aSignedInUsersHashIsStableAndFollowsTheSpec() {
+        assertEquals(NAMED_ALICE_HASH, VmIdentity.hash(NAMED, "alice"), "the same every time, on every server");
+        assertEquals(VmIdentity.hash(NAMED, "alice"), VmIdentity.hash(NAMED, "alice"));
+        assertEquals(VmIdentity.hash(UNNAMED, "alice"), VmIdentity.hash(UNNAMED, "alice"));
+        assertNotEquals(VmIdentity.hash(NAMED, "alice"), VmIdentity.hash(UNNAMED, "alice"), "another spec");
+        assertNotEquals(VmIdentity.hash(NAMED, "alice"), VmIdentity.hash(NAMED.withName("web-02"), "alice"));
+    }
+
+    @Test
+    void noAnonymousSpecHashesTheSameInputAsASignedInUser() {
+        // Every canonical string starts with "{"; an owner's input never does, whatever the owner.
+        for (String owner : List.of("alice", "", "{", "a{\"name\":\"x\"}", "anonymous ")) {
+            String owned = VmIdentity.ownedString(NAMED, owner);
+            assertFalse(owned.startsWith("{"), owned);
+            assertTrue(owned.endsWith(NAMED_CANONICAL), owned);
+        }
+        assertTrue(SpecCanonicalizer.canonicalString(UNNAMED).startsWith("{"));
+        // The owner's length keeps an owner that looks like the start of a spec apart from the spec.
+        assertNotEquals(VmIdentity.ownedString(NAMED, "a{"), VmIdentity.ownedString(NAMED, "a"));
+        assertNotEquals(VmIdentity.hash(NAMED, "Alice"), VmIdentity.hash(NAMED, "alice"), "owner IDs are exact");
     }
 
     @Test

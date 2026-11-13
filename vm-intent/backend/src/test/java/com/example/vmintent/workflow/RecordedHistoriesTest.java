@@ -71,8 +71,8 @@ class RecordedHistoriesTest {
 
     /**
      * intent-v2-signed-in: a signed-in request (IntentRequest.owner set) whose VM is built by a vm-
-     * child workflow. The other histories have no owner; this one pins the owner-dependent path, on
-     * code where VmIdentity.hash still ignores the owner, before per-user identity changes it.
+     * child workflow. The other histories have no owner; this one pins the owner-dependent path. The
+     * saved file was recorded while VmIdentity.hash still ignored the owner, before per-user identity.
      */
     @Test
     void signedInRequestBuildsItsVm() throws Exception {

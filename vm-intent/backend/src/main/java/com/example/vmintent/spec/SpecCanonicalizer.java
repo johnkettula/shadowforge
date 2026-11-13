@@ -45,9 +45,14 @@ public final class SpecCanonicalizer {
     }
 
     public static String hash(VmSpec s) {
+        return sha256Hex(canonicalString(s));
+    }
+
+    /** SHA-256 of the string's UTF-8 bytes, as 64 lowercase hex characters. */
+    static String sha256Hex(String input) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] digest = md.digest(canonicalString(s).getBytes(StandardCharsets.UTF_8));
+            byte[] digest = md.digest(input.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);

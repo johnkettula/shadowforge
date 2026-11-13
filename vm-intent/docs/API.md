@@ -78,10 +78,16 @@ addresses instead, set `VMINTENT_API_SERVER_URLS` (comma-separated).
   a request not waiting for an answer or confirmation, already building or already finished, a VM already off or already removed, an identical VM already built), `500` an
   unexpected error, `502` a backend (vCenter, VCF Automation) that refused vm-intent's sign-in, and `503` a
   backend that isn't set up on this server or didn't answer.
-- **Idempotency.** A VM's identity is the SHA-256 of its canonical spec (`specHash`). Sending the same
-  spec again while it's being built, or after it's built, does not create a second VM: a batch counts it
-  under `duplicate`, the legacy endpoint returns `409`, and a request finishes as `DUPLICATE`. It is safe
-  to retry a call that timed out. On the real vSphere routes (vCenter 9 and VCF Automation 9), a spec
+- **Idempotency.** A VM's identity is its `specHash`: with sign-in off, the SHA-256 of its canonical
+  spec; for a signed-in user, a SHA-256 that also covers the user ID taken from sign-in (never from
+  `userId` or `requestedBy` in the body). A duplicate is the same spec from the same user, or from anyone
+  when sign-in is off. Sending a duplicate while the VM is being built, or after it's built, does not
+  create a second VM: a batch counts it under `duplicate`, the legacy endpoint returns `409`, and a
+  request finishes as `DUPLICATE`. Another signed-in user's same spec is not a duplicate: it gets its own
+  `specHash` and its own VM. It is safe to retry a call that timed out. VMs that already exist keep their
+  `specHash`, so `GET /api/v2/vms/{specHash}` and the day-2 calls work as before. Until the cloud-side name
+  gets a per-user suffix (part 2), two users' VMs with the same name on a real vSphere route are refused
+  for the second user with `InvalidSpec` (below), while the simulated clouds build both. On the real vSphere routes (vCenter 9 and VCF Automation 9), a spec
   with a different hash that uses a name already taken in the cloud by a VM vm-intent built for another
   spec is not reused: its build fails with the non-retryable reason `InvalidSpec` ("... was built by
   vm-intent for another request; choose another name"). A same-named VM that vm-intent didn't build is
