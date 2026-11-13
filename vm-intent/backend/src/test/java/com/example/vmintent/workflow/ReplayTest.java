@@ -60,6 +60,14 @@ class ReplayTest {
     static final List<String> RECORDED = List.of(
             "intent-v2-multi-existing", "lifecycle-v1-renewed", "batchshard-v1-duplicate", "catalog-v2-existing-vm");
 
+    /**
+     * Histories recorded the same way but with an owner set (a signed-in request and a signed-in
+     * catalog run), while VmIdentity.hash still ignored the owner. Every other history has none, so
+     * these are the only ones that catch per-user identity changing the owner-dependent path (a new
+     * step, or another vm- child workflow ID) without Workflow.getVersion. None may go missing.
+     */
+    static final List<String> SIGNED_IN = List.of("intent-v2-signed-in", "catalog-v3-signed-in");
+
     @TestFactory
     Stream<DynamicTest> everySavedHistoryReplays() throws Exception {
         List<Path> files;
@@ -85,6 +93,11 @@ class ReplayTest {
     @Test
     void theRecordedHistoriesAreAllStillThere() throws Exception {
         assertAllThere(RECORDED);
+    }
+
+    @Test
+    void theSignedInHistoriesAreAllStillThere() throws Exception {
+        assertAllThere(SIGNED_IN);
     }
 
     private static void assertAllThere(List<String> names) throws Exception {

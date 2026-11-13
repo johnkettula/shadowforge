@@ -69,7 +69,25 @@ class RecordedHistoriesTest {
         HistoryRecorder.record(env.getWorkflowClient(), "req-multi-existing", "intent-v2-multi-existing");
     }
 
-    /** lifecycle-v1-renewed: a VM's lifecycle that took a renew update, captured while still running. */
+    /**
+     * intent-v2-signed-in: a signed-in request (IntentRequest.owner set) whose VM is built by a vm-
+     * child workflow. The other histories have no owner; this one pins the owner-dependent path, on
+     * code where VmIdentity.hash still ignores the owner, before per-user identity changes it.
+     */
+    @Test
+    void signedInRequestBuildsItsVm() throws Exception {
+        IntentWorkflow wf = start("req-signed-in", "small debian vm on azure", "alice-signed-in");
+        RequestStatus done = WorkflowStub.fromTyped(wf).getResult(RequestStatus.class);
+        assertEquals("COMPLETED", done.state(), done.message());
+        assertEquals(done.interpretation().spec().name(), cloud.nameById.get(done.vm().vmId()));
+        assertEquals(1, cloud.created.get());
+
+        WorkflowReplayer.replayWorkflowExecution(
+                env.getWorkflowClient().fetchHistory("req-signed-in"), IntentWorkflowImpl.class);
+        HistoryRecorder.record(env.getWorkflowClient(), "req-signed-in", "intent-v2-signed-in");
+    }
+
+    /** lifecycle-v1-renewed:a VM's lifecycle that took a renew update, captured while still running. */
     @Test
     void lifecycleRenewed() throws Exception {
         VmSpec spec = TestFakes.spec("renewed", "aws", 10);
@@ -115,9 +133,16 @@ class RecordedHistoriesTest {
 
     /** Starts a request and confirms the spec it shows. */
     private IntentWorkflow start(String id, String text) {
+        return start(id, text, null);
+    }
+
+    /** owner null = a request with no owner, as before sign-in existed. */
+    private IntentWorkflow start(String id, String text, String owner) {
         IntentWorkflow wf = env.getWorkflowClient().newWorkflowStub(IntentWorkflow.class,
                 WorkflowOptions.newBuilder().setTaskQueue(TaskQueues.INTENT).setWorkflowId(id).build());
-        WorkflowClient.start(wf::run, new IntentRequest(text, "jdoe", "test", false));
+        WorkflowClient.start(wf::run, owner == null
+                ? new IntentRequest(text, "jdoe", "test", false)
+                : new IntentRequest(text, "jdoe", "test", false, owner));
         LifecycleWorkflowTest.eventually(() -> {
             try {
                 return "AWAITING_CONFIRMATION".equals(wf.status().state());
