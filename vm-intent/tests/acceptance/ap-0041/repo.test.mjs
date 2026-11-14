@@ -339,7 +339,9 @@ test('criterion 10: no AP-0041 commit changes the "Last updated" line of any oth
     let file = null;
     for (const line of diff.split('\n')) {
       if (line.startsWith('+++ ')) file = line.slice(4).replace(/^b\//, '');
-      else if (/^[+-](?![+-]{2} ).*Last updated/.test(line) && !allowed.has(file)) bad.push(`${sha.slice(0, 8)} ${file}: ${line}`);
+      // Docs only: acceptance-test sources (including this one) mention "Last updated" in their own code.
+      else if (/^[+-](?![+-]{2} ).*Last updated/.test(line) && file && /\.(md|html)$/.test(file)
+        && !file.startsWith('vm-intent/tests/') && !allowed.has(file)) bad.push(`${sha.slice(0, 8)} ${file}: ${line}`);
     }
   }
   assert.deepEqual(bad, [], 'other docs had their "Last updated" line changed');
