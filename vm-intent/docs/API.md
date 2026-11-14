@@ -1,6 +1,6 @@
 # vm-intent REST API: guide for calling services
 
-Last updated 2026-11-14.
+Last updated 2026-11-12.
 
 The API is described by an **OpenAPI 3.0** document that the server generates from its own code, so the
 document always matches what the server does. `tests/api_contract_test.py` calls every endpoint and checks
@@ -85,8 +85,7 @@ addresses instead, set `VMINTENT_API_SERVER_URLS` (comma-separated).
   create a second VM: a batch counts it under `duplicate`, the legacy endpoint returns `409`, and a
   request finishes as `DUPLICATE`. Another signed-in user's same spec is not a duplicate: it gets its own
   `specHash` and its own VM. It is safe to retry a call that timed out. VMs that already exist keep their
-  `specHash`, so the day-2 calls, `GET /api/v2/vms/{specHash}/lifecycle` and the VM list `GET /api/v2/vms`
-  work as before. Until the cloud-side name
+  `specHash`, so `GET /api/v2/vms/{specHash}` and the day-2 calls work as before. Until the cloud-side name
   gets a per-user suffix (part 2), two users' VMs with the same name on a real vSphere route are refused
   for the second user with `InvalidSpec` (below), while the simulated clouds build both. On the real vSphere routes (vCenter 9 and VCF Automation 9), a spec
   with a different hash that uses a name already taken in the cloud by a VM vm-intent built for another

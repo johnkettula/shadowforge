@@ -1,6 +1,6 @@
 # vSphere: vCenter 9 and VCF Automation 9 blueprints
 
-Last updated 2026-11-14.
+Last updated 2026-11-10.
 
 A vSphere request (`provider: vsphere`, region `dc1` or `dc2`) can be built three ways. Each
 datacenter has its own **route**:
@@ -105,10 +105,7 @@ Day 2:
   same spec hash (a retry, or a new run of the same VM). Otherwise the build stops with non-retryable
   `InvalidSpec` ("was built by vm-intent for another request; choose another name"): nothing is deployed and
   nothing is removed. The same goes for a deploy of that name that is still cloning. A tagged VM with no readable
-  key in its notes (built before keys were read back) is still adopted. A signed-in user's spec hash also covers
-  their user ID ([DEFINITIONS.md](DEFINITIONS.md)), so a same-named VM that another signed-in user built, even
-  from an identical spec, has a different hash: the build is refused with non-retryable `InvalidSpec`, with
-  nothing deployed or removed, until the cloud-side name gets a per-user suffix.
+  key in its notes (built before keys were read back) is still adopted.
 - **Never touches what it didn't build.** A VM with the same name *without* the tag stops the build ("choose another name"), and vm-intent won't remove it.
 - **Failures come back with vCenter's reason**, for example "Insufficient resources in cluster…", and the build rolls back. A removal while the clone is still running cancels the clone.
 - **Busy or unreachable vCenter** (429, 502–504, timeouts) is retried with backoff for up to 30 minutes, like a throttled cloud. Bad settings and refused permissions are not retried.
@@ -161,10 +158,7 @@ For **Aria Automation 8.x**, set `auth: iaas-login`. vm-intent then signs in wit
   deployment with the requested name is adopted only when its recorded vm-intent key has the same spec hash;
   otherwise the build stops with non-retryable `InvalidSpec` and nothing is requested or removed. VCF Automation
   has no ownership tag, so on this route a same-named deployment **without a vm-intent key** in its description
-  is refused too ("that vm-intent didn't build; choose another name"). A signed-in user's spec hash also covers
-  their user ID ([DEFINITIONS.md](DEFINITIONS.md)), so a same-named deployment that another signed-in user built,
-  even from an identical spec, has a different hash: the build is refused with non-retryable `InvalidSpec`, with
-  nothing deployed or removed, until the cloud-side name gets a per-user suffix.
+  is refused too ("that vm-intent didn't build; choose another name").
 - **API versions:** blueprint and deployment calls send `apiVersion=2019-09-12` (setting `automation.api-version`).
 
 ### The `blueprint.deploy` catalog step

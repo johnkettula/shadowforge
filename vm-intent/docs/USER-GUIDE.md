@@ -1,6 +1,6 @@
 # vm-intent User Guide
 
-Last updated 2026-11-14.
+Last updated 2026-11-12.
 
 ## What vm-intent does
 
@@ -280,7 +280,7 @@ For running on Linux or Azure, see `README.md` and `deploy/`.
 | It loads on basement but not from another device | Use `7-show-addresses.cmd` for the current address. Allow Node.js, Java and temporal.exe through Windows Firewall on private networks. |
 | An error box appears after Submit or Preview | The backend may still be starting, or Temporal isn't running. Wait 30 seconds and try again. |
 | A request stays in PROVISIONING | Simulated VMs take 20 to 60 seconds to boot. If it is still there after a few minutes, check that the backend window is running. |
-| The request says DUPLICATE | An identical VM already exists: one of your own when sign-in is on (another user's identical request doesn't count), or anyone's with sign-in off. Change something, such as the name, to build another. |
+| The request says DUPLICATE | An identical VM already exists. Change something, such as the name, to build another. |
 | The request FAILED | Open *Audit trail* for the reason. The VM was rolled back, so nothing needs cleaning up. A name containing "fail" always fails, on purpose. |
 | The request FAILED saying the VM "was built by vm-intent for another request; choose another name" | This happens only when vSphere is connected to a real vCenter or VCF Automation: a different VM already has that name there. Pick another name and submit again. |
 | A 401 or 403 error | Sign-in is on. Get a token or certificate with the role the operation needs (see *Sign-in and roles*). |

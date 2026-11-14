@@ -1,6 +1,6 @@
 # Catalog definitions and runs
 
-Last updated 2026-11-14.
+Last updated 2026-11-13.
 
 Technical operators describe repeatable provisioning jobs in YAML. vm-intent checks each file when
 it's published and runs it as a Temporal workflow. There are two kinds of file:
@@ -143,7 +143,7 @@ can produce. So duplicates are found within one user: the same spec from the sam
 while another user who asks for the same spec gets a VM of their own, with its own hash and its own
 `vm-` build workflow. With sign-in off, everyone is `anonymous`, so the same spec from anyone is a
 duplicate, as before. Existing VMs keep their hash: nothing recomputes it, because day-2 calls, the
-lifecycle, the inventory check and the VM list all look a VM up by its stored hash.
+lifecycle, the inventory check and `GET /api/v2/vms/{hash}` all look a VM up by its stored hash.
 Until the cloud-side name gets a per-user suffix (part 2 of per-user identity), the cloud name is
 still just the spec's name: on a real vSphere route (vCenter 9 or VCF Automation 9), a second user's
 VM with the same name as the first user's is refused with `InvalidSpec` by the rule below, so it never
