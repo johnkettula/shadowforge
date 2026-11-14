@@ -3,6 +3,7 @@ package com.example.vmintent.spec;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /** Policy checks that run after the AI and before anything is built. */
 public final class SpecValidator {
@@ -11,6 +12,9 @@ public final class SpecValidator {
     public static final Set<String> CLOUD_REGIONS = Set.of("us-east", "us-west", "us-central", "eu-west");
     public static final Set<String> DATACENTERS = Set.of("dc1", "dc2");
     public static final Set<String> OS = Set.of("ubuntu", "rhel", "windows", "debian", "rocky");
+
+    /** VM names: 1-40 characters, lowercase letters, digits and hyphens, starting with a letter. */
+    static final Pattern NAME = Pattern.compile("[a-z][a-z0-9-]{0,39}");
 
     private SpecValidator() {}
 
@@ -27,6 +31,9 @@ public final class SpecValidator {
         if (!OS.contains(s.os())) p.add("Operating system '" + s.os() + "' isn't on the approved list.");
         if ("windows".equals(s.os()) && s.diskGiB() < 64) p.add("Windows needs at least a 64 GiB disk.");
         if (s.ttlDays() < 0 || s.ttlDays() > 365) p.add("Lifetime must be 0-365 days.");
+        if (s.name() != null && !s.name().isEmpty() && !NAME.matcher(s.name()).matches()) {
+            p.add("VM name '" + s.name() + "' must be 1-40 characters: lowercase letters, digits and hyphens, starting with a letter.");
+        }
         return p;
     }
 }

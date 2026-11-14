@@ -71,6 +71,23 @@ public class VmController {
 
     // ------------------------------------------------------------------ lifecycle
 
+    @Tag(name = "Inventory")
+    @Operation(operationId = "getVm", summary = "Get a VM",
+            description = "The VM's record: its spec, state and build details. Works while the VM exists and after it's removed.")
+    @ApiResponse(responseCode = "200", description = "The VM record")
+    @ApiResponse(responseCode = "400", description = "The spec hash isn't a 64-character SHA-256 hex string",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "404", description = NO_VM, content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @GetMapping("/vms/{specHash}")
+    public VmRecord vm(@Parameter(description = "The VM's spec hash") @PathVariable String specHash) {
+        if (!specHash.matches("[0-9a-f]{64}")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "specHash must be the 64-character SHA-256 hex string");
+        }
+        VmRecord r = registry.get(specHash);
+        if (r == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, NO_VM);
+        return r;
+    }
+
     @Tag(name = "VM lifecycle")
     @Operation(operationId = "getVmLifecycle", summary = "Get a VM's lifecycle",
             description = "Expiry date, whether the warning was sent, power, current size, snapshots and recent events. "
