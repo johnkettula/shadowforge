@@ -45,7 +45,7 @@ import java.util.function.Function;
  * A VM's life after its build ("day 2"): expiry and renewal, resize, power, snapshots and removal.
  * Each change is a Temporal update to the VM's lifecycle workflow ("life-" + spec hash): it is
  * checked first, and the answer comes back once the change is done (or why it was refused: 409).
- * A spec hash that matches no VM is 404.
+ * A spec hash that matches no VM is 404. GET /vms/{specHash} reads one VM's record, in any state.
  *
  * Also the inventory check (drift and orphans), which runs nightly on a Temporal Schedule.
  */
@@ -70,6 +70,22 @@ public class VmController {
     }
 
     // ------------------------------------------------------------------ lifecycle
+
+    @Tag(name = "VM lifecycle")
+    @Operation(operationId = "getVm", summary = "Get a VM",
+            description = "One VM's record by its spec hash: spec, state, cloud details and lifecycle. "
+                    + "Returned in any state, including after the VM is decommissioned or deleted.")
+    @ApiResponse(responseCode = "200", description = "The VM's record")
+    @ApiResponse(responseCode = "400", description = "specHash isn't a 64-character lower-case hex string",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "404", description = NO_VM, content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @GetMapping("/vms/{specHash}")
+    public VmRecord vm(@Parameter(description = "The VM's spec hash") @PathVariable String specHash) {
+        requireHash(specHash);
+        VmRecord r = registry.get(specHash);
+        if (r == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, NO_VM);
+        return r;
+    }
 
     @Tag(name = "VM lifecycle")
     @Operation(operationId = "getVmLifecycle", summary = "Get a VM's lifecycle",
@@ -209,10 +225,14 @@ public class VmController {
     }
 
     private VmLifecycleWorkflow life(String specHash) {
+        requireHash(specHash);
+        return client.newWorkflowStub(VmLifecycleWorkflow.class, VmIdentity.lifecycleWorkflowId(specHash));
+    }
+
+    private static void requireHash(String specHash) {
         if (!specHash.matches("[0-9a-f]{64}")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "specHash must be the 64-character SHA-256 hex string");
         }
-        return client.newWorkflowStub(VmLifecycleWorkflow.class, VmIdentity.lifecycleWorkflowId(specHash));
     }
 
     private static String actor() {

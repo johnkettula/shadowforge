@@ -362,7 +362,7 @@ svg .lines path { fill: none; stroke: var(--quiet); stroke-width: 1.25; } svg .h
 <p>With sign-in on, the audit trail records the real caller: a person's sign-in name, <code>app:&lt;id&gt;</code> for a service, or <code>pki:&lt;name&gt;</code> for a certificate. A missing or refused sign-in gets a 401 error, and a missing role gets 403. The message says why.</p>
 <p>The web app can't sign in yet, so use it only with sign-in off. Setup steps for administrators are in <code>docs/SECURITY.md</code>.</p>
 <h2 id='for-other-services-the-rest-api'>For other services: the REST API</h2>
-<p>Everything the web app does is also available to other systems through a REST API, described by an OpenAPI 3.0 document. The table below lists the main operations; all 42 are in <code>docs/API.md</code>.</p>
+<p>Everything the web app does is also available to other systems through a REST API, described by an OpenAPI 3.0 document. The table below lists the main operations; all 43 are in <code>docs/API.md</code>.</p>
 <ul>
 <li><strong>Swagger UI</strong> (<code>/swagger-ui.html</code>): read every operation and try it with <strong>Try it out</strong>. Each operation lists its <strong>Required role</strong>.</li>
 <li><strong>OpenAPI document</strong> (<code>/v3/api-docs</code>, or <code>/v3/api-docs.yaml</code>): point a client generator or an API gateway at it.</li>

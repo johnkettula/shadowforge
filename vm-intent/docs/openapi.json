@@ -2018,6 +2018,69 @@
         }
       }
     },
+    "/api/v2/vms/{specHash}": {
+      "get": {
+        "tags": [
+          "VM lifecycle"
+        ],
+        "summary": "Get a VM",
+        "description": "One VM's record by its spec hash: spec, state, cloud details and lifecycle. Returned in any state, including after the VM is decommissioned or deleted.\n\n**Required role:** READER (when sign-in is on; it is currently off)",
+        "operationId": "getVm",
+        "parameters": [
+          {
+            "name": "specHash",
+            "in": "path",
+            "description": "The VM's spec hash",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The VM's record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VmRecord"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "specHash isn't a 64-character lower-case hex string",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No VM with that spec hash",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v2/vms/{specHash}/lifecycle": {
       "get": {
         "tags": [

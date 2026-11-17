@@ -233,7 +233,7 @@ The web app can't sign in yet, so use it only with sign-in off. Setup steps for 
 
 ## For other services: the REST API
 
-Everything the web app does is also available to other systems through a REST API, described by an OpenAPI 3.0 document. The table below lists the main operations; all 42 are in `docs/API.md`.
+Everything the web app does is also available to other systems through a REST API, described by an OpenAPI 3.0 document. The table below lists the main operations; all 43 are in `docs/API.md`.
 
 - **Swagger UI** (`/swagger-ui.html`): read every operation and try it with **Try it out**. Each operation lists its **Required role**.
 - **OpenAPI document** (`/v3/api-docs`, or `/v3/api-docs.yaml`): point a client generator or an API gateway at it.
