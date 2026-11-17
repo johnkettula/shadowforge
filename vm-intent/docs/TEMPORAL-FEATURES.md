@@ -177,7 +177,7 @@ picks the workflow class from the file name's prefix: `intent-` → `IntentWorkf
 `batchshard-` → `BatchShardWorkflowImpl`.
 A file with any other prefix fails the test with its name, so no history is skipped. It also checks
 that the seven pinned histories (the `intent-v1-*`, `reconcile-v1-*` and `catalog-v1-*` files), the
-four recorded ones after them and the two signed-in ones are all still there.
+four recorded ones after them, the two signed-in ones and the cloud-name one are all still there.
 
 - `intent-v1-*` and `reconcile-v1-*` were recorded from the code *before* the lifecycle, update and
   link features were added; the three `catalog-v1-*` histories are real catalog runs (resumed, torn
@@ -205,6 +205,16 @@ fails the build too:
   built by a `vm-` child workflow.
 - `catalog-v3-signed-in` is a catalog run with `RunRequest.owner` set to `alice-signed-in`, so the
   `PrepareVm` activity gets the owner; its VM is built by a `vm-` child workflow.
+
+One more pins how the workflows pass the cloud name on. `VmIdentity.of` gives every new
+`Interpretation`, `BatchItem` and `PreparedVm` a `cloudName`, which the workflows copy into
+`ReconcileRequest.cloudName` without working anything out, so no `Workflow.getVersion` is needed.
+Histories recorded before it existed decode `cloudName` as null, which the build workflow treats as
+the spec's name:
+
+- `batchshard-v2-cloud-name` is a batch shard whose `BatchItem` has the cloud name `x-test` while its
+  spec is named `web-01` (recorded by `CloudNameTest`); its `vm-` child workflow builds the VM as
+  `x-test`.
 
 If a change would make a workflow that's running during an upgrade behave differently from its
 history (a new step, a timer moved, a child workflow ID that changed), the test fails before it ships.
@@ -280,18 +290,18 @@ One thing to know: it only skips ahead while a timer is waiting. To wait for a w
 |---|---|
 | `LifecycleWorkflowTest` | Expiry, warning, renewal, validators, day-2 changes, rebuilding a removed VM |
 | `OneWayLinkTest` | Build and changes over the link, no answer (timeout and undo), refusal |
-| `CloudNameTest` | The build workflow takes the cloud-side name from `ReconcileRequest.cloudName` (null = the name asked for) and never works it out itself: the cloud's plan and create, and the link's CREATE order, get the cloud name, while the VM record and the audit trail keep the name asked for; a rollback (direct, or the undo by key over the link) removes the VM made under the cloud name |
+| `CloudNameTest` | The build workflow takes the cloud-side name from `ReconcileRequest.cloudName` (null = the name asked for) and never works it out itself: the cloud's plan and create, and the link's CREATE order, get the cloud name, while the VM record and the audit trail keep the name asked for; a rollback (direct, or the undo by key over the link) removes the VM made under the cloud name; a batch shard passes its `BatchItem.cloudName` on to the cloud (the scenario behind `batchshard-v2-cloud-name`) |
 | `LinkFilesTest` | The real file-based link with the simulated domain 3 |
 | `IntentWorkflowTest` | Answer, confirm and cancel updates (with a replay round trip), several VMs at once, search attributes |
 | `InventoryCheckTest` | Missing VMs and orphans |
-| `ReplayTest` | Every saved history against new code, the workflow class picked by file-name prefix (a file with no known prefix fails), and the seven pinned histories (`intent-v1-*`, `reconcile-v1-*`, `catalog-v1-*`) and the four recorded ones (`intent-v2-multi-existing`, `lifecycle-v1-renewed`, `batchshard-v1-duplicate`, `catalog-v2-existing-vm`) and the two signed-in ones (`intent-v2-signed-in`, `catalog-v3-signed-in`) still present |
+| `ReplayTest` | Every saved history against new code, the workflow class picked by file-name prefix (a file with no known prefix fails), and the seven pinned histories (`intent-v1-*`, `reconcile-v1-*`, `catalog-v1-*`) and the four recorded ones (`intent-v2-multi-existing`, `lifecycle-v1-renewed`, `batchshard-v1-duplicate`, `catalog-v2-existing-vm`) and the two signed-in ones (`intent-v2-signed-in`, `catalog-v3-signed-in`) and the cloud-name one (`batchshard-v2-cloud-name`) still present |
 | `RecordedHistoriesTest` | The scenarios behind `intent-v2-multi-existing` (two VMs, one already there), `lifecycle-v1-renewed` (a renewal), `batchshard-v1-duplicate` (a shard with the same spec twice) and `intent-v2-signed-in` (a signed-in request); with `-Dhistories.record=true` they save missing histories |
 | `HistoryRecorderTest` | `HistoryRecorder` writes nothing without `-Dhistories.record=true`, writes a missing file that replays, and leaves an existing file byte-for-byte unchanged |
-| `CatalogRunWorkflowTest` | Steps in order, resume with partial work, teardown, 30-day auto teardown, approvals, blueprints, reusing a VM already built with the same spec (the scenario behind `catalog-v2-existing-vm`), a signed-in run whose owner reaches `prepareVm` (the scenario behind `catalog-v3-signed-in`), the run's owner changes the prepared spec hash so each user gets their own VM |
+| `CatalogRunWorkflowTest` | Steps in order, resume with partial work, teardown, 30-day auto teardown, approvals, blueprints, reusing a VM already built with the same spec (the scenario behind `catalog-v2-existing-vm`), a signed-in run whose owner reaches `prepareVm` (the scenario behind `catalog-v3-signed-in`), the run's owner changes the prepared spec hash so each user gets their own VM, the prepared VM's cloud name is its spec's name and reaches the build |
 | `CountPhrasingTest` | "3 web servers" vs "a RHEL 9 server" |
 | `BatchWorkflowTest` | Batches in shards: rollbacks, duplicates in one batch, throttled creates retried |
 | `VsphereRoutesWorkflowTest` | vSphere builds through the mock vCenter 9 and VCF Automation 9, their rollbacks, and a catalog run that deploys a blueprint and tears it down |
 | `RequestControllerTest` | Answering or cancelling a request: 409 once it has finished or can't take it, 404 for an unknown ID |
 | `VmControllerTest` | Day-2 changes: 404 for a spec hash that matches no VM, 409 for a VM that exists but can't be changed, 400 for a malformed hash |
-| `RequestOwnerFlowTest` | Each request's owner comes from sign-in on the server (`anonymous` when sign-in is off), never from `userId` or `requestedBy`: a single request, a multi-VM request, a batch, preview and the legacy endpoint; a second signed-in user's identical request, or identical batch item, builds its own VM while the first user's repeat is DUPLICATE; a `userId` or `requestedBy` in the body does not change the hash |
-| `VmIdentityTest` | Golden values: no owner (null or `anonymous`) keeps today's pinned canonical strings and hash; two signed-in users get different hashes for the same spec, neither equal to the anonymous hash; a signed-in user's hash is stable (pinned) and changes with the spec; no anonymous spec hashes the same input as a signed-in user; the `vm-` and `life-` workflow IDs are built from the hash; `buildKey` is the hash, or the hash + `-` + the run ID's first 8 characters, and `hashOfBuildKey` gives the hash back; `VmIdentity.sameBuild` is true only for the same spec hash (the clouds adopt an existing VM only when it matches) |
+| `RequestOwnerFlowTest` | Each request's owner comes from sign-in on the server (`anonymous` when sign-in is off), never from `userId` or `requestedBy`: a single request, a multi-VM request, a batch, preview and the legacy endpoint; a second signed-in user's identical request, or identical batch item, builds its own VM while the first user's repeat is DUPLICATE; a `userId` or `requestedBy` in the body does not change the hash; the cloud name recorded for a single request, a multi-VM request, a batch and the legacy endpoint is the spec's name, and is what the build gets |
+| `VmIdentityTest` | Golden values: no owner (null or `anonymous`) keeps today's pinned canonical strings and hash; two signed-in users get different hashes for the same spec, neither equal to the anonymous hash; a signed-in user's hash is stable (pinned) and changes with the spec; no anonymous spec hashes the same input as a signed-in user; `VmIdentity.of` gives exactly a hash (today's, for null, `anonymous` and a signed-in owner) and a cloud name (the spec's name, or the generated one); the `vm-` and `life-` workflow IDs are built from the hash; `buildKey` is the hash, or the hash + `-` + the run ID's first 8 characters, and `hashOfBuildKey` gives the hash back; `VmIdentity.sameBuild` is true only for the same spec hash (the clouds adopt an existing VM only when it matches) |

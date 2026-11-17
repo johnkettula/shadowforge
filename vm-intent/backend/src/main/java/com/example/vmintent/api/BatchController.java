@@ -150,12 +150,12 @@ public class BatchController {
         if (item.spec() != null) {
             List<String> problems = SpecValidator.problems(item.spec());
             if (!problems.isEmpty()) throw new IllegalArgumentException(String.join(" ", problems));
-            String hash = VmIdentity.hash(item.spec(), owner);
-            return new BatchItem(SpecCanonicalizer.withGeneratedName(item.spec(), hash), hash);
+            VmIdentity.Id id = VmIdentity.of(item.spec(), owner);
+            return new BatchItem(SpecCanonicalizer.withGeneratedName(item.spec(), id.hash()), id.hash(), id.cloudName());
         }
         Interpretation it = interpreter.interpret(item.text(), owner);
         if (it.question() != null) throw new IllegalArgumentException("Needs an answer: " + it.question());
-        return new BatchItem(it.spec(), it.specHash());
+        return new BatchItem(it.spec(), it.specHash(), it.cloudName());
     }
 
     private static int clamp(Integer v, int fallback, int min, int max) {

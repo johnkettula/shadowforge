@@ -14,11 +14,14 @@ import com.example.vmintent.workflow.Models.InventoryReport;
 import com.example.vmintent.workflow.Models.LinkOrder;
 import com.example.vmintent.workflow.Models.LinkReply;
 import com.example.vmintent.workflow.Models.ProviderPlan;
+import com.example.vmintent.workflow.Models.ReconcileRequest;
 import com.example.vmintent.workflow.Models.Route;
 import com.example.vmintent.workflow.Models.VmLifecycle;
 import com.example.vmintent.workflow.Models.VmResult;
 import com.example.vmintent.workflow.Models.VmStatus;
+import io.temporal.api.common.v1.Payloads;
 import io.temporal.client.WorkflowClient;
+import io.temporal.common.converter.DefaultDataConverter;
 import io.temporal.failure.ApplicationFailure;
 import io.temporal.testing.TestWorkflowEnvironment;
 import io.temporal.worker.Worker;
@@ -28,6 +31,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -60,6 +64,14 @@ public final class TestFakes {
             env.newWorker(TaskQueues.readQueue(p)).registerActivitiesImplementations(view);
         }
         env.start();
+    }
+
+    /** The ReconcileRequest the vm-&lt;hash&gt; build workflow was started with, read from its history. */
+    public static ReconcileRequest buildInput(WorkflowClient client, String hash) {
+        Payloads input = client.fetchHistory(VmIdentity.buildWorkflowId(hash)).getEvents().get(0)
+                .getWorkflowExecutionStartedEventAttributes().getInput();
+        return DefaultDataConverter.newDefaultInstance()
+                .fromPayloads(0, Optional.of(input), ReconcileRequest.class, ReconcileRequest.class);
     }
 
     public static VmSpec spec(String name, String provider, int ttlDays) {
@@ -245,7 +257,8 @@ public final class TestFakes {
             List<BatchItem> items = new ArrayList<>();
             for (int i = 1; i <= it.vmCount(); i++) {
                 VmSpec s = it.spec().withName(String.format("%s-%02d", it.spec().name(), i));
-                items.add(new BatchItem(s, VmIdentity.hash(s, owner)));
+                VmIdentity.Id id = VmIdentity.of(s, owner);
+                items.add(new BatchItem(s, id.hash(), id.cloudName()));
             }
             return items;
         }

@@ -17,7 +17,7 @@ public record Interpretation(
         @Schema(description = "The text that was interpreted.") String text,
         @Schema(description = "Which interpreter was used.", example = "rules") String extractor,
         VmSpec spec,
-        @Schema(description = "SHA-256 of the canonical spec.",
+        @Schema(description = "The VM's identity: the SHA-256 of the canonical spec. For a signed-in user the hash also covers the user ID, so each user gets their own VM.",
                 example = "3af19a4e8492dc7edd60f92413fe0567546acd258f9c214eaebca7c4dd0d5d72") String specHash,
         @Schema(description = "One-line summary.") String summary,
         @Schema(description = "Defaults that were filled in.") List<String> assumptions,
@@ -25,11 +25,20 @@ public record Interpretation(
                 example = "Which platform should this run on: vSphere (on-prem), AWS, Azure or Google Cloud?")
         String question,
         @Schema(description = "How many identical VMs were asked for. Left out when it's one.", example = "3")
-        Integer count
+        Integer count,
+        @Schema(description = "The VM's name in its cloud. Today the same as spec.name. Left out when a question is asked.",
+                example = "web-01")
+        String cloudName
 ) {
     public Interpretation(String text, String extractor, VmSpec spec, String specHash, String summary,
                           List<String> assumptions, String question) {
         this(text, extractor, spec, specHash, summary, assumptions, question, null);
+    }
+
+    /** Without a cloud name, as recorded before it existed (null = the VM's cloud name is spec.name). */
+    public Interpretation(String text, String extractor, VmSpec spec, String specHash, String summary,
+                          List<String> assumptions, String question, Integer count) {
+        this(text, extractor, spec, specHash, summary, assumptions, question, count, null);
     }
 
     /** How many VMs to build: 1 unless the request asked for more. */

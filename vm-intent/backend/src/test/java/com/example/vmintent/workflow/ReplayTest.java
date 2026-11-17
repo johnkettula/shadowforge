@@ -68,6 +68,12 @@ class ReplayTest {
      */
     static final List<String> SIGNED_IN = List.of("intent-v2-signed-in", "catalog-v3-signed-in");
 
+    /**
+     * Histories whose recorded input carries a cloud name that differs from the spec's name
+     * (CloudNameTest), so they catch a change to how workflows pass the cloud name on.
+     */
+    static final List<String> CLOUD_NAME = List.of("batchshard-v2-cloud-name");
+
     @TestFactory
     Stream<DynamicTest> everySavedHistoryReplays() throws Exception {
         List<Path> files;
@@ -98,6 +104,11 @@ class ReplayTest {
     @Test
     void theSignedInHistoriesAreAllStillThere() throws Exception {
         assertAllThere(SIGNED_IN);
+    }
+
+    @Test
+    void theCloudNameHistoriesAreAllStillThere() throws Exception {
+        assertAllThere(CLOUD_NAME);
     }
 
     private static void assertAllThere(List<String> names) throws Exception {

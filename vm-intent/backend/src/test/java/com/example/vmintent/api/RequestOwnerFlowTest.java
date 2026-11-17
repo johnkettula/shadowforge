@@ -278,6 +278,79 @@ class RequestOwnerFlowTest {
         assertNotEquals(VmIdentity.hash(s.interpretation().spec(), "mallory"), s.interpretation().specHash());
     }
 
+    // ------------------------------------------------------------------ cloud name (VmIdentity.of)
+
+    @Test
+    void aSingleRequestRecordsTheSpecNameAsItsCloudName() {
+        RequestStatus r = requestAndConfirm(WEB_01);
+        assertEquals("COMPLETED", r.state(), r.message());
+        assertEquals("web-01", r.interpretation().spec().name());
+        assertEquals("web-01", r.interpretation().cloudName());
+        assertEquals("web-01", TestFakes.buildInput(env.getWorkflowClient(), r.interpretation().specHash()).cloudName());
+
+        // No name asked for: the cloud name is the generated one, for anonymous and signed-in owners.
+        Interpretation unnamed = requests.preview(new TextBody("small debian vm on azure", null));
+        assertNotNull(unnamed.spec().name());
+        assertEquals(unnamed.spec().name(), unnamed.cloudName());
+        RequestOwnerTest.signIn("alice");
+        Interpretation alice = requests.preview(new TextBody("small debian vm on azure", null));
+        assertEquals("vm-" + alice.specHash().substring(0, 8), alice.spec().name());
+        assertEquals(alice.spec().name(), alice.cloudName());
+
+        Interpretation question = requests.preview(new TextBody("a small server", null));
+        assertNotNull(question.question());
+        assertNull(question.cloudName(), "no spec, no cloud name");
+    }
+
+    @Test
+    void aMultiVmRequestRecordsEachVmsNameAsItsCloudName() {
+        IntentWorkflow wf = submit("3 small ubuntu servers on aws called app", "mallory");
+        RequestStatus s = waitFor(wf, "AWAITING_CONFIRMATION");
+        requests.confirm(s.requestId(), null);
+        assertEquals("COMPLETED", WorkflowStub.fromTyped(wf).getResult(RequestStatus.class).state());
+
+        List<BatchItem> items = intent.real.expand(s.interpretation(), "anonymous");
+        assertEquals(List.of("app-01", "app-02", "app-03"), items.stream().map(BatchItem::cloudName).toList());
+        for (BatchItem item : items) {
+            assertEquals(item.spec().name(), item.cloudName());
+            assertEquals(item.spec().name(), TestFakes.buildInput(env.getWorkflowClient(), item.specHash()).cloudName());
+        }
+    }
+
+    @Test
+    void aBatchRecordsEachSpecNameAsItsCloudName() {
+        runBatch(SHARED);
+        assertEquals("shared-01",
+                TestFakes.buildInput(env.getWorkflowClient(), SpecCanonicalizer.hash(SHARED)).cloudName());
+
+        // A spec item without a name gets the generated name, and that is its cloud name.
+        VmSpec unnamed = SHARED.withName(null);
+        String hash = SpecCanonicalizer.hash(unnamed);
+        runBatch(unnamed);
+        assertEquals("vm-" + hash.substring(0, 8), TestFakes.buildInput(env.getWorkflowClient(), hash).cloudName());
+
+        // A text item: the interpreter's cloud name.
+        ResponseEntity<?> r = batches.submit(new BatchBody(
+                List.of(new BatchItemBody("a small ubuntu server on aws called text-01", null)), null, null, null));
+        String id = ((BatchSubmitResponse) r.getBody()).batchId();
+        env.getWorkflowClient().newUntypedWorkflowStub(id).getResult(BatchInfo.class);
+        Interpretation text = requests.preview(new TextBody("a small ubuntu server on aws called text-01", null));
+        assertEquals("text-01", TestFakes.buildInput(env.getWorkflowClient(), text.specHash()).cloudName());
+    }
+
+    @Test
+    void theLegacyPathRecordsTheSpecNameAsItsCloudName() {
+        LegacyVmDefinition legacy = new ObjectMapper().convertValue(Map.of("cloud", "aws", "location", "us-east",
+                "cpu", 2, "ramGb", 4, "image", Map.of("os", "ubuntu", "version", "24.04"), "environment", "dev"),
+                LegacyVmDefinition.class);
+        ResponseEntity<?> r = requests.legacyCreate(legacy);
+        assertEquals(HttpStatus.ACCEPTED, r.getStatusCode(), String.valueOf(r.getBody()));
+        Interpretation it = new LegacySpecTranslator(new IntentInterpreter(new RuleBasedIntentExtractor()))
+                .translate(legacy, "anonymous");
+        assertEquals(it.spec().name(), it.cloudName());
+        assertEquals(it.spec().name(), TestFakes.buildInput(env.getWorkflowClient(), it.specHash()).cloudName());
+    }
+
     private RequestStatus requestAndConfirm(String text) {
         return requestAndConfirm(text, "body-user");
     }

@@ -73,6 +73,8 @@ class CatalogRunWorkflowTest {
     /** The owner prepareVm got, and the owner VmIdentity.hash got inside it. */
     private final List<String> prepareOwners = new CopyOnWriteArrayList<>();
     private final List<String> hashOwners = Collections.synchronizedList(new ArrayList<>());
+    /** What prepareVm returned. */
+    private final List<PreparedVm> prepared = new CopyOnWriteArrayList<>();
 
     /** Remembers specs too, so the registry view below can answer like the real one. */
     static class SpecRecords extends TestFakes.FakeRecords {
@@ -128,8 +130,10 @@ class CatalogRunWorkflowTest {
             public PreparedVm prepareVm(Map<String, Object> with, List<Blueprint> blueprints, String blueprint,
                                         Map<String, Object> params, Map<String, Object> run, String owner) {
                 prepareOwners.add(String.valueOf(owner));
-                return HashOwnerSpy.recording(hashOwners,
+                PreparedVm vm = HashOwnerSpy.recording(hashOwners,
                         () -> super.prepareVm(with, blueprints, blueprint, params, run, owner));
+                prepared.add(vm);
+                return vm;
             }
         };
         Worker intent = env.newWorker(TaskQueues.INTENT);
@@ -184,6 +188,18 @@ class CatalogRunWorkflowTest {
         assertEquals(List.of("null"), prepareOwners);
         assertEquals(Collections.singletonList(null), hashOwners);
         assertEquals(SpecCanonicalizer.hash(records.specs.get(hash)), hash, "the same hash as before owners existed");
+    }
+
+    @Test
+    void aCatalogRunRecordsTheSpecNameAsItsCloudName() {
+        CatalogRunWorkflow run = start(webServer(), Map.of("app", "cloudy"));
+        String hash = (String) waitFor(run, "COMPLETED").steps().get(0).output().get("specHash");
+        assertEquals(1, prepared.size());
+        PreparedVm vm = prepared.get(0);
+        assertEquals("cloudy-web", vm.spec().name());
+        assertEquals("cloudy-web", vm.cloudName());
+        assertEquals(hash, vm.specHash());
+        assertEquals("cloudy-web", TestFakes.buildInput(env.getWorkflowClient(), hash).cloudName());
     }
 
     @Test

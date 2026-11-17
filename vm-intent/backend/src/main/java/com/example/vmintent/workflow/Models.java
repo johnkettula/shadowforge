@@ -139,8 +139,15 @@ public final class Models {
 
     // ------------------------------------------------------------ batches
 
-    /** One VM in a batch: an already-interpreted, validated spec. */
-    public record BatchItem(VmSpec spec, String specHash) {}
+    /**
+     * One VM in a batch: an already-interpreted, validated spec. cloudName = the VM's name in its
+     * cloud, from VmIdentity.of (null in histories recorded before it existed = spec.name).
+     */
+    public record BatchItem(VmSpec spec, String specHash, String cloudName) {
+        public BatchItem(VmSpec spec, String specHash) {
+            this(spec, specHash, null);
+        }
+    }
 
     /**
      * A batch of VMs to build without asking anyone (the specs were checked when the

@@ -245,7 +245,7 @@ public class CatalogRunWorkflowImpl implements CatalogRunWorkflow {
                         .setWorkflowIdReusePolicy(WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE)
                         .build());
         VmResult r = build.reconcile(new ReconcileRequest(vm.spec(), vm.specHash(), req.requestedBy(),
-                workflowId, null));
+                workflowId, vm.cloudName()));
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("specHash", vm.specHash());
         out.put("name", vm.spec().name());
