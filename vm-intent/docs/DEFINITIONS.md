@@ -143,7 +143,8 @@ can produce. So duplicates are found within one user: the same spec from the sam
 while another user who asks for the same spec gets a VM of their own, with its own hash and its own
 `vm-` build workflow. With sign-in off, everyone is `anonymous`, so the same spec from anyone is a
 duplicate, as before. Existing VMs keep their hash: nothing recomputes it, because day-2 calls, the
-lifecycle, the inventory check and the VM list all look a VM up by its stored hash.
+lifecycle, reading one VM (`GET /api/v2/vms/{specHash}`), the inventory check and the VM list all look a
+VM up by its stored hash.
 
 **Cloud name.** The name sent to the cloud for a VM (`cloudName`). Today it is the same as the
 spec's name (the generated `vm-` + 8 hex characters when none was asked for). `VmIdentity.of(spec,

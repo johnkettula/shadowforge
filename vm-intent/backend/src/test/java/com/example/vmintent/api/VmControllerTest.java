@@ -35,7 +35,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Day-2 changes: 404 for a spec hash that matches no VM, 409 for a VM that exists but can't be changed. */
+/**
+ * Day-2 changes: 404 for a spec hash that matches no VM, 409 for a VM that exists but can't be changed.
+ * Reading one VM (getVm): 200 in any state, 400 for a malformed hash, 404 for an unknown one.
+ */
 class VmControllerTest {
 
     /** VmRegistry backed by a map instead of Postgres. */
@@ -115,6 +118,35 @@ class VmControllerTest {
             ResponseStatusException e = assertThrows(ResponseStatusException.class, call::run);
             assertEquals(HttpStatus.BAD_REQUEST, e.getStatusCode());
         }
+    }
+
+    @Test
+    void getVmReturnsAKnownRecordInAnyState() throws Exception {
+        String hash = build("lookup");
+        VmRecord running = controller.vm(hash);
+        assertEquals(hash, running.specHash());
+        assertEquals("lookup", running.spec().name());
+        assertEquals("RUNNING", running.state());
+
+        // Decommissioning saves the record as DELETED; it is still returned.
+        controller.decommission(hash, new DecommissionBody("done"));
+        registry.records.put(hash, record(hash, running.spec(), "DELETED"));
+        assertEquals("DELETED", controller.vm(hash).state());
+    }
+
+    @Test
+    void getVmWithAMalformedSpecHashIs400() {
+        for (String bad : List.of("abc", "A".repeat(64), "0".repeat(63), "g".repeat(64))) {
+            ResponseStatusException e = assertThrows(ResponseStatusException.class, () -> controller.vm(bad));
+            assertEquals(HttpStatus.BAD_REQUEST, e.getStatusCode(), bad);
+        }
+    }
+
+    @Test
+    void getVmWithAnUnknownSpecHashIs404() {
+        ResponseStatusException e = assertThrows(ResponseStatusException.class, () -> controller.vm(UNKNOWN));
+        assertEquals(HttpStatus.NOT_FOUND, e.getStatusCode());
+        assertEquals("No VM with that spec hash", e.getReason());
     }
 
     private List<Runnable> changes(String hash) {

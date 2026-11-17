@@ -131,6 +131,9 @@ call("GET", "/api/v2/requests?limit=5", 200, name="listRequests")
 if done["state"] == "COMPLETED":
     h = done["interpretation"]["specHash"]
     time.sleep(1)
+    call("GET", f"/api/v2/vms/{h}", 200, name="getVm",
+         check=lambda v: None if v["specHash"] == h and v["spec"]["name"] == done["interpretation"]["spec"]["name"]
+         else f"getVm returned {v['specHash']} / {v['spec']['name']}")
     call("GET", f"/api/v2/vms/{h}/lifecycle", 200, name="getVmLifecycle")
     call("POST", f"/api/v2/vms/{h}/renew", 200, {"days": 7}, name="renewVm")
     call("POST", f"/api/v2/vms/{h}/renew", 409, {"days": 0}, name="renewVm: 0 days -> 409")
@@ -139,6 +142,9 @@ if done["state"] == "COMPLETED":
     call("POST", f"/api/v2/vms/{h}/snapshot", 200, {"label": "contract-test"}, name="snapshotVm")
     call("POST", f"/api/v2/vms/{h}/decommission", 200, {"reason": "contract test"}, name="decommissionVm")
     call("POST", f"/api/v2/vms/{h}/decommission", 409, name="decommissionVm: already decommissioned -> 409")
+    call("GET", f"/api/v2/vms/{h}", 200, name="getVm: after decommission")
+call("GET", "/api/v2/vms/abc", 400, name="getVm: malformed hash -> 400")
+call("GET", "/api/v2/vms/" + "0" * 64, 404, name="getVm: unknown VM -> 404")
 call("GET", "/api/v2/vms/" + "0" * 64 + "/lifecycle", 404, name="getVmLifecycle: unknown VM -> 404")
 call("POST", "/api/v2/vms/" + "0" * 64 + "/renew", 404, {"days": 7}, name="renewVm: unknown VM -> 404")
 
