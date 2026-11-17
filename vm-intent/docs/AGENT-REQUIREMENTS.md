@@ -624,3 +624,37 @@ Risk: low. Attempts: 1. Built: 2026-11-17.
 
 12:38:34 attempt 1: developer: I re-applied the reverted AP-0041 doc fixes and dated them 2026-11-17. This is a docs-only change: the six docs and user-guide.html now say the same as the reverted commit ef99737 except for the 'Last
 13:13:32 attempt 1: review: approved: This is a docs-only change, and it meets all 12 acceptance criteria. (1) API.md no longer names GET /api/v2/vms/{specHash} on its own. It now lists the day-2 calls, GET /api/v2/vms/{specHash}/lifecycl
+
+## AP-0043: Per-user identity part 2a (design review 0040 #1, no behaviour change): one identity value, VmIdentity.of(spec, owner) -> Id(hash, cloudName) with cloudName = spec.name() for now; Interpretation, Batc
+
+Per-user identity part 2 (a short suffix on the cloud-side name for signed-in owners) is the next step of the feature John asked for.
+
+Today the hash is computed in four producers: IntentInterpreter:54, WorkflowActivitiesImpl.expand:55, BatchController:153 and CatalogActivitiesImpl:175. Each returns only specHash, in Interpretation, Models.BatchItem or CatalogModels.PreparedVm. The five ReconcileRequest constructions all pass a literal null as cloudName: RequestController:310, IntentWorkflowImpl:133 and :256, BatchShardWorkflowImpl:91 and CatalogRunWorkflowImpl:247. Without this step, part 2 would add the name in 9 places, and a missed path would quietly keep spec.name(). Staging and live run with sign-in off on the simulator, so no check after mvn test could see that.
+
+This follows the pattern that worked in AP-0021 and AP-0036: build the single point with today's values first, so part 2b changes one branch of VmIdentity.of. Workflows only copy a recorded value, so no getVersion is needed. Old histories decode cloudName as null, and VmReconcileWorkflowImpl.cloudSpec() already treats null as spec.name().
+
+The same change fixes the OpenAPI description of Interpretation.specHash. It still says 'SHA-256 of the canonical spec', which has been true only for anonymous requests since AP-0039.
+
+I checked the older acceptance suites. ap-0036 (which requires the literal null) and ap-0039 (VmIdentity.hash call sites) read sources at their own AP commit, so this change doesn't break them. The live suites only compare OpenAPI snapshots, which this change regenerates.
+
+Not picked this cycle: review 0040 #2 (GET /api/v2/vms/{specHash}). ap-0042/live_api.test.mjs:42 requires the served OpenAPI to have no such operation. A person should decide whether that older live check may be changed before the endpoint is added.
+
+The backlog's 'Done' section holds unbuilt redesign proposals: 0040 #1 to #3, 0035 #3 and others. A person should move them back to the open sections.
+
+Acceptance criteria:
+- VmIdentity (backend/src/main/java/com/example/vmintent/spec/VmIdentity.java) has a public static method of(VmSpec spec, String owner). It returns a record (for example VmIdentity.Id) with exactly two components: String hash and String cloudName. For owner null, "anonymous" and a signed-in owner such as "alice", hash equals today's value: SpecCanonicalizer.hash(spec) for the first two, the owner-including hash for the third. cloudName equals spec.name() for all three. VmIdentityTest has active @Test methods (not @Disabled) that assert both values for each of these owners.
+- Interpretation, Models.BatchItem and CatalogModels.PreparedVm each have a new last component, String cloudName. Their existing shorter constructors are kept and pass null for cloudName, so existing callers and recorded histories still compile and decode.
+- In main code, IntentInterpreter, WorkflowActivitiesImpl.expand, BatchController and CatalogActivitiesImpl each get the hash and the cloud name from a single VmIdentity.of(...) call. No main-code file outside backend/src/main/java/com/example/vmintent/spec/ calls VmIdentity.hash.
+- Every main-code 'new ReconcileRequest(' construction passes, as the fifth argument (cloudName), the cloudName of the Interpretation, BatchItem or PreparedVm it takes specHash from. None of them passes the literal null as the fifth argument. ReconcileRequest's components are unchanged: spec, specHash, requestedBy, requestId, cloudName.
+- Unit tests, each an active @Test (not @Disabled) in backend/src/test/java, check that the recorded cloudName equals spec.name() for each entry point: a single request via the interpreter, a multi-VM request via expand, a batch via BatchController, a catalog run via CatalogActivitiesImpl, and the legacy path.
+- A workflow test on TestWorkflowEnvironment gives an Interpretation or BatchItem a cloudName of 'x-test' that differs from spec.name() (for example 'web-01'). The test asserts that a recording fake provider receives the name 'x-test' for the build, while the saved VM record keeps the asked-for name 'web-01'.
+- backend/src/test/resources/histories/batchshard-v2-cloud-name.json is added, recorded with HistoryRecorder from an active test method, and its recorded BatchItem input contains a cloudName that differs from the spec name. ReplayTest replays every file under histories/, including this one, and mvn test passes. No commit for this requirement modifies or deletes a history file that existed before it.
+- In the OpenAPI document (served /v3/api-docs and the checked-in docs/openapi.json and docs/openapi.yaml, which must match), Interpretation.specHash's description no longer reads only 'SHA-256 of the canonical spec' and says that a signed-in user's hash also covers the user ID. Interpretation has a cloudName property whose description says it is the VM's name in its cloud and is today the same as spec.name.
+- On staging, POST /api/v2/interpret with a text that names the VM (for example 'a small ubuntu server on aws called web-01-<run>') returns 200, and cloudName equals spec.name. A text with no name returns a cloudName equal to the generated spec.name (vm- plus 8 hex characters). A text that needs a question has no cloudName (null or absent).
+- There is no behaviour change on staging. A new request for a uniquely named VM builds it, and its entry in GET /api/v2/vms shows the asked-for name. Sending the same request again is reported as a duplicate and builds nothing. The specHash returned for an anonymous request is unchanged: it is the same value POST /api/v2/interpret returned for that text before the request.
+- docs/DEFINITIONS.md defines 'cloud name' (the name sent to the cloud; today the same as the spec's name; it will get a per-user suffix in part 2b). docs/TEMPORAL-FEATURES.md lists batchshard-v2-cloud-name.json among the replay histories.
+
+Risk: low. Attempts: 1. Built: 2026-11-17.
+
+14:25:31 attempt 1: developer: I built AP-0043 (per-user identity part 2a, no behaviour change). The full backend suite (`mvn -q test`) passes with exit code 0, including ReplayTest over every history.
+15:06:00 attempt 1: review: approved: I approve this change. It puts the hash and the cloud name in one place, as AP-0043 asks, and changes no behaviour.
