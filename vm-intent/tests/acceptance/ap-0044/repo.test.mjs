@@ -18,7 +18,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { dirname, resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ID = 'AP-0044';
@@ -252,13 +253,22 @@ test('criterion 8: the contract script calls getVm for a built VM (200), a malfo
 });
 
 // ------------------------------------------------------------------ 9. ap-0042's live suite
+// The developer stage may not edit acceptance suites, so this edit is made in the pipeline's "AP-0044: acceptance tests"
+// commit; here every AP-0044 commit counts. Before that commit exists (a run straight after the tester stage), the
+// working-tree file is used.
 
-test('criterion 9: an AP-0044 commit changes tests/acceptance/ap-0042/live_api.test.mjs', () => {
-  assert.ok(touching(AP42_LIVE).length > 0, `no ${ID} commit changes ${AP42_LIVE}, so its "GET /api/v2/vms/{specHash} is not served" assertion still stands`);
+const AP42_OWN = ALL.filter((c) => nameStatus(c.sha).some((x) => x.path === `vm-intent/${AP42_LIVE}`)).map((c) => c.sha);
+const AP42_AT = AP42_OWN.length ? AP42_OWN[AP42_OWN.length - 1] : null;
+const ap42Now = () => (AP42_AT ? at(AP42_AT, AP42_LIVE) : readFileSync(join(ROOT, AP42_LIVE), 'utf8').replace(/\r\n/g, '\n'));
+const ap42Diff = () => git(['diff', '--no-renames', '-U0', BEFORE, ...(AP42_AT ? [AP42_AT] : []), '--', `:(top)vm-intent/${AP42_LIVE}`]).replace(/\r/g, '');
+
+test('criterion 9: AP-0044 changes tests/acceptance/ap-0042/live_api.test.mjs', () => {
+  assert.ok(BEFORE, `no ${ID} commit`);
+  assert.ok(ap42Diff().trim().length > 0, `${ID} doesn't change ${AP42_LIVE}, so its "GET /api/v2/vms/{specHash} is not served" assertion still stands`);
 });
 
 test('criterion 9: ap-0042/live_api.test.mjs now asserts GET /api/v2/vms/{specHash} IS served, with a matching title', () => {
-  const src = now(AP42_LIVE);
+  const src = ap42Now();
   assert.ok(!/assert\.ok\(\s*!\s*doc\.paths\[['"]\/api\/v2\/vms\/\{specHash\}['"]\]/.test(src),
     'ap-0042/live_api.test.mjs still asserts GET /api/v2/vms/{specHash} is NOT served');
   assert.match(src, /assert\.ok\(\s*doc\.paths\[['"]\/api\/v2\/vms\/\{specHash\}['"]\]\?*\.get\b/,
@@ -268,9 +278,8 @@ test('criterion 9: ap-0042/live_api.test.mjs now asserts GET /api/v2/vms/{specHa
 });
 
 test('criterion 9: the AP-0044 diff of ap-0042/live_api.test.mjs changes no other assertion', () => {
-  const own = touching(AP42_LIVE);
-  assert.ok(own.length > 0, `no ${ID} commit changes ${AP42_LIVE}`);
-  const diff = git(['diff', '--no-renames', '-U0', BEFORE, own[own.length - 1], '--', `:(top)vm-intent/${AP42_LIVE}`]).replace(/\r/g, '');
+  const diff = ap42Diff();
+  assert.ok(diff.trim().length > 0, `${ID} doesn't change ${AP42_LIVE}`);
   const changed = diff.split('\n').filter((l) => /^[+-](?![+-])/.test(l));
   const removed = changed.filter((l) => l[0] === '-' && /\bassert\./.test(l));
   const added = changed.filter((l) => l[0] === '+' && /\bassert\./.test(l));
@@ -280,7 +289,7 @@ test('criterion 9: the AP-0044 diff of ap-0042/live_api.test.mjs changes no othe
   assert.match(added[0], /assert\.ok\(\s*doc\.paths\[['"]\/api\/v2\/vms\/\{specHash\}['"]\]/);
   // Every other assertion in the file is the same, in the same order.
   const asserts = (s) => s.split('\n').filter((l) => /\bassert\./.test(l) && !/\/api\/v2\/vms\/\{specHash\}['"]\]\?*\.get/.test(l)).map((l) => l.trim());
-  assert.deepEqual(asserts(at(own[own.length - 1], AP42_LIVE)), asserts(at(BEFORE, AP42_LIVE)));
+  assert.deepEqual(asserts(ap42Now()), asserts(at(BEFORE, AP42_LIVE)));
 });
 
 // ------------------------------------------------------------------ 10. untouched areas

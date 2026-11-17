@@ -35,11 +35,11 @@ async function apiDocs() {
   return served;
 }
 
-test('criteria 1-2: the server serves GET /api/v2/vms and GET /api/v2/vms/{specHash}/lifecycle, not GET /api/v2/vms/{specHash}', async () => {
+test('criteria 1-2: the server serves GET /api/v2/vms, GET /api/v2/vms/{specHash}/lifecycle and (since AP-0044) GET /api/v2/vms/{specHash}', async () => {
   const doc = await apiDocs();
   assert.ok(doc.paths['/api/v2/vms']?.get, 'no GET /api/v2/vms in the served OpenAPI document');
   assert.ok(doc.paths['/api/v2/vms/{specHash}/lifecycle']?.get, 'no GET /api/v2/vms/{specHash}/lifecycle served');
-  assert.ok(!doc.paths['/api/v2/vms/{specHash}']?.get, 'the server does serve GET /api/v2/vms/{specHash}; the docs no longer name it');
+  assert.ok(doc.paths['/api/v2/vms/{specHash}']?.get, 'no GET /api/v2/vms/{specHash} served (AP-0044 added getVm)');
 });
 
 test('criterion 1: the VM list GET /api/v2/vms works (200, JSON)', async () => {
