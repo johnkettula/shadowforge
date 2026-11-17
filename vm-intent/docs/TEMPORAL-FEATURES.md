@@ -1,6 +1,6 @@
 # Temporal features in vm-intent
 
-Last updated 2026-11-12.
+Last updated 2026-11-17.
 
 This page explains which Temporal features vm-intent uses, what each one is for, where it is in the
 code, and how to see it working. It's written for someone learning Temporal.
@@ -192,8 +192,9 @@ four recorded ones after them and the two signed-in ones are all still there.
   the same spec): the `ExistingVm` activity finds it and the run uses it ("already built with this
   spec") without starting a `vm-` child workflow.
 
-These four were recorded before per-user identity changes the spec hash, and so the `vm-` child
-workflow IDs, to show that executions started before that change still replay.
+These four were recorded before per-user identity changed the spec hash of signed-in users, and so
+their `vm-` child workflow IDs, to show that executions started before that change still replay.
+Requests with no owner keep the same hash and `vm-` child IDs as before.
 
 All of the above have no owner (sign-in off), so they only cover the anonymous path. Two more were
 recorded with an owner set, while `VmIdentity.hash` still ignored it, so a change to the
@@ -286,11 +287,11 @@ One thing to know: it only skips ahead while a timer is waiting. To wait for a w
 | `ReplayTest` | Every saved history against new code, the workflow class picked by file-name prefix (a file with no known prefix fails), and the seven pinned histories (`intent-v1-*`, `reconcile-v1-*`, `catalog-v1-*`) and the four recorded ones (`intent-v2-multi-existing`, `lifecycle-v1-renewed`, `batchshard-v1-duplicate`, `catalog-v2-existing-vm`) and the two signed-in ones (`intent-v2-signed-in`, `catalog-v3-signed-in`) still present |
 | `RecordedHistoriesTest` | The scenarios behind `intent-v2-multi-existing` (two VMs, one already there), `lifecycle-v1-renewed` (a renewal), `batchshard-v1-duplicate` (a shard with the same spec twice) and `intent-v2-signed-in` (a signed-in request); with `-Dhistories.record=true` they save missing histories |
 | `HistoryRecorderTest` | `HistoryRecorder` writes nothing without `-Dhistories.record=true`, writes a missing file that replays, and leaves an existing file byte-for-byte unchanged |
-| `CatalogRunWorkflowTest` | Steps in order, resume with partial work, teardown, 30-day auto teardown, approvals, blueprints, reusing a VM already built with the same spec (the scenario behind `catalog-v2-existing-vm`), a signed-in run whose owner reaches `prepareVm` (the scenario behind `catalog-v3-signed-in`) |
+| `CatalogRunWorkflowTest` | Steps in order, resume with partial work, teardown, 30-day auto teardown, approvals, blueprints, reusing a VM already built with the same spec (the scenario behind `catalog-v2-existing-vm`), a signed-in run whose owner reaches `prepareVm` (the scenario behind `catalog-v3-signed-in`), the run's owner changes the prepared spec hash so each user gets their own VM |
 | `CountPhrasingTest` | "3 web servers" vs "a RHEL 9 server" |
 | `BatchWorkflowTest` | Batches in shards: rollbacks, duplicates in one batch, throttled creates retried |
 | `VsphereRoutesWorkflowTest` | vSphere builds through the mock vCenter 9 and VCF Automation 9, their rollbacks, and a catalog run that deploys a blueprint and tears it down |
 | `RequestControllerTest` | Answering or cancelling a request: 409 once it has finished or can't take it, 404 for an unknown ID |
 | `VmControllerTest` | Day-2 changes: 404 for a spec hash that matches no VM, 409 for a VM that exists but can't be changed, 400 for a malformed hash |
-| `RequestOwnerFlowTest` | Each request's owner comes from sign-in on the server (`anonymous` when sign-in is off), never from `userId` or `requestedBy`: a single request, a multi-VM request, a batch, preview and the legacy endpoint |
-| `VmIdentityTest` | Golden values: today's canonical strings and spec hash are pinned; for now the hash is the same for every owner (`anonymous` keeps today's hash); the `vm-` and `life-` workflow IDs are built from the hash; `buildKey` is the hash, or the hash + `-` + the run ID's first 8 characters, and `hashOfBuildKey` gives the hash back (the clouds adopt an existing VM only when it matches) |
+| `RequestOwnerFlowTest` | Each request's owner comes from sign-in on the server (`anonymous` when sign-in is off), never from `userId` or `requestedBy`: a single request, a multi-VM request, a batch, preview and the legacy endpoint; a second signed-in user's identical request, or identical batch item, builds its own VM while the first user's repeat is DUPLICATE; a `userId` or `requestedBy` in the body does not change the hash |
+| `VmIdentityTest` | Golden values: no owner (null or `anonymous`) keeps today's pinned canonical strings and hash; two signed-in users get different hashes for the same spec, neither equal to the anonymous hash; a signed-in user's hash is stable (pinned) and changes with the spec; no anonymous spec hashes the same input as a signed-in user; the `vm-` and `life-` workflow IDs are built from the hash; `buildKey` is the hash, or the hash + `-` + the run ID's first 8 characters, and `hashOfBuildKey` gives the hash back; `VmIdentity.sameBuild` is true only for the same spec hash (the clouds adopt an existing VM only when it matches) |
