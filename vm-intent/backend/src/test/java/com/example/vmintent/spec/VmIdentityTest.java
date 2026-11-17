@@ -76,6 +76,42 @@ class VmIdentityTest {
     }
 
     @Test
+    void ofGivesTodaysHashAndTheSpecNameAsTheCloudName() {
+        VmIdentity.Id none = VmIdentity.of(NAMED, null);
+        assertEquals(NAMED_HASH, none.hash());
+        assertEquals("web-01", none.cloudName());
+
+        VmIdentity.Id anonymous = VmIdentity.of(NAMED, "anonymous");
+        assertEquals(NAMED_HASH, anonymous.hash());
+        assertEquals("web-01", anonymous.cloudName());
+
+        VmIdentity.Id alice = VmIdentity.of(NAMED, "alice");
+        assertEquals(NAMED_ALICE_HASH, alice.hash());
+        assertEquals(VmIdentity.hash(NAMED, "alice"), alice.hash());
+        assertEquals("web-01", alice.cloudName(), "no per-user suffix yet");
+    }
+
+    @Test
+    void ofGivesAnUnnamedSpecItsGeneratedNameAsTheCloudName() {
+        VmIdentity.Id anonymous = VmIdentity.of(UNNAMED, null);
+        assertEquals(UNNAMED_HASH, anonymous.hash());
+        assertEquals("vm-" + UNNAMED_HASH.substring(0, 8), anonymous.cloudName());
+        assertEquals(SpecCanonicalizer.withGeneratedName(UNNAMED, UNNAMED_HASH).name(), anonymous.cloudName());
+
+        VmIdentity.Id alice = VmIdentity.of(UNNAMED, "alice");
+        assertEquals(VmIdentity.hash(UNNAMED, "alice"), alice.hash());
+        assertEquals("vm-" + alice.hash().substring(0, 8), alice.cloudName());
+    }
+
+    @Test
+    void theIdHasExactlyAHashAndACloudName() {
+        var components = VmIdentity.Id.class.getRecordComponents();
+        assertEquals(2, components.length);
+        assertEquals("hash", components[0].getName());
+        assertEquals("cloudName", components[1].getName());
+    }
+
+    @Test
     void noAnonymousSpecHashesTheSameInputAsASignedInUser() {
         // Every canonical string starts with "{"; an owner's input never does, whatever the owner.
         for (String owner : List.of("alice", "", "{", "a{\"name\":\"x\"}", "anonymous ")) {

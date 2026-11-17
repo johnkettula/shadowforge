@@ -172,7 +172,8 @@ public class CatalogActivitiesImpl implements CatalogActivities {
             }
         }
         if (!namedFound) problems.add("the blueprint '" + blueprint + "' isn't published (or is retired)");
-        return new PreparedVm(spec, VmIdentity.hash(spec, owner), problems);
+        VmIdentity.Id id = VmIdentity.of(spec, owner);
+        return new PreparedVm(spec, id.hash(), problems, id.cloudName());
     }
 
     @Override

@@ -51,7 +51,8 @@ public class IntentInterpreter {
                     String.join(" ", problems) + " What should I change?");
         }
 
-        String hash = VmIdentity.hash(spec, owner);
+        VmIdentity.Id id = VmIdentity.of(spec, owner);
+        String hash = id.hash();
         VmSpec named = SpecCanonicalizer.withGeneratedName(spec, hash);
         int count = draft.count == null || draft.count < 1 ? 1 : draft.count;
         String summary = PolicyDefaults.summary(named);
@@ -61,6 +62,6 @@ public class IntentInterpreter {
                     + String.format("-%02d", count) + ".");
         }
         return new Interpretation(text, source, named, hash, summary,
-                List.copyOf(assumptions), null, count > 1 ? count : null);
+                List.copyOf(assumptions), null, count > 1 ? count : null, id.cloudName());
     }
 }

@@ -127,8 +127,17 @@ public final class CatalogModels {
     @Schema(description = "An approval step that is waiting.")
     public record Approval(String step, String message, List<String> approvers, String deadline) {}
 
-    /** A vm.create step's VM, worked out and checked. problems = blueprint or policy rules it fails. */
-    public record PreparedVm(com.example.vmintent.spec.VmSpec spec, String specHash, List<String> problems) {}
+    /**
+     * A vm.create step's VM, worked out and checked. problems = blueprint or policy rules it fails.
+     * cloudName = the VM's name in its cloud, from VmIdentity.of (null in histories recorded before
+     * it existed = spec.name).
+     */
+    public record PreparedVm(com.example.vmintent.spec.VmSpec spec, String specHash, List<String> problems,
+                             String cloudName) {
+        public PreparedVm(com.example.vmintent.spec.VmSpec spec, String specHash, List<String> problems) {
+            this(spec, specHash, problems, null);
+        }
+    }
 
     /** What an action did. output = what later steps can read; note = a line for the run's history. */
     public record ActionResult(Map<String, Object> output, String note) {}

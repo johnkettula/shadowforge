@@ -23,7 +23,7 @@ addresses instead, set `VMINTENT_API_SERVER_URLS` (comma-separated).
 
 | Operation ID | Method and path | What it does |
 |---|---|---|
-| `interpretRequest` | `POST /api/v2/interpret` | Preview: text to spec, hash and defaults, or the question it would ask. Builds nothing. |
+| `interpretRequest` | `POST /api/v2/interpret` | Preview: text to spec, hash, cloud name and defaults, or the question it would ask. Builds nothing. |
 | `createRequest` | `POST /api/v2/requests` | Start a one-VM request (asks questions, waits for confirmation) |
 | `getRequest` | `GET /api/v2/requests/{id}` | State, interpretation, VM details, history |
 | `clarifyRequest` | `POST /api/v2/requests/{id}/clarify` | Answer the question (state `AWAITING_CLARIFICATION`). 409 if the request has already finished, or is not waiting for an answer (the message names its state) |

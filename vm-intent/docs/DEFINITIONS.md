@@ -144,8 +144,14 @@ while another user who asks for the same spec gets a VM of their own, with its o
 `vm-` build workflow. With sign-in off, everyone is `anonymous`, so the same spec from anyone is a
 duplicate, as before. Existing VMs keep their hash: nothing recomputes it, because day-2 calls, the
 lifecycle, the inventory check and the VM list all look a VM up by its stored hash.
-Until the cloud-side name gets a per-user suffix (part 2 of per-user identity), the cloud name is
-still just the spec's name: on a real vSphere route (vCenter 9 or VCF Automation 9), a second user's
+
+**Cloud name.** The name sent to the cloud for a VM (`cloudName`). Today it is the same as the
+spec's name (the generated `vm-` + 8 hex characters when none was asked for). `VmIdentity.of(spec,
+owner)` gives the spec hash and the cloud name together, for every way in, and the request workflows
+pass it to the build in `ReconcileRequest.cloudName`; `POST /api/v2/interpret` shows it. In part 2b of
+per-user identity it will get a short per-user suffix for signed-in users, while the VM record keeps
+the name asked for.
+Until the cloud name gets that suffix, it is still just the spec's name: on a real vSphere route (vCenter 9 or VCF Automation 9), a second user's
 VM with the same name as the first user's is refused with `InvalidSpec` by the rule below, so it never
 takes over the first user's VM, while the simulated clouds (the default, keyed on the build key) build
 both. Each build also gets a build key, which the cloud records on the VM it builds: the spec hash,

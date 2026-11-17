@@ -2137,7 +2137,9 @@ components:
           $ref: "#/components/schemas/VmSpec"
         specHash:
           type: string
-          description: SHA-256 of the canonical spec.
+          description: "The VM's identity: the SHA-256 of the canonical spec. For\
+            \ a signed-in user the hash also covers the user ID, so each user gets\
+            \ their own VM."
           example: 3af19a4e8492dc7edd60f92413fe0567546acd258f9c214eaebca7c4dd0d5d72
         summary:
           type: string
@@ -2158,6 +2160,11 @@ components:
           description: How many identical VMs were asked for. Left out when it's one.
           format: int32
           example: 3
+        cloudName:
+          type: string
+          description: The VM's name in its cloud. Today the same as spec.name. Left
+            out when a question is asked.
+          example: web-01
       description: "What a request was understood to mean. Either spec/specHash are\
         \ set, or question is."
     RequestStatus:

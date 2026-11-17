@@ -2,15 +2,19 @@ package com.example.vmintent.workflow;
 
 import com.example.vmintent.spec.SpecCanonicalizer;
 import com.example.vmintent.spec.VmSpec;
+import com.example.vmintent.workflow.Models.BatchItem;
 import com.example.vmintent.workflow.Models.LinkOrder;
 import com.example.vmintent.workflow.Models.ProviderPlan;
 import com.example.vmintent.workflow.Models.ReconcileRequest;
+import com.example.vmintent.workflow.Models.ShardProgress;
+import com.example.vmintent.workflow.Models.ShardRequest;
 import com.example.vmintent.workflow.Models.VmResult;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowFailedException;
 import io.temporal.client.WorkflowOptions;
 import io.temporal.client.WorkflowStub;
 import io.temporal.testing.TestWorkflowEnvironment;
+import io.temporal.testing.WorkflowReplayer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -138,6 +142,32 @@ class CloudNameTest {
         assertEquals("DELETE", undo.type());
         assertEquals("web-01-test", undo.spec().name());
         assertTrue(records.savedNames.stream().allMatch("web-01"::equals), "saved as " + records.savedNames);
+    }
+
+    /**
+     * batchshard-v2-cloud-name: a shard whose BatchItem carries a cloud name that differs from the
+     * spec's name, so the workflows' copying of the recorded cloud name is pinned in a history.
+     */
+    @Test
+    void aBatchItemsCloudNameReachesTheCloudAndTheRecordKeepsTheAskedForName() throws Exception {
+        VmSpec spec = TestFakes.spec("web-01", "aws", 30);
+        String hash = SpecCanonicalizer.hash(spec);
+        BatchItem item = new BatchItem(spec, hash, "x-test");
+        String id = BatchProvisionWorkflowImpl.shardId("batch-cloud-name", 0);
+        BatchShardWorkflow shard = env.getWorkflowClient().newWorkflowStub(BatchShardWorkflow.class,
+                WorkflowOptions.newBuilder().setTaskQueue(TaskQueues.INTENT).setWorkflowId(id).build());
+        ShardProgress p = shard.run(new ShardRequest("batch-cloud-name", 0, List.of(item), 1, "jdoe"));
+
+        assertEquals(1, p.running());
+        assertEquals(List.of("x-test"), cloud.createdNames);
+        assertTrue(cloud.planned.stream().allMatch("x-test"::equals), "planned as " + cloud.planned);
+        assertEquals("x-test", TestFakes.buildInput(env.getWorkflowClient(), hash).cloudName());
+        assertEquals("RUNNING", records.state.get(hash));
+        assertFalse(records.savedNames.isEmpty());
+        assertTrue(records.savedNames.stream().allMatch("web-01"::equals), "saved as " + records.savedNames);
+
+        WorkflowReplayer.replayWorkflowExecution(env.getWorkflowClient().fetchHistory(id), BatchShardWorkflowImpl.class);
+        HistoryRecorder.record(env.getWorkflowClient(), id, "batchshard-v2-cloud-name");
     }
 
     private VmReconcileWorkflow build(String hash) {

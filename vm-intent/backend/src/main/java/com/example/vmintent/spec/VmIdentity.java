@@ -20,6 +20,22 @@ public final class VmIdentity {
 
     private VmIdentity() {}
 
+    /**
+     * A VM's identity. hash = its spec hash; cloudName = the name the VM is given in its cloud.
+     * Today cloudName is the spec's name (the generated vm-xxxxxxxx one when the spec has none);
+     * part 2b of per-user identity adds a short suffix to it for signed-in owners, here only.
+     */
+    public record Id(String hash, String cloudName) {}
+
+    /**
+     * The identity of this spec for this owner (null or "anonymous" = nobody signed in). Every place
+     * that turns a spec into a VM to build gets the hash and the cloud name from here, together.
+     */
+    public static Id of(VmSpec spec, String owner) {
+        String hash = hash(spec, owner);
+        return new Id(hash, SpecCanonicalizer.withGeneratedName(spec, hash).name());
+    }
+
     /** The spec hash of this spec for this owner (null or "anonymous" = nobody signed in). */
     public static String hash(VmSpec spec, String owner) {
         if (isAnonymous(owner)) return SpecCanonicalizer.hash(spec);

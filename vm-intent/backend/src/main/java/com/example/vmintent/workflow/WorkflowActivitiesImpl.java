@@ -52,7 +52,8 @@ public class WorkflowActivitiesImpl implements IntentActivities, RecordActivitie
         List<BatchItem> items = new ArrayList<>(n);
         for (int i = 1; i <= n; i++) {
             VmSpec spec = it.spec().withName(String.format("%s-%02d", it.spec().name(), i));
-            items.add(new BatchItem(spec, VmIdentity.hash(spec, owner)));
+            VmIdentity.Id id = VmIdentity.of(spec, owner);
+            items.add(new BatchItem(spec, id.hash(), id.cloudName()));
         }
         return items;
     }
