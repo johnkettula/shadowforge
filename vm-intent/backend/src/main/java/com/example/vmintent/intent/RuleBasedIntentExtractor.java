@@ -1,5 +1,6 @@
 package com.example.vmintent.intent;
 
+import com.example.vmintent.spec.VmNames;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -73,7 +74,7 @@ public class RuleBasedIntentExtractor implements IntentExtractor {
     }
 
     private static final Pattern NAME = Pattern.compile(
-            "(?:called|named|name it|hostname)\\s+[\"']?([a-z0-9][a-z0-9-]{1,40})");
+            "(?:called|named|name it|hostname)\\s+[\"']?(" + VmNames.REGEX + ")");
     private static final Pattern CPU = Pattern.compile(
             "(\\d+)\\s*-?\\s*(?:v\\s?cpus?|cpus?|vcores?|cores?|processors?|procs?)(?![a-z])");
     /** "CPU: 4", "vcpus=8", "cores: 16" */

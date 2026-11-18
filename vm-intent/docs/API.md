@@ -96,6 +96,15 @@ addresses instead, set `VMINTENT_API_SERVER_URLS` (comma-separated).
   refused the same way ("... that vm-intent didn't build; choose another name"); on VCF Automation that
   is any same-named deployment with no vm-intent key in its description. The simulated clouds (the
   default) don't check names.
+- **VM names.** A spec's `name` must be lower-case letters, digits and hyphens, 2 to 41 characters, not
+  starting with a hyphen (`[a-z0-9][a-z0-9-]{1,40}`, held in `spec/VmNames`). A name that breaks the rule
+  is rejected, never lower-cased or shortened (that would change the `specHash` and hide duplicates): a
+  batch item goes into `rejected` with a message naming it (and the batch is `400` if no item is left),
+  `POST /api/v1/vms` returns `400` with the message, and a text request (`/api/v2/interpret`,
+  `/api/v2/requests`) gets the usual question ending "What should I change?". A missing or blank name is
+  allowed: a missing one is generated as `vm-` plus the first 8 hex characters of the `specHash`. Catalog
+  runs lower-case their `name` input first, then apply the same rule. VMs that already exist are not
+  checked again.
 - **Long-running work is asynchronous.** Create calls return at once with an ID; poll the matching
   `GET` every 2–5 seconds. Final request states are `COMPLETED`, `PARTIAL`, `FAILED`, `CANCELLED` and
   `DUPLICATE` (`PARTIAL`: a request for several VMs where some were built and at least one failed); a

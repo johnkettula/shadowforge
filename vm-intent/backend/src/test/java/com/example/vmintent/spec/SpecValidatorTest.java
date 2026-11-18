@@ -113,6 +113,70 @@ public class SpecValidatorTest {
         assertEquals("Lifetime must be 0-365 days.", problems.get(0));
     }
 
+    private static List<String> problemsForName(String name) {
+        return SpecValidator.problems(new VmSpec(name, "aws", "us-east", 2, 4, "ubuntu", "24.04", 50, "ssd", "dev", 30, false));
+    }
+
+    private static void assertNameRejected(String name) {
+        List<String> problems = problemsForName(name);
+        assertEquals(1, problems.size(), "expected one problem for '" + name + "'");
+        assertTrue(problems.get(0).contains("'" + name + "'"), problems.get(0));
+    }
+
+    @Test
+    void testNameOfFortyOneCharactersAccepted() {
+        assertEquals(List.of(), problemsForName("a".repeat(39) + "-1"));
+    }
+
+    @Test
+    void testNameOfFortyTwoCharactersRejected() {
+        assertNameRejected("a".repeat(40) + "-1");
+    }
+
+    @Test
+    void testNameWithUpperCaseRejected() {
+        assertNameRejected("Web-01");
+    }
+
+    @Test
+    void testNameWithSpaceRejected() {
+        assertNameRejected("web 01");
+    }
+
+    @Test
+    void testNameWithUnderscoreRejected() {
+        assertNameRejected("web_01");
+    }
+
+    @Test
+    void testNameWithLeadingHyphenRejected() {
+        assertNameRejected("-web-01");
+    }
+
+    @Test
+    void testPlainNameAccepted() {
+        assertEquals(List.of(), problemsForName("web-01"));
+    }
+
+    @Test
+    void testMissingOrBlankNameAccepted() {
+        assertEquals(List.of(), problemsForName(null));
+        assertEquals(List.of(), problemsForName(""));
+        assertEquals(List.of(), problemsForName("   "));
+    }
+
+    @Test
+    void testGeneratedNameAccepted() {
+        VmSpec named = SpecCanonicalizer.withGeneratedName(problemsSpec(null), "0123456789abcdef0123");
+        assertTrue(named.name().matches("vm-[0-9a-f]{8}"), named.name());
+        assertEquals(List.of(), SpecValidator.problems(named));
+        assertEquals(List.of(), problemsForName("vm-deadbeef"));
+    }
+
+    private static VmSpec problemsSpec(String name) {
+        return new VmSpec(name, "aws", "us-east", 2, 4, "ubuntu", "24.04", 50, "ssd", "dev", 30, false);
+    }
+
     @Test
     void testTtlDaysThreeHundredSixtySix() {
         VmSpec s = new VmSpec("web-01", "aws", "us-east", 2, 4, "ubuntu", "24.04", 50, "ssd", "dev", 366, false);

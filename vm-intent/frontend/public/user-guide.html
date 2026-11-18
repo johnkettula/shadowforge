@@ -161,7 +161,7 @@ svg .lines path { fill: none; stroke: var(--quiet); stroke-width: 1.25; } svg .h
 <tr>
 <td>Name</td>
 <td>called app-db-01</td>
-<td>none</td>
+<td>generated: vm- and 8 letters/digits from the spec hash, e.g. vm-1a2b3c4d</td>
 </tr>
 <tr>
 <td>Public IP</td>
@@ -208,9 +208,14 @@ svg .lines path { fill: none; stroke: var(--quiet); stroke-width: 1.25; } svg .h
 <td>Operating systems</td>
 <td>ubuntu, rhel, windows, debian, rocky</td>
 </tr>
+<tr>
+<td>VM name</td>
+<td>lower-case letters, digits and hyphens, 2 to 41 characters, not starting with a hyphen; leave it out to get a generated one</td>
+</tr>
 </tbody>
 </table></div>
 <p>If vm-intent doesn't recognise a size or a place, it asks rather than guessing.</p>
+<p><strong>VM names are checked, never changed.</strong> A name that breaks the rule above (for example <code>Web 01</code>, <code>web_01</code> or 42 characters) is not lower-cased or shortened, because that would make a repeated request look new. Instead a text request gets a question ("VM name '...' must be ... What should I change?"), a batch item with that name is rejected (it appears in the batch's rejected list, and the batch returns 400 if nothing else could be built) and the legacy JSON API returns 400. A missing name is never a problem: vm-intent generates one such as <code>vm-1a2b3c4d</code>. A request for several VMs adds <code>-01</code>, <code>-02</code> and so on to the name.</p>
 <h3>Try these</h3>
 <ul>
 <li>Click the first four example chips and <strong>Preview</strong> each. They are worded differently but give the <strong>same spec hash</strong>.</li>
