@@ -1,6 +1,6 @@
 # vm-intent REST API: guide for calling services
 
-Last updated 2026-11-17.
+Last updated 2026-11-18.
 
 The API is described by an **OpenAPI 3.0** document that the server generates from its own code, so the
 document always matches what the server does. `tests/api_contract_test.py` calls every endpoint and checks
@@ -38,9 +38,9 @@ addresses instead, set `VMINTENT_API_SERVER_URLS` (comma-separated).
 | `getVm` | `GET /api/v2/vms/{specHash}` | One VM's record (spec, state, cloud details) by its spec hash, in any state. 400 if the hash isn't 64 lower-case hex characters, 404 if no VM has it |
 | `getVmLifecycle` | `GET /api/v2/vms/{specHash}/lifecycle` | Expiry, power, current size, snapshots |
 | `renewVm` | `POST /api/v2/vms/{specHash}/renew` | `{"days": 14}`: push the expiry back (1-90 days) |
-| `resizeVm` | `POST /api/v2/vms/{specHash}/resize` | `{"vcpu": 4, "memoryGiB": 16}` |
+| `resizeVm` | `POST /api/v2/vms/{specHash}/resize` | `{"vcpu": 4, "memoryGiB": 16}`: vCPU 1-64, memory 1-512 GiB |
 | `powerVm` | `POST /api/v2/vms/{specHash}/power` | `{"on": false}` |
-| `snapshotVm` | `POST /api/v2/vms/{specHash}/snapshot` | `{"label": "before-upgrade"}` |
+| `snapshotVm` | `POST /api/v2/vms/{specHash}/snapshot` | `{"label": "before-upgrade"}`: lowercase letters, digits and dashes, up to 40 characters; at most 20 snapshots per VM |
 | `decommissionVm` | `POST /api/v2/vms/{specHash}/decommission` | Remove the VM now |
 | `listInventoryChecks` | `GET /api/v2/inventory-checks` | Results of the nightly drift and orphan check |
 | `runInventoryCheck` | `POST /api/v2/inventory-checks` | Run the check now (ADMIN) |
