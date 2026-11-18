@@ -47,7 +47,7 @@ svg .lines path { fill: none; stroke: var(--quiet); stroke-width: 1.25; } svg .h
 <div class="top"><a href="/">&larr; Back to the app</a><a href="/swagger-ui.html">API documentation (Swagger)</a></div>
 <h1>vm-intent User Guide</h1>
 
-<p class="updated">Last updated 2026-11-17.</p>
+<p class="updated">Last updated 2026-11-18.</p>
 <nav class="toc" aria-label="Contents"><strong>Contents</strong><ol><li><a href='#what-vm-intent-does'>What vm-intent does</a></li><li><a href='#opening-the-app'>Opening the app</a></li><li><a href='#requesting-one-vm'>Requesting one VM</a></li><li><a href='#following-a-request'>Following a request</a></li><li><a href='#several-vms-in-one-request'>Several VMs in one request</a></li><li><a href='#looking-after-a-vm-expiry-and-changes'>Looking after a VM: expiry and changes</a></li><li><a href='#the-nightly-inventory-check'>The nightly inventory check</a></li><li><a href='#catalog-runs-ready-made-jobs-from-operators'>Catalog runs: ready-made jobs from operators</a></li><li><a href='#compliance-decisions-archive-and-replay'>Compliance: decisions, archive and replay</a></li><li><a href='#building-many-vms-at-once'>Building many VMs at once</a></li><li><a href='#legacy-json-and-the-inventory'>Legacy JSON and the inventory</a></li><li><a href='#sign-in-and-roles'>Sign-in and roles</a></li><li><a href='#for-other-services-the-rest-api'>For other services: the REST API</a></li><li><a href='#starting-and-stopping-the-app-on-windows'>Starting and stopping the app on Windows</a></li><li><a href='#troubleshooting'>Troubleshooting</a></li></ol></nav>
 
 <h2 id='what-vm-intent-does'>What vm-intent does</h2>
@@ -171,6 +171,45 @@ svg .lines path { fill: none; stroke: var(--quiet); stroke-width: 1.25; } svg .h
 </tbody>
 </table></div>
 <p>Size names stand for fixed sizes: xsmall 1 vCPU / 2 GiB, small 2 / 4, medium 4 / 16, large 8 / 32, xlarge 16 / 64. If you give only cores or only memory, the other is set at 4 GiB per vCPU.</p>
+<p><strong>Limits.</strong> A spec must stay within these limits. A request outside them is refused, with the reason.</p>
+<div class='table-wrap'><table>
+<thead>
+<tr>
+<th>Detail</th>
+<th>Allowed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>vCPU</td>
+<td>1-64</td>
+</tr>
+<tr>
+<td>Memory</td>
+<td>1-512 GiB</td>
+</tr>
+<tr>
+<td>Disk</td>
+<td>10-4096 GiB, and at least 64 GiB for Windows</td>
+</tr>
+<tr>
+<td>Lifetime</td>
+<td>at most 365 days</td>
+</tr>
+<tr>
+<td>Cloud regions (AWS, Azure, GCP)</td>
+<td>us-east, us-west, us-central, eu-west</td>
+</tr>
+<tr>
+<td>vSphere datacenters</td>
+<td>dc1, dc2</td>
+</tr>
+<tr>
+<td>Operating systems</td>
+<td>ubuntu, rhel, windows, debian, rocky</td>
+</tr>
+</tbody>
+</table></div>
 <p>If vm-intent doesn't recognise a size or a place, it asks rather than guessing.</p>
 <h3>Try these</h3>
 <ul>
@@ -247,7 +286,7 @@ svg .lines path { fill: none; stroke: var(--quiet); stroke-width: 1.25; } svg .h
 </tr>
 <tr>
 <td>Resize</td>
-<td>Change vCPU and memory. If the cloud refuses, nothing changes and you see why</td>
+<td>Change vCPU (1-64) and memory (1-512 GiB). If the cloud refuses, nothing changes and you see why</td>
 </tr>
 <tr>
 <td>Power off / on</td>
@@ -255,7 +294,7 @@ svg .lines path { fill: none; stroke: var(--quiet); stroke-width: 1.25; } svg .h
 </tr>
 <tr>
 <td>Take snapshot</td>
-<td>Save a snapshot with a label (lowercase letters, digits and dashes)</td>
+<td>Save a snapshot with a label (lowercase letters, digits and dashes, up to 40 characters). A VM keeps at most 20 snapshots</td>
 </tr>
 <tr>
 <td>Remove this VM</td>

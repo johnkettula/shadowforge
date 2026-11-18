@@ -1,6 +1,6 @@
 # vm-intent User Guide
 
-Last updated 2026-11-17.
+Last updated 2026-11-18.
 
 ## What vm-intent does
 
@@ -72,6 +72,18 @@ Mention any of these, in any order and any wording. Anything you leave out gets 
 
 Size names stand for fixed sizes: xsmall 1 vCPU / 2 GiB, small 2 / 4, medium 4 / 16, large 8 / 32, xlarge 16 / 64. If you give only cores or only memory, the other is set at 4 GiB per vCPU.
 
+**Limits.** A spec must stay within these limits. A request outside them is refused, with the reason.
+
+| Detail | Allowed |
+| --- | --- |
+| vCPU | 1-64 |
+| Memory | 1-512 GiB |
+| Disk | 10-4096 GiB, and at least 64 GiB for Windows |
+| Lifetime | at most 365 days |
+| Cloud regions (AWS, Azure, GCP) | us-east, us-west, us-central, eu-west |
+| vSphere datacenters | dc1, dc2 |
+| Operating systems | ubuntu, rhel, windows, debian, rocky |
+
 If vm-intent doesn't recognise a size or a place, it asks rather than guessing.
 
 ### Try these
@@ -134,9 +146,9 @@ Every VM gets an expiry date from its lifetime (dev 30 days, test 14, prod never
 | Action | What it does |
 | --- | --- |
 | Renew +7 / +30 days | Push the expiry back. At most 90 days at a time, and never more than 365 days from today |
-| Resize | Change vCPU and memory. If the cloud refuses, nothing changes and you see why |
+| Resize | Change vCPU (1-64) and memory (1-512 GiB). If the cloud refuses, nothing changes and you see why |
 | Power off / on | Stop or start the VM. It keeps its expiry date |
-| Take snapshot | Save a snapshot with a label (lowercase letters, digits and dashes) |
+| Take snapshot | Save a snapshot with a label (lowercase letters, digits and dashes, up to 40 characters). A VM keeps at most 20 snapshots |
 | Remove this VM | Delete it now. It asks *Sure?* first, because this can't be undone |
 
 A change that can't be done (renewing a VM that never expires, powering off a VM that's already off) is refused straight away with the reason, and nothing happens to the VM. With sign-in on, only the VM's owner or an admin can change it.

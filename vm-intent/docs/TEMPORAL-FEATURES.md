@@ -1,6 +1,6 @@
 # Temporal features in vm-intent
 
-Last updated 2026-11-17.
+Last updated 2026-11-18.
 
 This page explains which Temporal features vm-intent uses, what each one is for, where it is in the
 code, and how to see it working. It's written for someone learning Temporal.
@@ -72,7 +72,9 @@ CREATE order over the link and the undo all use that name. The VM record, the au
 lifecycle workflow keep the name asked for. The workflows never work the name out themselves. They
 only copy it from the request, which is stored in the history. So a build that is still running
 when new code is deployed replays with the name it started with, and its rollback deletes the VM it
-really made. Today every caller passes null, so the cloud name is the same as the name asked for.
+really made. Every caller copies the cloud name that `VmIdentity.of` gave the Interpretation, BatchItem
+or PreparedVm, which today is the spec's name (or the generated `vm-` name). Only histories recorded
+before that change carry a null `cloudName`, which the build treats as `spec.name`.
 
 - Code: `workflow/VmReconcileWorkflowImpl.java` (`cloudSpec`)
 - Try it: name a VM with "fail" in it (`called fail-demo`).
@@ -302,6 +304,6 @@ One thing to know: it only skips ahead while a timer is waiting. To wait for a w
 | `BatchWorkflowTest` | Batches in shards: rollbacks, duplicates in one batch, throttled creates retried |
 | `VsphereRoutesWorkflowTest` | vSphere builds through the mock vCenter 9 and VCF Automation 9, their rollbacks, and a catalog run that deploys a blueprint and tears it down |
 | `RequestControllerTest` | Answering or cancelling a request: 409 once it has finished or can't take it, 404 for an unknown ID |
-| `VmControllerTest` | Day-2 changes: 404 for a spec hash that matches no VM, 409 for a VM that exists but can't be changed, 400 for a malformed hash |
+| `VmControllerTest` | Day-2 changes: 404 for a spec hash that matches no VM, 409 for a VM that exists but can't be changed, 400 for a malformed hash. `GET /api/v2/vms/{specHash}` (`getVm`): 200 and the record for a known VM in any state, 400 for a malformed hash, 404 for an unknown one |
 | `RequestOwnerFlowTest` | Each request's owner comes from sign-in on the server (`anonymous` when sign-in is off), never from `userId` or `requestedBy`: a single request, a multi-VM request, a batch, preview and the legacy endpoint; a second signed-in user's identical request, or identical batch item, builds its own VM while the first user's repeat is DUPLICATE; a `userId` or `requestedBy` in the body does not change the hash; the cloud name recorded for a single request, a multi-VM request, a batch and the legacy endpoint is the spec's name, and is what the build gets |
 | `VmIdentityTest` | Golden values: no owner (null or `anonymous`) keeps today's pinned canonical strings and hash; two signed-in users get different hashes for the same spec, neither equal to the anonymous hash; a signed-in user's hash is stable (pinned) and changes with the spec; no anonymous spec hashes the same input as a signed-in user; `VmIdentity.of` gives exactly a hash (today's, for null, `anonymous` and a signed-in owner) and a cloud name (the spec's name, or the generated one); the `vm-` and `life-` workflow IDs are built from the hash; `buildKey` is the hash, or the hash + `-` + the run ID's first 8 characters, and `hashOfBuildKey` gives the hash back; `VmIdentity.sameBuild` is true only for the same spec hash (the clouds adopt an existing VM only when it matches) |

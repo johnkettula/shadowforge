@@ -679,3 +679,57 @@ Risk: low. Attempts: 2. Built: 2026-11-17.
 
 16:59:28 attempt 2: developer: AP-0044 is still blocked on criterion 9, and I couldn't fix it. It needs a one-line change to tests/acceptance/ap-0042/live_api.test.mjs, and the pipeline refused my edit with: "vm-intent/tests/accept
 17:42:09 attempt 2: review: approved: I'm approving this change. It adds `GET /api/v2/vms/{specHash}` (operationId `getVm`) to VmController, and it meets every acceptance criterion with nothing extra.
+
+## AP-0046: Daily docs 2026-11-18: TEMPORAL-FEATURES says callers copy cloudName from VmIdentity.of (not null) and lists VmControllerTest's getVm tests; README's code map names VmIdentity.of and the cloud name; D
+
+I read README.md and every doc under docs/ in full and checked them against main at 4ee25f4. These are still out of date or missing:
+(1) TEMPORAL-FEATURES.md:75 says 'Today every caller passes null, so the cloud name is the same as the name asked for.' Since AP-0043 that is false. All five ReconcileRequest constructions (RequestController:310, IntentWorkflowImpl:133/:257, BatchShardWorkflowImpl:91, CatalogRunWorkflowImpl:247) copy cloudName from the Interpretation, BatchItem or PreparedVm that VmIdentity.of filled in. Only histories recorded before AP-0043 decode it as null.
+(2) The VmControllerTest row at TEMPORAL-FEATURES.md:305 covers only day-2 changes. AP-0044 added getVmReturnsAKnownRecordInAnyState, getVmWithAMalformedSpecHashIs400 and getVmWithAnUnknownSpecHashIs404.
+(3) README.md:98-102 describes VmIdentity without VmIdentity.of or the cloud name it now returns (VmIdentity.Id(hash, cloudName)).
+(4) DEFINITIONS.md:119 gives blueprint.deploy only default values ('timeoutMinutes (90), everySeconds (30)'), and :121 says out-of-range with: numbers are moved to the nearest end. The code clamps timeoutMinutes to 5-1440 and everySeconds to 10-600 (CatalogRunWorkflowImpl:296-297), which VSPHERE.md:184-185 already says.
+(5) No user-facing doc states the spec limits that SpecValidator.problems enforces: vCPU 1-64, memory 1-512 GiB, disk 10-4096 GiB (Windows at least 64 GiB), lifetime at most 365 days, cloud regions us-east, us-west, us-central and eu-west, vSphere datacenters dc1 and dc2, and the approved OS list (ubuntu, rhel, windows, debian, rocky).
+(6) The lifecycle validators (VmLifecycleWorkflowImpl:39-40, 182-184, 242-245) allow resize to 1-64 vCPU and 1-512 GiB, a snapshot label of [a-z0-9][a-z0-9-]{0,39} (up to 40 characters), and at most 20 snapshots per VM. USER-GUIDE.md:137-139 and API.md:41/43 give none of these limits.
+I checked these and found them correct, so they are left alone: API.md (43 operations, 61 checks, the getVm row), DEFINITIONS' identity and cloud-name text, AUDIT.md, ONE-WAY-LINK.md, SCALING.md (rate limits, simulator and cache defaults), KUBERNETES.md (no deploy/ change since AP-0031) and VSPHERE.md.
+The following must not be edited:
+- docs/AZURE.md: no error was found, and ap-0017/repo.test.mjs still reads it from the working tree (the owner also asked to leave the Azure files alone).
+- docs/SECURITY.md: protected.
+- docs/AGENT-REQUIREMENTS.md: the pipeline writes it.
+The Python markdown package isn't installed in the worktree, so if docs/build-user-guide.py can't run, the developer edits frontend/public/user-guide.html by hand to match its output.
+
+Acceptance criteria:
+- 1. docs/TEMPORAL-FEATURES.md, section 3 ('Rollback (saga)'): the sentence 'Today every caller passes null, so the cloud name is the same as the name asked for.' is gone. In its place, the section says that every caller copies the cloud name that VmIdentity.of gave the Interpretation, BatchItem or PreparedVm, which today is the spec's name (or the generated vm- name). The text must contain 'VmIdentity.of' and the word 'copies' or 'copy'. It also says that only histories recorded before that change carry a null cloudName, which the build treats as spec.name.
+- 2. docs/TEMPORAL-FEATURES.md, section 12: the VmControllerTest table row still has everything it says today: day-2 changes, 404 for a spec hash that matches no VM, 409 for a VM that exists but can't be changed, 400 for a malformed hash. It also names GET /api/v2/vms/{specHash} (or getVm), with 200 and the record for a known VM in any state, 400 for a malformed hash and 404 for an unknown one. backend/src/test/java/com/example/vmintent/api/VmControllerTest.java has active @Test methods for these three getVm cases.
+- 3. README.md, code map, spec/ entry: it still says VmIdentity is the one place that computes a VM's spec hash. It also names VmIdentity.of and says this gives the spec hash together with the VM's cloud name (cloudName), which today is the spec's name.
+- 4. docs/DEFINITIONS.md, Actions table, blueprint.deploy row: gives timeoutMinutes as 5-1440 with default 90, and everySeconds as 10-600 with default 30. These ranges match CatalogRunWorkflowImpl's clamp calls for blueprint.deploy and VSPHERE.md's blueprint.deploy example.
+- 5. docs/USER-GUIDE.md, 'What to say' section: a short paragraph or table gives the limits a spec must meet:
+- vCPU 1-64;
+- memory 1-512 GiB;
+- disk 10-4096 GiB, and at least 64 GiB for Windows;
+- lifetime at most 365 days;
+- cloud regions us-east, us-west, us-central and eu-west;
+- vSphere datacenters dc1 and dc2;
+- operating systems ubuntu, rhel, windows, debian and rocky.
+It also says a request outside these limits is refused with the reason. Each number and name matches SpecValidator.java.
+- 6. docs/USER-GUIDE.md, 'Looking after a VM' table:
+- the Resize row says vCPU 1-64 and memory 1-512 GiB;
+- the Take snapshot row says the label has lowercase letters, digits and dashes, up to 40 characters, and that a VM keeps at most 20 snapshots.
+The numbers match VmLifecycleWorkflowImpl (MAX_VCPU, MAX_MEMORY_GIB, MAX_SNAPSHOTS and the label pattern).
+- 7. docs/API.md, Operations table:
+- the resizeVm row adds the 1-64 vCPU and 1-512 GiB ranges;
+- the snapshotVm row adds the label rule (lowercase letters, digits and dashes, up to 40 characters) and the limit of 20 snapshots per VM.
+The table still has 43 rows, every other API.md operation count still says 43, and the '61 checks' sentence is unchanged.
+- 8. frontend/public/user-guide.html matches the new docs/USER-GUIDE.md: it contains the limits paragraph from criterion 5 (for example '4096' and 'eu-west'), the 40-character and 20-snapshot text from criterion 6, and 'Last updated 2026-11-18.'.
+- 9. Dates: line 3 of each of these files is exactly 'Last updated 2026-11-18.', just under the title and after one blank line: README.md, docs/API.md, docs/DEFINITIONS.md, docs/TEMPORAL-FEATURES.md and docs/USER-GUIDE.md. Of the files that the kept commits for this requirement change, no other doc has its 'Last updated' line changed. When finding those commits, use --no-merges and leave out subjects matching '^AP-\d+: (acceptance tests|record the requirement)'.
+- 10. Scope: the kept commits for this requirement (filtered the same way) change only these files:
+- README.md;
+- the five docs/*.md files above;
+- frontend/public/user-guide.html.
+No kept commit for this requirement touches any of these:
+- backend/, frontend/src/ or tests/ (other than the acceptance tests the pipeline adds);
+- docs/openapi.json or docs/openapi.yaml;
+- docs/AZURE.md or docs/SECURITY.md.
+
+Risk: low. Attempts: 1. Built: 2026-11-18.
+
+00:41:11 attempt 1: developer: I fixed the six out-of-date doc items AP-0046 lists. I changed docs only, no code.
+01:19:23 attempt 1: review: approved: This is a docs-only change and it meets all 10 acceptance criteria. I checked each new statement against the code:

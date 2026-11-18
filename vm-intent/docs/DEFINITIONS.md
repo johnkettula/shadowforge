@@ -1,6 +1,6 @@
 # Catalog definitions and runs
 
-Last updated 2026-11-17.
+Last updated 2026-11-18.
 
 Technical operators describe repeatable provisioning jobs in YAML. vm-intent checks each file when
 it's published and runs it as a Temporal workflow. There are two kinds of file:
@@ -116,7 +116,7 @@ so expressions stay valid if it's swapped for cel-java later.
 | `config.apply` | `vm`, `settings` (a map) | putting the old values back | only values that differ are written |
 | `check.until` | `vm`, `until`; optional `everySeconds` (5-3600, default 30), `timeoutMinutes` (1-1440, default 30) | nothing (it only looks) | looks again |
 | `approval.wait` | `message`; optional `approvers` (a list of names), `timeoutHours` (1-72, default 24) | nothing | waits again |
-| `blueprint.deploy` | `blueprint`, `name` (the deployment's name); optional `version` (default: newest released), `inputs` (a map), `timeoutMinutes` (90), `everySeconds` (30) | removing the deployment | a deployment with that name that is running or done is used; a failed one is removed and asked for again |
+| `blueprint.deploy` | `blueprint`, `name` (the deployment's name); optional `version` (default: newest released), `inputs` (a map), `timeoutMinutes` (5-1440, default 90), `everySeconds` (10-600, default 30) | removing the deployment | a deployment with that name that is running or done is used; a failed one is removed and asked for again |
 
 A `with:` number outside its range is moved to the nearest end when the step runs. A step's own
 `attempts` (1-10) or `timeoutMinutes` (1-1440) outside its range is refused when the definition is
