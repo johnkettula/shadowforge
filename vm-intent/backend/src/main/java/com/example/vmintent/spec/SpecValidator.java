@@ -16,6 +16,10 @@ public final class SpecValidator {
 
     public static List<String> problems(VmSpec s) {
         List<String> p = new ArrayList<>();
+        // A blank name is fine: SpecCanonicalizer.withGeneratedName fills in vm-<hash8>.
+        if (s.name() != null && !s.name().isBlank() && !VmNames.isValid(s.name()))
+            p.add("VM name '" + s.name() + "' must be 2-" + VmNames.MAX_LENGTH
+                    + " lower-case letters, digits or hyphens, not starting with a hyphen.");
         if (!PROVIDERS.contains(s.provider())) p.add("Unknown platform '" + s.provider() + "'.");
         if ("vsphere".equals(s.provider()) && !DATACENTERS.contains(s.region()))
             p.add("vSphere VMs must go in a datacenter (dc1 or dc2), not '" + s.region() + "'.");

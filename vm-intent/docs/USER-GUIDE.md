@@ -67,7 +67,7 @@ Mention any of these, in any order and any wording. Anything you leave out gets 
 | Disk | 200 GB ssd | 50 GiB SSD, 128 GiB for Windows |
 | Environment | dev, test, staging, production | dev |
 | Lifetime | for 2 weeks, for 10 days | dev 30 days, test 14, staging 30, prod never expires |
-| Name | called app-db-01 | none |
+| Name | called app-db-01 | generated: vm- and 8 letters/digits from the spec hash, e.g. vm-1a2b3c4d |
 | Public IP | public IP | private IP only |
 
 Size names stand for fixed sizes: xsmall 1 vCPU / 2 GiB, small 2 / 4, medium 4 / 16, large 8 / 32, xlarge 16 / 64. If you give only cores or only memory, the other is set at 4 GiB per vCPU.
@@ -83,8 +83,11 @@ Size names stand for fixed sizes: xsmall 1 vCPU / 2 GiB, small 2 / 4, medium 4 /
 | Cloud regions (AWS, Azure, GCP) | us-east, us-west, us-central, eu-west |
 | vSphere datacenters | dc1, dc2 |
 | Operating systems | ubuntu, rhel, windows, debian, rocky |
+| VM name | lower-case letters, digits and hyphens, 2 to 41 characters, not starting with a hyphen; leave it out to get a generated one |
 
 If vm-intent doesn't recognise a size or a place, it asks rather than guessing.
+
+**VM names are checked, never changed.** A name that breaks the rule above (for example `Web 01`, `web_01` or 42 characters) is not lower-cased or shortened, because that would make a repeated request look new. Instead a text request gets a question ("VM name '...' must be ... What should I change?"), a batch item with that name is rejected (it appears in the batch's rejected list, and the batch returns 400 if nothing else could be built) and the legacy JSON API returns 400. A missing name is never a problem: vm-intent generates one such as `vm-1a2b3c4d`. A request for several VMs adds `-01`, `-02` and so on to the name.
 
 ### Try these
 

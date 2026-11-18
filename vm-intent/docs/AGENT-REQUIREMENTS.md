@@ -733,3 +733,38 @@ Risk: low. Attempts: 1. Built: 2026-11-18.
 
 00:41:11 attempt 1: developer: I fixed the six out-of-date doc items AP-0046 lists. I changed docs only, no code.
 01:19:23 attempt 1: review: approved: This is a docs-only change and it meets all 10 acceptance criteria. I checked each new statement against the code:
+
+## AP-0047: One VM-name rule for new requests (design review 0040 #3, before per-user identity part 2b): spec/VmNames holds [a-z0-9][a-z0-9-]{1,40}. SpecValidator.problems rejects a non-blank name that breaks it,
+
+SpecValidator.problems (spec/SpecValidator.java:18-31) has no name check. Only RuleBasedIntentExtractor:76 ([a-z0-9][a-z0-9-]{1,40}) and DefinitionParser:38 limit names, and each has its own pattern. Some names never meet either pattern: a batch item's spec.name (BatchController:150-154), a legacy POST /api/v1/vms name (LegacySpecTranslator:25 -> PolicyDefaults:121) and an LLM-extracted name. These reach the cloud backends unchanged (VcenterBackend's VM name, AzureArmBackend's computerName), even with spaces, upper case or 300 characters.
+
+Per-user identity part 2b (John's feature) will append a short suffix of about 5-9 characters to the cloud name. It needs a known maximum length: 41 + 9 = 50 characters is under DNS's 63, Azure's 64 and vCenter's 80, so the suffix never has to truncate.
+
+Lower-casing silently would change the hash of a repeated request, so it would no longer be found as a DUPLICATE. Bad names are therefore rejected (batch: the item goes into the rejected list; legacy: 400) or asked about (interpret/requests: the existing 'What should I change?' question), never rewritten.
+
+A blank or missing name stays allowed, because SpecCanonicalizer.withGeneratedName fills in vm-<hash8>, which already matches the rule. Multi-VM names (name-01 ... name-NN) add at most 3 characters, which is still within the limit.
+
+SpecValidator runs only in controllers and activities (BatchController:151, IntentInterpreter:48, CatalogActivitiesImpl:146), never in workflow code. So the recorded histories replay unchanged, and existing VMs are never checked again.
+
+Catalog runs: CatalogActivitiesImpl:140 already lower-cases its name input. Leave that as it is (changing it would change the hash of repeated catalog runs). The validator then checks the lower-cased name. DefinitionParser.NAME names catalog definitions, not VMs, so the developer may leave it alone.
+
+Before starting, the developer should check that every VM name the existing tests and load scripts send matches the rule: legacy-{RUN}, web-server, build-agent-01, sec-..., apNN-${RUN}. The RUN values are lower-case hex or base36.
+
+Risk is medium: API clients that send odd names now get a rejection where they used to get a build. There is no change to security, sign-in, workflow interfaces or data.
+
+Acceptance criteria:
+- A new class backend/src/main/java/com/example/vmintent/spec/VmNames.java holds the single VM-name pattern [a-z0-9][a-z0-9-]{1,40} (2 to 41 characters: lower-case letters, digits and hyphens, not starting with a hyphen). It has a public method that says whether a name is valid. RuleBasedIntentExtractor's 'called/named' pattern uses VmNames instead of writing its own copy of [a-z0-9][a-z0-9-]{1,40}.
+- SpecValidator.problems(spec) returns a problem that mentions the name when spec.name() is non-blank and doesn't match VmNames. A null or blank name gives no name problem, and neither does a generated name of the form vm-<8 hex characters>.
+- A unit test (SpecValidatorTest or VmNamesTest) has active @Test methods, none @Disabled, covering: a 41-character name accepted; a 42-character name rejected; upper case ('Web-01') rejected; a space ('web 01') rejected; an underscore rejected; a leading hyphen rejected; 'web-01' accepted; null and blank accepted; vm-<hash8> accepted. mvn test passes, including ReplayTest.
+- On staging, POST /api/v2/batches with a single item whose spec (otherwise valid, e.g. provider aws, region us-east) has name 'Web 01' returns 400. Its rejected list has one entry for index 0 whose message mentions the name. Nothing is built: GET /api/v2/vms contains no record named 'Web 01' or 'web-01'.
+- On staging, POST /api/v2/batches with one valid item named 'web-01-<run>' (run = a fresh lower-case alphanumeric value) is accepted (2xx) and has no rejected entries. The same request with the name upper-cased ('WEB-01-<RUN>') returns 400 and is not built under the lower-cased name.
+- On staging, POST /api/v2/batches with one otherwise valid item whose name is 42 characters long (lower-case letters, digits and hyphens) returns 400 with a rejected entry that mentions the name. A 41-character valid name in the same shape is accepted.
+- On staging, POST /api/v1/vms (legacy JSON) with name 'web 01' and otherwise valid fields returns 400, and the response message mentions the name.
+- On staging, POST /api/v2/interpret with text 'a small ubuntu server on aws called web-01' still returns spec.name 'web-01' and no question. A request with no name still gets a generated vm-<8 hex> name.
+- docs/API.md and docs/USER-GUIDE.md each state the VM-name rule: lower-case letters, digits and hyphens, 2 to 41 characters, not starting with a hyphen. Each also says that names breaking it are rejected (batch item rejected, legacy 400, or a question for text requests) rather than changed, and that a missing name is generated.
+- No commit for this requirement modifies or deletes any existing file under backend/src/test/resources/histories/, and no commit for this requirement changes files under backend/src/main/java/com/example/vmintent/workflow/ or backend/src/main/java/com/example/vmintent/security/.
+
+Risk: medium. Attempts: 1. Built: 2026-11-18.
+
+02:33:04 attempt 1: developer: AP-0047: added spec/VmNames (pattern [a-z0-9][a-z0-9-]{1,40}, isValid, REGEX, MAX_LENGTH=41). SpecValidator.problems now rejects a non-blank name that breaks the rule with a message naming it; null/bl
+03:16:47 attempt 1: review: approved: AP-0047 does what it was asked to do, and the change is small. VmNames.java holds the single pattern [a-z0-9][a-z0-9-]{1,40}, with an isValid method that returns false for null, plus REGEX and MAX_LEN
