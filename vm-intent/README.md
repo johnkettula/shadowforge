@@ -1,6 +1,6 @@
 # vm-intent: natural-language VM requests on Temporal
 
-Last updated 2026-11-18.
+Last updated 2026-11-19.
 
 You type a request for a VM in plain English. One canonical, cloud-neutral spec
 comes out, and a Temporal workflow builds it on vSphere, AWS, Azure or Google
@@ -86,7 +86,8 @@ default, so only do this on a network you trust.
 
 Run the tests: `cd backend` then `mvn test`. `GoldenPhrasingTest` fails the build if
 any listed phrasing stops producing the expected spec.
-Among the other tests, `SpecValidatorTest` checks the spec limits, `PolicyDefaultsTest` the sizes
+Among the other tests, `SpecValidatorTest` checks the spec limits and the VM-name rule, `VmNamesTest`
+the VM-name rule itself, `PolicyDefaultsTest` the sizes
 and defaults, `LlmIntentExtractorTest` the AI providers, the fallback to the rules and the startup
 settings check, and `RequestOwnerTest` that a request's owner comes from sign-in, or is 'anonymous'.
 The workflow tests are listed in [docs/TEMPORAL-FEATURES.md](docs/TEMPORAL-FEATURES.md).
@@ -101,7 +102,9 @@ backend/src/main/java/com/example/vmintent/
               VmIdentity.of gives the spec hash together with the VM's cloud name (cloudName),
               which today is the spec's name,
               and builds a VM's build key, which the real clouds use to decide whether to reuse an
-              existing VM with the same name (same spec hash only)
+              existing VM with the same name (same spec hash only);
+              VmNames: the one VM-name rule (lower-case letters, digits and hyphens, 2 to 41
+              characters, not starting with a hyphen), used by SpecValidator and the English extractor
   intent/     Words -> spec: RuleBasedIntentExtractor, LlmIntentExtractor (optional),
               Vocabulary (synonyms), PolicyDefaults (size catalog and defaults)
   workflow/   IntentWorkflow (interpret, clarify, confirm) and
