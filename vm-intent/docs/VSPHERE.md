@@ -106,9 +106,10 @@ Day 2:
   `InvalidSpec` ("was built by vm-intent for another request; choose another name"): nothing is deployed and
   nothing is removed. The same goes for a deploy of that name that is still cloning. A tagged VM with no readable
   key in its notes (built before keys were read back) is still adopted. A signed-in user's spec hash also covers
-  their user ID ([DEFINITIONS.md](DEFINITIONS.md)), so a same-named VM that another signed-in user built, even
-  from an identical spec, has a different hash: the build is refused with non-retryable `InvalidSpec`, with
-  nothing deployed or removed, until the cloud-side name gets a per-user suffix.
+  their user ID ([DEFINITIONS.md](DEFINITIONS.md)), and a signed-in user's named VM is called
+  `<name>-<8 hex characters of its spec hash>` in vCenter, while the API and the web app show the name asked for.
+  So two signed-in users who ask for the same name get two VMs with different names, and neither build is
+  refused. With sign-in off, or for a generated `vm-<hash8>` name, the name in vCenter is the spec's name.
 - **Never touches what it didn't build.** A VM with the same name *without* the tag stops the build ("choose another name"), and vm-intent won't remove it.
 - **Failures come back with vCenter's reason**, for example "Insufficient resources in cluster…", and the build rolls back. A removal while the clone is still running cancels the clone.
 - **Busy or unreachable vCenter** (429, 502–504, timeouts) is retried with backoff for up to 30 minutes, like a throttled cloud. Bad settings and refused permissions are not retried.
@@ -149,7 +150,7 @@ For **Aria Automation 8.x**, set `auth: iaas-login`. vm-intent then signs in wit
 |---|---|
 | Find the project and blueprint | `GET /iaas/api/projects`, `GET /blueprint/api/blueprints?projects=` |
 | Pick the version | `blueprint-version`, or the newest **released** one (`GET /blueprint/api/blueprints/{id}/versions`) |
-| Deploy | `POST /blueprint/api/blueprint-requests` with `deploymentName` = the VM's name and the inputs from `blueprint-inputs` |
+| Deploy | `POST /blueprint/api/blueprint-requests` with `deploymentName` = the VM's cloud name and the inputs from `blueprint-inputs` |
 | Wait | `GET /deployment/api/deployments/{id}` and `/resources`, until `CREATE_SUCCESSFUL` and the machine has an address |
 
 - **Inputs:** `blueprint-inputs` values are templates filled from the spec: `{vcpu}`, `{memoryGiB}`, `{memoryMiB}` (or `{memoryMB}`), `{diskGiB}`, `{diskTier}`, `{os}`, `{osVersion}`, `{env}`, `{name}`, `{ttlDays}`. A value that comes out as a whole number, or `true`/`false`, is sent as that type. Name each input the way your blueprint's input schema does: `GET /api/v2/vsphere/blueprints/{name}` lists them.
@@ -162,9 +163,10 @@ For **Aria Automation 8.x**, set `auth: iaas-login`. vm-intent then signs in wit
   otherwise the build stops with non-retryable `InvalidSpec` and nothing is requested or removed. VCF Automation
   has no ownership tag, so on this route a same-named deployment **without a vm-intent key** in its description
   is refused too ("that vm-intent didn't build; choose another name"). A signed-in user's spec hash also covers
-  their user ID ([DEFINITIONS.md](DEFINITIONS.md)), so a same-named deployment that another signed-in user built,
-  even from an identical spec, has a different hash: the build is refused with non-retryable `InvalidSpec`, with
-  nothing deployed or removed, until the cloud-side name gets a per-user suffix.
+  their user ID ([DEFINITIONS.md](DEFINITIONS.md)), and a signed-in user's named VM gets the deployment name
+  `<name>-<8 hex characters of its spec hash>`, while the API and the web app show the name asked for. So two
+  signed-in users who ask for the same name get two deployments with different names, and neither build is
+  refused. With sign-in off, or for a generated `vm-<hash8>` name, the deployment name is the spec's name.
 - **API versions:** blueprint and deployment calls send `apiVersion=2019-09-12` (setting `automation.api-version`).
 
 ### The `blueprint.deploy` catalog step

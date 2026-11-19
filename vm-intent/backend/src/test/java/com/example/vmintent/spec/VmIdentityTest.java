@@ -2,6 +2,7 @@ package com.example.vmintent.spec;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -76,7 +77,7 @@ class VmIdentityTest {
     }
 
     @Test
-    void ofGivesTodaysHashAndTheSpecNameAsTheCloudName() {
+    void ofGivesAnAnonymousOwnerTodaysHashAndTheSpecNameAsTheCloudName() {
         VmIdentity.Id none = VmIdentity.of(NAMED, null);
         assertEquals(NAMED_HASH, none.hash());
         assertEquals("web-01", none.cloudName());
@@ -84,11 +85,14 @@ class VmIdentityTest {
         VmIdentity.Id anonymous = VmIdentity.of(NAMED, "anonymous");
         assertEquals(NAMED_HASH, anonymous.hash());
         assertEquals("web-01", anonymous.cloudName());
+    }
 
+    @Test
+    void ofGivesASignedInOwnersNamedSpecTheNamePlus8HexOfItsHash() {
         VmIdentity.Id alice = VmIdentity.of(NAMED, "alice");
-        assertEquals(NAMED_ALICE_HASH, alice.hash());
-        assertEquals(VmIdentity.hash(NAMED, "alice"), alice.hash());
-        assertEquals("web-01", alice.cloudName(), "no per-user suffix yet");
+        assertEquals(NAMED_ALICE_HASH, alice.hash(), "the suffix doesn't change the hash");
+        assertEquals("web-01-" + alice.hash().substring(0, 8), alice.cloudName());
+        assertEquals("web-01-55214b87", alice.cloudName());
     }
 
     @Test
@@ -97,10 +101,43 @@ class VmIdentityTest {
         assertEquals(UNNAMED_HASH, anonymous.hash());
         assertEquals("vm-" + UNNAMED_HASH.substring(0, 8), anonymous.cloudName());
         assertEquals(SpecCanonicalizer.withGeneratedName(UNNAMED, UNNAMED_HASH).name(), anonymous.cloudName());
+        assertEquals(anonymous, VmIdentity.of(UNNAMED, "anonymous"));
 
+        // Signed in: the generated name is already unique per owner, so no second suffix.
         VmIdentity.Id alice = VmIdentity.of(UNNAMED, "alice");
         assertEquals(VmIdentity.hash(UNNAMED, "alice"), alice.hash());
         assertEquals("vm-" + alice.hash().substring(0, 8), alice.cloudName());
+        assertTrue(alice.cloudName().matches("vm-[0-9a-f]{8}"), alice.cloudName());
+    }
+
+    @Test
+    void theSameOwnerAndSpecGiveTheSameCloudNameEveryTime() {
+        for (String owner : Arrays.asList(null, "anonymous", "alice")) {
+            for (VmSpec spec : List.of(NAMED, UNNAMED)) {
+                assertEquals(VmIdentity.of(spec, owner), VmIdentity.of(spec, owner), owner + " " + spec.name());
+            }
+        }
+    }
+
+    @Test
+    void twoSignedInOwnersGetDifferentCloudNamesForTheSameNamedSpec() {
+        String alice = VmIdentity.of(NAMED, "alice").cloudName();
+        String bob = VmIdentity.of(NAMED, "bob").cloudName();
+        assertNotEquals(alice, bob);
+        assertTrue(alice.startsWith("web-01-"), alice);
+        assertTrue(bob.startsWith("web-01-"), bob);
+        assertEquals("web-01-" + VmIdentity.hash(NAMED, "bob").substring(0, 8), bob);
+    }
+
+    @Test
+    void aLongestNameGivesA50CharacterCloudNameThatIsStillAValidName() {
+        String longest = "a" + "b1-".repeat(13) + "z";
+        assertEquals(41, longest.length());
+        assertTrue(VmNames.isValid(longest), "41 characters is the longest name allowed");
+        VmIdentity.Id alice = VmIdentity.of(NAMED.withName(longest), "alice");
+        assertEquals(50, alice.cloudName().length());
+        assertEquals(longest + "-" + alice.hash().substring(0, 8), alice.cloudName());
+        assertTrue(alice.cloudName().matches("[a-z0-9][a-z0-9-]*"), alice.cloudName());
     }
 
     @Test

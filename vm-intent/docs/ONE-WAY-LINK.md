@@ -60,8 +60,10 @@ temporary name first and renamed when complete, so the link never carries half a
 | `POWER` | `vmId`, `params.on` (`"true"` / `"false"`) | Power on or off |
 | `SNAPSHOT` | `vmId`, `params.label` | Take a snapshot; put its ID in `detail` |
 
-The `spec` in a CREATE order carries the VM's cloud-side name (`ReconcileRequest.cloudName`; today
-the same as the name asked for). The VM record and the audit trail keep the name asked for. The
+The `spec` in a CREATE order carries the VM's cloud-side name (`ReconcileRequest.cloudName`). A
+signed-in user's named VM is called `<name>-<8 hex characters of its spec hash>` in the cloud, while the
+API and the web app show the name asked for; with sign-in off, or for a generated `vm-<hash8>` name,
+the cloud name is the spec's name. The VM record and the audit trail keep the name asked for. The
 simulated domain 3 refuses a CREATE whose spec name contains "fail".
 
 **Answers** (inbox, one file per answer, any name ending in `.json`). Copy `orderId`, `type`,

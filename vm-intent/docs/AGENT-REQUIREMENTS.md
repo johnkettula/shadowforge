@@ -808,3 +808,56 @@ Risk: low. Attempts: 1. Built: 2026-11-19.
 
 00:04:34 attempt 1: developer: I updated the docs for 2026-11-19 in three files: README.md, docs/API.md and docs/DEFINITIONS.md. Every repository acceptance suite passes against the new docs (314 of 314, including ap-0046 and ap-00
 00:41:48 attempt 1: review: approved: This is a docs-only change in one developer commit (eafbe51). It touches only README.md, docs/API.md and docs/DEFINITIONS.md, and it meets all 8 acceptance criteria. I checked the new text against the
+
+## AP-0049: Per-user identity part 2b (John's backlog feature; review 0040 'Advice for part 2b'): a signed-in user's named VM gets a cloud name of <name>-<first 8 hex of its spec hash>. VmIdentity.of is the only 
+
+Since AP-0039, two signed-in users who ask for the same spec get different spec hashes and separate VMs. The name sent to the cloud is still just spec.name(), though. On a real vSphere route, AP-0032 then refuses the second user's same-named VM with InvalidSpec, and API.md, DEFINITIONS.md, USER-GUIDE.md and VSPHERE.md all describe this as a temporary catch 'until the cloud-side name gets a per-user suffix'.
+
+Every piece of groundwork is in place:
+- VmIdentity.of(spec, owner) returns Id(hash, cloudName) and is used by all four entry points (AP-0043).
+- Workflows only copy the recorded ReconcileRequest.cloudName (AP-0036), so builds running at the deploy keep the name they recorded, and no getVersion is needed.
+- AP-0047 limits names to 41 characters, so name + '-' + 8 hex characters is at most 50, under the DNS, Azure and vCenter limits. Nothing ever has to be truncated.
+
+Follow review 0040's advice:
+- change only the signed-in branch;
+- use 8 hex characters, not 4;
+- add no suffix to a generated vm-<hash8> name, which is already unique per owner;
+- leave Windows' 15-character computerName alone.
+
+Other notes:
+- With sign-in off (staging and live), nothing changes, so the existing live checks keep passing.
+- Older suites that pin 'no suffix yet' text read files at their own commits, so they aren't affected.
+- No workflow or activity interface changes, and no field is added. Only the OpenAPI description text of Interpretation.cloudName changes. It must keep the words 'same as spec.name', because ap-0043's live check requires them.
+- A person should afterwards add the docs/SECURITY.md line the backlog asks for: the user ID in the identity comes from sign-in, never from the client. No criterion here needs that file.
+
+Risk is medium, as the backlog rates it: this touches identity and cloud names, but no security code, sign-in or workflow interface changes.
+
+Acceptance criteria:
+- VmIdentity.of(spec, owner) returns cloudName = spec.name() + '-' + the first 8 characters of the returned hash when the owner is signed in (not null and not 'anonymous') and the spec has a non-blank name. For a null or 'anonymous' owner, cloudName is exactly what it is today: spec.name(), or the generated 'vm-' + the first 8 hex characters of the hash when the spec has no name. A signed-in owner's spec with no name also gets the generated 'vm-' + 8 hex name with no extra suffix. The hash value doesn't change for any owner.
+- VmIdentityTest has active (@Test, not @Disabled) test methods that check each of these:
+- null and 'anonymous' owners keep cloudName == spec.name();
+- a signed-in owner's named spec gets name + '-' + hash.substring(0, 8);
+- a signed-in owner's unnamed spec gets 'vm-' + 8 hex characters with no second suffix;
+- the same owner and spec give the same cloudName every time;
+- two different signed-in owners with the same named spec get different cloud names;
+- a 41-character name gives a cloud name of exactly 50 characters that still matches [a-z0-9][a-z0-9-]*.
+- An active workflow-level unit test runs a signed-in build of a spec named 'web-01' through a recording fake provider. In that test, the provider's create call receives the name 'web-01-' + the first 8 characters of the spec hash, while the saved VM record and the audit trail keep the name 'web-01'. The test may use RequestOwnerFlowTest, IntentWorkflowTest or a new test class.
+- Signed-in batches (POST /api/v2/batches) and catalog runs get their cloud name from VmIdentity.of in the same way, with no separate suffix code. At least one active unit test checks the cloudName that the batch path records for a signed-in owner (BatchItem.cloudName ending in '-' + the first 8 characters of its specHash).
+- ReplayTest replays every file under backend/src/test/resources/histories/ and passes. No commit for this requirement modifies or deletes an existing history file.
+- mvn test passes, including the OpenAPI snapshot check. The Interpretation.cloudName description in docs/openapi.json (and in the served /v3/api-docs) still contains 'name in its cloud' and 'same as spec.name', and also says that a signed-in user's named VM gets '-' plus the first 8 characters of specHash.
+- On staging (sign-in off), these stay as they are today:
+- POST /api/v2/interpret of a text naming a VM (for example 'a small ubuntu server on aws called ap49-<run>') returns 200 with cloudName equal to spec.name;
+- a text with no name returns cloudName equal to spec.name, matching ^vm-[0-9a-f]{8}$;
+- a VM built through POST /api/v2/requests and read back with GET /api/v2/vms/{specHash} shows spec.name equal to the name asked for.
+- The docs state the new rule and drop the 'until ... per-user suffix' caveats:
+- API.md (the duplicates paragraph);
+- DEFINITIONS.md (the 'Cloud name' paragraph);
+- USER-GUIDE.md ('Duplicates are per user');
+- VSPHERE.md (the vCenter and VCF Automation adoption bullets);
+- ONE-WAY-LINK.md (where it says ReconcileRequest.cloudName is today the same as the name asked for).
+Each changed place says that a signed-in user's named VM is called <name>-<8 hex characters of its spec hash> in the cloud, while the API and web app show the name asked for. It also says that with sign-in off, or for a generated vm-<hash8> name, the cloud name is the spec's name. No criterion needs docs/SECURITY.md.
+
+Risk: medium. Attempts: 1. Built: 2026-11-19.
+
+01:56:18 attempt 1: developer: AP-0049 is built and `mvn test` passes in backend/: every surefire report shows 0 failures and 0 errors, including ReplayTest, OpenApiSnapshotTest, CloudNameTest and CatalogRunWorkflowTest. No history
+02:40:50 attempt 1: review: approved: Approved. The change is small and stays inside VmIdentity.of, as review 0040 advised. A signed-in owner's named spec now gets cloudName = name + '-' + hash.substring(0, 8). Null and 'anonymous' owners

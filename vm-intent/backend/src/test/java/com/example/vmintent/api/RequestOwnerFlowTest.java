@@ -23,6 +23,7 @@ import com.example.vmintent.workflow.IntentActivities;
 import com.example.vmintent.workflow.IntentWorkflow;
 import com.example.vmintent.workflow.Models.BatchInfo;
 import com.example.vmintent.workflow.Models.BatchItem;
+import com.example.vmintent.workflow.Models.BatchRequest;
 import com.example.vmintent.workflow.Models.RequestStatus;
 import com.example.vmintent.workflow.Models.ShardProgress;
 import com.example.vmintent.workflow.Models.VmRecord;
@@ -30,7 +31,9 @@ import com.example.vmintent.workflow.Models.VmResult;
 import com.example.vmintent.workflow.TestFakes;
 import com.example.vmintent.workflow.WorkflowActivitiesImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.temporal.api.common.v1.Payloads;
 import io.temporal.client.WorkflowStub;
+import io.temporal.common.converter.DefaultDataConverter;
 import io.temporal.testing.TestWorkflowEnvironment;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,12 +46,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The owner each hash site gets comes from sign-in on the server: "anonymous" with sign-in off,
@@ -303,6 +309,48 @@ class RequestOwnerFlowTest {
     }
 
     @Test
+    void aSignedInBuildSendsTheCloudTheNamePlus8HexWhileTheRecordAndAuditKeepTheAskedForName() {
+        RequestOwnerTest.signIn("alice");
+        RequestStatus r = requestAndConfirm(WEB_01);
+        assertEquals("COMPLETED", r.state(), r.message());
+        String hash = r.interpretation().specHash();
+        String cloudName = "web-01-" + hash.substring(0, 8);
+        assertEquals("web-01", r.interpretation().spec().name());
+        assertEquals(cloudName, r.interpretation().cloudName());
+        assertEquals(cloudName, TestFakes.buildInput(env.getWorkflowClient(), hash).cloudName());
+
+        assertEquals(cloudName, cloud.nameOf(r.vm().vmId()), "the provider's create call got the cloud name");
+        assertFalse(records.savedNames(hash).isEmpty());
+        assertTrue(records.savedNames(hash).stream().allMatch("web-01"::equals), "saved as " + records.savedNames(hash));
+        assertFalse(records.events().isEmpty());
+        assertTrue(records.events().stream().noneMatch(e -> e.contains(cloudName)), "audit: " + records.events());
+    }
+
+    @Test
+    void aSignedInBatchRecordsTheNamePlus8HexOfItsHashAsTheCloudName() {
+        RequestOwnerTest.signIn("alice");
+        ResponseEntity<?> r = batches.submit(new BatchBody(List.of(new BatchItemBody(null, SHARED),
+                new BatchItemBody(null, SHARED.withName(null))), null, null, null));
+        assertEquals(HttpStatus.ACCEPTED, r.getStatusCode(), String.valueOf(r.getBody()));
+        String id = ((BatchSubmitResponse) r.getBody()).batchId();
+        env.getWorkflowClient().newUntypedWorkflowStub(id).getResult(BatchInfo.class);
+
+        // The BatchItems the batch path recorded, read from the batch workflow's input.
+        List<BatchItem> items = batchInput(id).items();
+        BatchItem named = items.get(0);
+        assertEquals(VmIdentity.hash(SHARED, "alice"), named.specHash());
+        assertEquals("shared-01", named.spec().name());
+        assertEquals("shared-01-" + named.specHash().substring(0, 8), named.cloudName());
+        BatchItem unnamed = items.get(1);
+        assertEquals("vm-" + unnamed.specHash().substring(0, 8), unnamed.cloudName(), "no second suffix");
+
+        String hash = named.specHash();
+        assertEquals(named.cloudName(), TestFakes.buildInput(env.getWorkflowClient(), hash).cloudName());
+        assertEquals(named.cloudName(), cloud.nameOf(records.existingVm(hash)));
+        assertTrue(records.savedNames(hash).stream().allMatch("shared-01"::equals), "saved as " + records.savedNames(hash));
+    }
+
+    @Test
     void aMultiVmRequestRecordsEachVmsNameAsItsCloudName() {
         IntentWorkflow wf = submit("3 small ubuntu servers on aws called app", "mallory");
         RequestStatus s = waitFor(wf, "AWAITING_CONFIRMATION");
@@ -374,6 +422,14 @@ class RequestOwnerFlowTest {
         BatchInfo info = env.getWorkflowClient().newUntypedWorkflowStub(id).getResult(BatchInfo.class);
         assertEquals(1, info.shardIds().size());
         return env.getWorkflowClient().newWorkflowStub(BatchShardWorkflow.class, info.shardIds().get(0)).progress();
+    }
+
+    /** The BatchRequest the batch workflow was started with, read from its history. */
+    private BatchRequest batchInput(String batchId) {
+        Payloads input = env.getWorkflowClient().fetchHistory(batchId).getEvents().get(0)
+                .getWorkflowExecutionStartedEventAttributes().getInput();
+        return DefaultDataConverter.newDefaultInstance()
+                .fromPayloads(0, Optional.of(input), BatchRequest.class, BatchRequest.class);
     }
 
     /** The result of the vm-<hash> workflow that built this hash's VM. */

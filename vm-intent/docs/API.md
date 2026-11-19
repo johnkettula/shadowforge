@@ -87,9 +87,11 @@ addresses instead, set `VMINTENT_API_SERVER_URLS` (comma-separated).
   request finishes as `DUPLICATE`. Another signed-in user's same spec is not a duplicate: it gets its own
   `specHash` and its own VM. It is safe to retry a call that timed out. VMs that already exist keep their
   `specHash`, so the day-2 calls, `GET /api/v2/vms/{specHash}`, `GET /api/v2/vms/{specHash}/lifecycle` and
-  the VM list `GET /api/v2/vms` work as before. Until the cloud-side name
-  gets a per-user suffix (part 2), two users' VMs with the same name on a real vSphere route are refused
-  for the second user with `InvalidSpec` (below), while the simulated clouds build both. On the real vSphere routes (vCenter 9 and VCF Automation 9), a spec
+  the VM list `GET /api/v2/vms` work as before. A signed-in user's named VM is called
+  `<name>-<the first 8 hex characters of its specHash>` in the cloud (`cloudName` in
+  `POST /api/v2/interpret`), while the API and the web app show the name asked for (`spec.name`), so two
+  users' VMs with the same name get different cloud names and are both built. With sign-in off, or for a
+  generated `vm-<hash8>` name, the cloud name is the spec's name. On the real vSphere routes (vCenter 9 and VCF Automation 9), a spec
   with a different hash that uses a name already taken in the cloud by a VM vm-intent built for another
   spec is not reused: its build fails with the non-retryable reason `InvalidSpec` ("... was built by
   vm-intent for another request; choose another name"). A same-named VM that vm-intent didn't build is
