@@ -26,7 +26,7 @@ public record Interpretation(
         String question,
         @Schema(description = "How many identical VMs were asked for. Left out when it's one.", example = "3")
         Integer count,
-        @Schema(description = "The VM's name in its cloud. Today the same as spec.name. Left out when a question is asked.",
+        @Schema(description = "The VM's name in its cloud: the same as spec.name, except that a signed-in user's named VM gets '-' plus the first 8 characters of specHash after it (web-01-3af19a4e). Left out when a question is asked.",
                 example = "web-01")
         String cloudName
 ) {

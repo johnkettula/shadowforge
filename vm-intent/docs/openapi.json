@@ -3194,7 +3194,7 @@
           },
           "cloudName": {
             "type": "string",
-            "description": "The VM's name in its cloud. Today the same as spec.name. Left out when a question is asked.",
+            "description": "The VM's name in its cloud: the same as spec.name, except that a signed-in user's named VM gets '-' plus the first 8 characters of specHash after it (web-01-3af19a4e). Left out when a question is asked.",
             "example": "web-01"
           }
         },

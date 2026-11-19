@@ -146,17 +146,18 @@ duplicate, as before. Existing VMs keep their hash: nothing recomputes it, becau
 lifecycle, reading one VM (`GET /api/v2/vms/{specHash}`), the inventory check and the VM list all look a
 VM up by its stored hash.
 
-**Cloud name.** The name sent to the cloud for a VM (`cloudName`). Today it is the same as the
+**Cloud name.** The name sent to the cloud for a VM (`cloudName`). With sign-in off it is the
 spec's name (the generated `vm-` + 8 hex characters when none was asked for; a catalog run's VM with no
-`name` input is named `<definition>-<6 hex characters>` instead of `vm-` + 8 hex characters). `VmIdentity.of(spec,
+`name` input is named `<definition>-<6 hex characters>` instead of `vm-` + 8 hex characters). A
+signed-in user's named VM is called `<name>-<the first 8 hex characters of its spec hash>` in the cloud
+(for example `web-01-55214b87`), while the API and the web app show the name asked for and the VM
+record and the audit trail keep it. A generated `vm-<hash8>` name is already unique per user, so it
+gets no suffix and its cloud name is the spec's name. Names are at most 41 characters
+(`spec/VmNames`), so a cloud name is at most 50 and is never cut short. `VmIdentity.of(spec,
 owner)` gives the spec hash and the cloud name together, for every way in, and the request workflows
-pass it to the build in `ReconcileRequest.cloudName`; `POST /api/v2/interpret` shows it. In part 2b of
-per-user identity it will get a short per-user suffix for signed-in users, while the VM record keeps
-the name asked for.
-Until the cloud name gets that suffix, it is still just the spec's name: on a real vSphere route (vCenter 9 or VCF Automation 9), a second user's
-VM with the same name as the first user's is refused with `InvalidSpec` by the rule below, so it never
-takes over the first user's VM, while the simulated clouds (the default, keyed on the build key) build
-both. Each build also gets a build key, which the cloud records on the VM it builds: the spec hash,
+pass it to the build in `ReconcileRequest.cloudName`; `POST /api/v2/interpret` shows it. So two
+signed-in users who ask for the same name get two VMs with different names in the cloud, and neither
+is refused by the rule below. Each build also gets a build key, which the cloud records on the VM it builds: the spec hash,
 or the hash + `-` + the first 8 characters of the build's run ID (`VmIdentity.buildKey`). On a real
 cloud route (vSphere with a real vCenter 9 or VCF Automation 9), an existing VM with the requested
 name is reused only when its recorded build key has the same spec hash (`VmIdentity.sameBuild`, which

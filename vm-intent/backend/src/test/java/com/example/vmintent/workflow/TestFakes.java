@@ -107,6 +107,11 @@ public final class TestFakes {
             return created.get();
         }
 
+        /** The name this cloud's create call got for the VM with this ID. */
+        public String nameOf(String vmId) {
+            return nameById.get(vmId);
+        }
+
         @Override
         public ProviderPlan plan(VmSpec spec) {
             return ProviderCatalog.plan(spec);
@@ -197,11 +202,23 @@ public final class TestFakes {
         final Map<String, String> state = new ConcurrentHashMap<>();
         final Map<String, VmResult> results = new ConcurrentHashMap<>();
         final Map<String, VmLifecycle> lifecycles = new ConcurrentHashMap<>();
+        final Map<String, List<String>> savedNamesByHash = new ConcurrentHashMap<>();
 
         @Override
         public void save(String specHash, VmSpec spec, String st, String detail, VmResult result) {
             state.put(specHash, st);
             if (result != null) results.put(specHash, result);
+            if (spec != null) savedNamesByHash.computeIfAbsent(specHash, h -> new CopyOnWriteArrayList<>()).add(spec.name());
+        }
+
+        /** The spec name of every VM record saved for this hash, in order. */
+        public List<String> savedNames(String specHash) {
+            return savedNamesByHash.getOrDefault(specHash, List.of());
+        }
+
+        /** Every audit event as "event actor detail". */
+        public List<String> events() {
+            return events;
         }
 
         @Override
