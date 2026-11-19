@@ -768,3 +768,43 @@ Risk: medium. Attempts: 1. Built: 2026-11-18.
 
 02:33:04 attempt 1: developer: AP-0047: added spec/VmNames (pattern [a-z0-9][a-z0-9-]{1,40}, isValid, REGEX, MAX_LENGTH=41). SpecValidator.problems now rejects a non-blank name that breaks the rule with a message naming it; null/bl
 03:16:47 attempt 1: review: approved: AP-0047 does what it was asked to do, and the change is small. VmNames.java holds the single pattern [a-z0-9][a-z0-9-]{1,40}, with an isValid method that returns false for null, plus REGEX and MAX_LEN
+
+## AP-0048: Daily docs 2026-11-19: README names spec/VmNames (the one VM-name rule) and VmNamesTest; DEFINITIONS' vm.create row and 'Cloud name' paragraph give the name rule and a catalog run's generated name (<d
+
+This is today's daily docs update. The only merge since AP-0046 (2026-11-18) is AP-0047, which added spec/VmNames (REGEX [a-z0-9][a-z0-9-]{1,40}, MAX_LENGTH 41). SpecValidator.problems and RuleBasedIntentExtractor now use it, and its tests are VmNamesTest plus new SpecValidatorTest name cases. AP-0047 updated API.md, USER-GUIDE.md and frontend/public/user-guide.html, and the HTML matches USER-GUIDE.md ('checked, never changed', '2 to 41').
+
+I checked the code and found these gaps:
+
+(1) README.md's code map, spec/ entry (README.md:98-104), says 'policy checks' but doesn't name VmNames, which is now the one VM-name rule. README.md:89 says SpecValidatorTest 'checks the spec limits' and doesn't mention the name rule or VmNamesTest.
+
+(2) DEFINITIONS.md's Actions table, vm.create row (:110), lists 'optional name' and nothing more. In the code (CatalogActivitiesImpl:136-146), a catalog run lower-cases the name input and then applies SpecValidator, including the VM-name rule. When there is no name, the VM is named <definition name>-<first 6 hex characters of a SHA-256 of the run ID>.
+
+(3) DEFINITIONS.md:150 ('Cloud name') says the cloud name is 'the generated vm- + 8 hex characters when none was asked for'. API.md's VM-names bullet says 'a missing one is generated as vm- plus the first 8 hex characters of the specHash'. Both are wrong for catalog runs, which generate <definition>-<6 hex> as described in (2).
+
+The other docs are still correct: AP-0046 checked them yesterday, and AP-0047 changed no workflow, setting, endpoint or count. That covers TEMPORAL-FEATURES (no workflow change; its test table lists workflow and controller tests, not spec tests), USER-GUIDE and its HTML, SCALING, KUBERNETES, VSPHERE, AUDIT and ONE-WAY-LINK.
+
+Constraints for the developer:
+- Older suites read README, DEFINITIONS and API.md at HEAD. ap-0047/repo.test.mjs checks API.md's VM-names bullet (the '- ' bullet containing '2 to 41') for the phrases 'lower-case letters, digits and hyphens', '2 to 41 characters', 'not starting with a hyphen', 'rejected', 'never lower-cased', a batch item rejected, '/api/v1/vms ... 400', 'question', and 'missing ... generated'. ap-0046 requires README's spec/ entry to keep 'VmIdentity', 'the one place that computes a VM's spec hash' and 'VmIdentity.of ... cloudName'. So every edit should add or reword only the named sentences and keep those phrases.
+- docs/AZURE.md: don't edit it. ap-0017 reads it at HEAD, and the owner asked to leave the Azure files alone.
+- docs/SECURITY.md is protected.
+- docs/AGENT-REQUIREMENTS.md is written by the pipeline.
+- USER-GUIDE.md and user-guide.html: no change is needed.
+
+A code issue, out of scope here, for a later cycle: a catalog run's generated name <definition>-<6 hex> is up to 48 characters. Definition names may be up to 41 characters (DefinitionParser.NAME), but the new VM-name rule allows at most 41, so a vm.create step with no name input in a definition whose name is longer than 34 characters now fails validation. The docs should describe the generated name's format without promising it always passes.
+
+Docs only, risk low.
+
+Acceptance criteria:
+- 1. README.md, code map, spec/ entry: it names VmNames (for example 'VmNames' or 'spec/VmNames') as the one VM-name rule (lower-case letters, digits and hyphens, 2 to 41 characters), used by SpecValidator and the English extractor. The entry still contains everything it says today, including 'VmIdentity', 'the one place that computes a VM's spec hash' and 'VmIdentity.of' with 'cloudName'.
+- 2. README.md, the paragraph after 'Run the tests' (today's line 89): the sentence about SpecValidatorTest also says it checks the VM-name rule, and the paragraph names VmNamesTest. Both test classes exist under backend/src/test/java/com/example/vmintent/spec/ with active @Test methods.
+- 3. docs/DEFINITIONS.md, Actions table, vm.create row: it still lists the same inputs as today. It also says the name input is lower-cased and must then meet the VM-name rule (lower-case letters, digits and hyphens, 2 to 41 characters, not starting with a hyphen), and that a step with no name builds a VM named after the definition plus '-' and 6 hex characters derived from the run ID. This matches CatalogActivitiesImpl (name.toLowerCase(), SpecValidator.problems, and run.get("definition") + "-" + sha(run id).substring(0, 6)).
+- 4. docs/DEFINITIONS.md, 'Cloud name' paragraph: the parenthesis about the generated name is still there, and the paragraph now says that a catalog run's VM with no name input is named <definition>-<6 hex characters> instead of vm- + 8 hex characters. The rest of the paragraph (VmIdentity.of, ReconcileRequest.cloudName, POST /api/v2/interpret, part 2b) is unchanged.
+- 5. docs/API.md, the VM-names bullet (the '- ' bullet containing '2 to 41'): it now says that a catalog run's vm.create step with no name gets <definition>-<6 hex characters> rather than vm- + 8 hex. Every phrase the bullet has today is still in it: 'lower-case letters, digits and hyphens', '2 to 41 characters', 'not starting with a hyphen', 'rejected', 'never lower-cased', the batch 'rejected' text, 'POST /api/v1/vms' with '400', 'question', 'A missing or blank name is allowed: a missing one is generated', and 'Catalog runs lower-case their name input first'. The Operations table and every operation and check count in API.md are unchanged.
+- 6. Dates: in each of README.md, docs/API.md and docs/DEFINITIONS.md, line 1 is the '# ' title, line 2 is blank, and line 3 is exactly 'Last updated 2026-11-19.', replacing 'Last updated 2026-11-18.'. In docs/USER-GUIDE.md, docs/TEMPORAL-FEATURES.md, docs/SCALING.md, docs/VSPHERE.md, docs/AUDIT.md, docs/ONE-WAY-LINK.md, docs/KUBERNETES.md, docs/AZURE.md and docs/SECURITY.md, line 3 at this requirement's last kept commit is the same as just before its first kept commit. Find the kept commits with --no-merges, leaving out subjects that match '^AP-\d+: (acceptance tests|record the requirement)'. Don't scan docs/AGENT-REQUIREMENTS.md.
+- 7. Scope: the kept commits for this requirement (filtered as in criterion 6) change only README.md, docs/API.md and docs/DEFINITIONS.md. No kept commit for this requirement touches backend/, frontend/, tests/, docs/openapi.json, docs/openapi.yaml, docs/AZURE.md or docs/SECURITY.md.
+- 8. The existing acceptance suites still pass against the new docs, in particular ap-0046/repo.test.mjs and ap-0047/repo.test.mjs, which read README.md, docs/API.md and docs/DEFINITIONS.md from the working tree.
+
+Risk: low. Attempts: 1. Built: 2026-11-19.
+
+00:04:34 attempt 1: developer: I updated the docs for 2026-11-19 in three files: README.md, docs/API.md and docs/DEFINITIONS.md. Every repository acceptance suite passes against the new docs (314 of 314, including ap-0046 and ap-00
+00:41:48 attempt 1: review: approved: This is a docs-only change in one developer commit (eafbe51). It touches only README.md, docs/API.md and docs/DEFINITIONS.md, and it meets all 8 acceptance criteria. I checked the new text against the
