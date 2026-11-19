@@ -1,6 +1,6 @@
 # vm-intent REST API: guide for calling services
 
-Last updated 2026-11-18.
+Last updated 2026-11-19.
 
 The API is described by an **OpenAPI 3.0** document that the server generates from its own code, so the
 document always matches what the server does. `tests/api_contract_test.py` calls every endpoint and checks
@@ -102,8 +102,10 @@ addresses instead, set `VMINTENT_API_SERVER_URLS` (comma-separated).
   batch item goes into `rejected` with a message naming it (and the batch is `400` if no item is left),
   `POST /api/v1/vms` returns `400` with the message, and a text request (`/api/v2/interpret`,
   `/api/v2/requests`) gets the usual question ending "What should I change?". A missing or blank name is
-  allowed: a missing one is generated as `vm-` plus the first 8 hex characters of the `specHash`. Catalog
-  runs lower-case their `name` input first, then apply the same rule. VMs that already exist are not
+  allowed: a missing one is generated as `vm-` plus the first 8 hex characters of the `specHash`, except
+  in a catalog run, where a `vm.create` step with no `name` input gets `<definition>-` plus 6 hex
+  characters derived from the run ID instead. Catalog runs lower-case their `name` input first, then
+  apply the same rule. VMs that already exist are not
   checked again.
 - **Long-running work is asynchronous.** Create calls return at once with an ID; poll the matching
   `GET` every 2–5 seconds. Final request states are `COMPLETED`, `PARTIAL`, `FAILED`, `CANCELLED` and

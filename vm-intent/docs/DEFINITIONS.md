@@ -1,6 +1,6 @@
 # Catalog definitions and runs
 
-Last updated 2026-11-18.
+Last updated 2026-11-19.
 
 Technical operators describe repeatable provisioning jobs in YAML. vm-intent checks each file when
 it's published and runs it as a Temporal workflow. There are two kinds of file:
@@ -107,7 +107,7 @@ so expressions stay valid if it's swapped for cel-java later.
 
 | Action | Settings (`with:`) | Tear down undoes it by | Running it again |
 |---|---|---|---|
-| `vm.create` | `provider`, `region`, `os`; optional `name`, `size` or `vcpu` + `memoryGiB`, `osVersion`, `diskGiB`, `diskTier`, `env`, `ttlDays`, `publicIp` | removing the VM | the VM is identified by its spec hash: one already built (or being built) is used, not built again |
+| `vm.create` | `provider`, `region`, `os`; optional `name`, `size` or `vcpu` + `memoryGiB`, `osVersion`, `diskGiB`, `diskTier`, `env`, `ttlDays`, `publicIp`. The `name` is lower-cased, then must meet the VM-name rule (`spec/VmNames`: lower-case letters, digits and hyphens, 2 to 41 characters, not starting with a hyphen); with no `name`, the VM is named after the definition plus `-` and 6 hex characters derived from the run ID (`<definition>-<6 hex>`; a definition name longer than 34 characters makes that too long) | removing the VM | the VM is identified by its spec hash: one already built (or being built) is used, not built again |
 | `vm.resize` | `vm`, `vcpu`, `memoryGiB` | resizing back | nothing to do if it already has that size |
 | `vm.power` | `vm`, `on` | powering back | nothing to do if it's already on/off |
 | `vm.snapshot` | `vm`, `label` | nothing (snapshots are kept) | a snapshot with that label isn't taken twice |
@@ -147,7 +147,8 @@ lifecycle, reading one VM (`GET /api/v2/vms/{specHash}`), the inventory check an
 VM up by its stored hash.
 
 **Cloud name.** The name sent to the cloud for a VM (`cloudName`). Today it is the same as the
-spec's name (the generated `vm-` + 8 hex characters when none was asked for). `VmIdentity.of(spec,
+spec's name (the generated `vm-` + 8 hex characters when none was asked for; a catalog run's VM with no
+`name` input is named `<definition>-<6 hex characters>` instead of `vm-` + 8 hex characters). `VmIdentity.of(spec,
 owner)` gives the spec hash and the cloud name together, for every way in, and the request workflows
 pass it to the build in `ReconcileRequest.cloudName`; `POST /api/v2/interpret` shows it. In part 2b of
 per-user identity it will get a short per-user suffix for signed-in users, while the VM record keeps
