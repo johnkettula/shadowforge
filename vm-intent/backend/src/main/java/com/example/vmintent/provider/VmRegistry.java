@@ -87,6 +87,19 @@ public class VmRegistry {
         return out;
     }
 
+    /** MISSING VMs on one cloud: VM ID -> spec hash. The inventory check reports any that are listed again. */
+    public Map<String, String> missingOn(String provider) {
+        Map<String, String> out = new TreeMap<>();
+        jdbc.sql("""
+                SELECT spec_hash, result->>'vmId' AS vm_id FROM vm_record
+                WHERE provider = :p AND state = 'MISSING' AND result IS NOT NULL
+                """)
+                .param("p", provider)
+                .query((rs, i) -> out.put(rs.getString("vm_id"), rs.getString("spec_hash")))
+                .list();
+        return out;
+    }
+
     /** Every VM ID ever recorded for a cloud, in any state, so a VM we know about is never called an orphan. */
     public Set<String> knownVmIds(String provider) {
         return new HashSet<>(jdbc.sql("""

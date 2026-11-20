@@ -133,7 +133,14 @@ even if no copy of the app was running at that moment: a worker picks it up when
 cloud it lists the VMs and compares them with the inventory:
 
 - **Missing:** RUNNING here but gone from the cloud. Marked MISSING, and its lifecycle workflow is
-  told to stop.
+  told to stop. MISSING is final, so a listing that leaves out more than half (and more than 2) of a
+  provider's running VMs is not trusted: none of them is marked missing, no lifecycle is told, each
+  gets a NOT_MARKED_MISSING audit event, and the finding's note says *Not marked missing: the listing
+  left out N of M running VMs; check the provider's route settings*. The rule is
+  `InventoryRules.holdBackMissing`, which the test fakes call too.
+- **Listed again:** a MISSING VM whose ID is in the cloud's listing again is reported in the note
+  (*listed again:* and its spec hash) with a LISTED_AGAIN audit event. Nothing changes the VM or its
+  lifecycle; a person decides what to do. It is never called an orphan.
 - **Unrecorded (orphans):** in the cloud but never recorded here. Reported only, never deleted.
 - Clouds behind the one-way link are skipped, because domain 2 can't look into domain 3.
 
@@ -144,7 +151,8 @@ Temporal UI under **Schedules**, or with `POST /api/v2/inventory-checks`. To tur
 off, set `VMINTENT_INVENTORY_CHECK=false` (default `true`): the next time the app starts, it removes
 the `vm-inventory-check` schedule.
 
-- Code: `config/InventorySchedule.java`, `workflow/InventoryCheckWorkflowImpl.java`
+- Code: `config/InventorySchedule.java`, `workflow/InventoryCheckWorkflowImpl.java`,
+  `workflow/InventoryRules.java`, `db/InventoryActivitiesImpl.java`
 
 ## 7. Day-2 changes
 

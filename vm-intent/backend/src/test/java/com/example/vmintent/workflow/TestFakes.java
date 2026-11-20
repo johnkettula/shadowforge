@@ -294,20 +294,28 @@ public final class TestFakes {
         public InventoryFinding compare(String provider, List<String> cloudVmIds) {
             Set<String> inCloud = new HashSet<>(cloudVmIds);
             Set<String> known = new HashSet<>();
-            List<String> missing = new ArrayList<>();
+            List<String> gone = new ArrayList<>();
+            List<String> listedAgain = new ArrayList<>();
             int running = 0;
             for (Map.Entry<String, VmResult> e : records.results.entrySet()) {
                 if (!provider.equals(e.getValue().provider())) continue;
                 known.add(e.getValue().vmId());
-                if (!"RUNNING".equals(records.state.get(e.getKey()))) continue;
+                String st = records.state.get(e.getKey());
+                if ("MISSING".equals(st) && inCloud.contains(e.getValue().vmId())) listedAgain.add(e.getKey());
+                if (!"RUNNING".equals(st)) continue;
                 running++;
-                if (!inCloud.contains(e.getValue().vmId())) {
-                    missing.add(e.getKey());
-                    records.state.put(e.getKey(), "MISSING");
-                }
+                if (!inCloud.contains(e.getValue().vmId())) gone.add(e.getKey());
             }
+            String note = "";
+            List<String> missing = gone;
+            if (InventoryRules.holdBackMissing(gone.size(), running)) {
+                note = InventoryRules.heldBackNote(gone.size(), running);
+                missing = List.of();
+            }
+            missing.forEach(hash -> records.state.put(hash, "MISSING"));
+            if (!listedAgain.isEmpty()) note += " listed again: " + String.join(", ", listedAgain);
             List<String> orphans = cloudVmIds.stream().filter(id -> !known.contains(id)).toList();
-            return new InventoryFinding(provider, "", running, cloudVmIds.size(), missing, orphans);
+            return new InventoryFinding(provider, note, running, cloudVmIds.size(), missing, orphans);
         }
 
         @Override

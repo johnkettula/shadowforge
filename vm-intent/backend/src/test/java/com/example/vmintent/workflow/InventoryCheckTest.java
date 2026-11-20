@@ -6,6 +6,7 @@ import com.example.vmintent.workflow.Models.InventoryFinding;
 import com.example.vmintent.workflow.Models.InventoryReport;
 import com.example.vmintent.workflow.Models.ReconcileRequest;
 import com.example.vmintent.workflow.Models.VmResult;
+import io.temporal.api.enums.v1.WorkflowExecutionStatus;
 import io.temporal.client.WorkflowOptions;
 import io.temporal.client.WorkflowStub;
 import io.temporal.testing.TestWorkflowEnvironment;
@@ -13,7 +14,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** The nightly check: a VM that vanished from its cloud, and one nobody recorded. */
@@ -66,6 +70,29 @@ class InventoryCheckTest {
         life.getResult(10, java.util.concurrent.TimeUnit.SECONDS, Void.class);
         assertEquals("MISSING", records.lifecycles.get(gone).state());
         assertTrue(!cloud.deleted.contains(records.results.get(gone).vmId()), "nothing was deleted");
+    }
+
+    @Test
+    void doesNotMarkMostOfAProvidersVmsMissing() {
+        List<String> hashes = List.of(build("a"), build("b"), build("c"), build("d"));
+        List<String> vanished = hashes.subList(1, 4);
+        vanished.forEach(h -> cloud.vanished.add(records.results.get(h).vmId()));   // e.g. a route switched back to simulated
+
+        InventoryCheckWorkflow check = env.getWorkflowClient().newWorkflowStub(InventoryCheckWorkflow.class,
+                WorkflowOptions.newBuilder().setTaskQueue(TaskQueues.INTENT).setWorkflowId("inventory-check-held").build());
+        InventoryReport report = check.run();
+
+        InventoryFinding aws = report.findings().stream().filter(f -> f.provider().equals("aws")).findFirst().orElseThrow();
+        assertEquals(List.of(), aws.missing());
+        assertTrue(aws.note().contains("Not marked missing"), aws.note());
+        assertTrue(aws.note().contains("3 of 4"), aws.note());
+        assertEquals(0, report.missingCount());
+        for (String h : hashes) assertEquals("RUNNING", records.state.get(h));
+        for (String h : vanished) {
+            WorkflowStub life = env.getWorkflowClient().newUntypedWorkflowStub(VmLifecycleWorkflowImpl.workflowId(h));
+            assertEquals(WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING, life.describe().getStatus());
+            assertNotEquals("MISSING", records.lifecycles.get(h).state());
+        }
     }
 
     private String build(String name) {
