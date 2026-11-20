@@ -924,37 +924,3 @@ Risk: low. Attempts: 1. Built: 2026-11-20.
 
 01:57:32 attempt 1: developer: AP-0052 is done. A listing that leaves out more than 2 and more than half of a provider's RUNNING VMs no longer marks any of them MISSING, and a MISSING VM that shows up in a listing again is now repo
 02:43:00 attempt 1: review: approved: Approved. The change meets all nine acceptance criteria and all checks passed.
-
-## AP-0053: A CloudBackend interface and a RoutedProvider base class, with VsphereProvider moved onto them and no behaviour change (design review 0050 #1, the dispatch half of 0015 #2; CloudFailures stays open)
-
-VsphereProvider (backend/src/main/java/com/example/vmintent/provider/VsphereProvider.java:52-111) picks a backend by hand in 8 methods. A build switches on the datacenter's route. Later calls test VcenterBackend.owns / VcfaBackend.owns and otherwise fall through to SimulatedProvider/SimCloud. The backends share no interface, so a method a backend lacks quietly falls back to the simulator and the compiler can't catch it. The complete AzureArmBackend (0050 #3), Azure A2b and Proxmox would each copy this pattern. Review 0050 orders this right after the inventory guard, which AP-0052 merged in cycle 52.
-
-What to build:
-- provider/CloudBackend, an interface with: boolean handles(String vmId), plan(VmSpec), createVm(VmSpec, ProviderPlan, String key), describeVm, deleteVm, resizeVm, setPower, snapshotVm and listVmIds. It has no default methods.
-- The method is named handles, not owns. ap-0017/repo.test.mjs pins a public static boolean owns(String) on AzureArmBackend, and Java won't allow an instance method with the same signature next to it.
-- provider/RoutedProvider, an abstract class that extends SimulatedProvider:
-  - a build (plan and createVm) goes to the backend chosen for the spec, or to the simulator when there is none;
-  - every later call (describe, delete, resize, power, snapshot) goes to the backend that handles the vmId;
-  - an ID a backend handles never reaches SimCloud. If that backend isn't set up, the call fails as today: non-retryable, with type VsphereRoutes.NOT_SET_UP ('NotSetUp') and today's message;
-  - listVmIds returns the simulator's VMs plus those of every backend that is set up.
-- VcenterBackend and VcfaBackend implement CloudBackend. A small adapter covers createVm's different parameters. Their existing public methods, including the static owns methods and createVm(VmSpec, String), stay.
-- VsphereProvider extends RoutedProvider. It keeps providerName, idPrefix, the route lookup and the public constructor VsphereProvider(SimCloud, VsphereRoutes), which VsphereRoutesWorkflowTest uses, and no longer has its own owns( chains.
-- The developer chooses the exact names of RoutedProvider's hooks (for example backendForBuild(spec) and the list of backends).
-
-No workflow, activity-interface, failure-type or OpenAPI change, so histories replay unchanged. AzureArmBackend, AzureProvider, ArmClient and every file under provider/azure are out of scope (0050 #3 and A2b come later), and so are the CloudFailures cleanup and anything under security/. This doesn't touch sign-in or security.
-
-Acceptance criteria:
-- mvn test passes, including ReplayTest, which replays every file under backend/src/test/resources/histories/. No commit for this requirement modifies or deletes an existing file under backend/src/test/resources/histories/.
-- backend/src/main/java/com/example/vmintent/provider/CloudBackend.java is a public interface that declares handles(String), plan, createVm (taking a spec, a plan and a key), describeVm, deleteVm, resizeVm, setPower, snapshotVm and listVmIds, and has no default methods. It has no method named owns.
-- backend/src/main/java/com/example/vmintent/provider/RoutedProvider.java declares an abstract class that extends SimulatedProvider. VsphereProvider extends RoutedProvider and no longer calls VcenterBackend.owns or VcfaBackend.owns. VsphereProvider still has a public constructor taking (SimCloud, VsphereRoutes) and still names the task queues TaskQueues.VSPHERE and TaskQueues.VSPHERE_READ in its @ActivityImpl annotation.
-- VcenterBackend and VcfaBackend each declare that they implement CloudBackend. Each still has public static boolean owns(String) and public String createVm(VmSpec spec, String idempotencyKey).
-- A new test class backend/src/test/java/**/provider/RoutedProviderTest.java has active test methods (with @Test or @ParameterizedTest and no @Disabled) that use a recording fake CloudBackend. Together they show that: (a) a build whose spec routes to the fake backend calls the fake's plan and createVm and returns the fake's vmId; (b) a build with no backend for its spec goes to the simulator; (c) resize, power, snapshot, describe and delete of an ID the fake handles reach the fake, and SimCloud gets no call (for example a Mockito mock of SimCloud with verifyNoInteractions); (d) a handled ID whose backend isn't set up fails with a non-retryable ApplicationFailure of type NotSetUp, and SimCloud gets no call; (e) listVmIds returns the simulator's IDs plus the fake's IDs, and leaves out a backend that isn't set up.
-- VsphereRoutesWorkflowTest, VcenterBackendTest and VcfaBackendTest are present and pass. No commit for this requirement changes any file under backend/src/test/java/com/example/vmintent/provider/vsphere/ or VsphereRoutesWorkflowTest.java. The pipeline's own 'acceptance tests' and 'record the requirement' commits don't count.
-- No commit for this requirement changes any file under backend/src/main/java/com/example/vmintent/provider/azure/, AzureProvider.java, AwsProvider.java, GcpProvider.java, SimCloud.java, any file under backend/src/main/java/com/example/vmintent/workflow/, any file under backend/src/main/java/com/example/vmintent/security/, docs/openapi.json or docs/openapi.yaml. The pipeline's own 'acceptance tests' and 'record the requirement' commits don't count.
-- On staging, vSphere behaviour is unchanged. POST /api/v2/interpret with a vsphere request in dc1 (for example 'a small ubuntu server on vsphere in dc1 called rp-<run>') followed by the usual confirm builds a VM that GET /api/v2/vms/{specHash} reports as RUNNING within 3 minutes, with a vmId starting 'vm-'. A resize of that VM through the existing VM endpoint is accepted, as it was before this change. POST /api/v2/inventory-checks returns 202, and within 3 minutes GET /api/v2/inventory-checks?limit=1 shows that check with a vsphere finding whose missing list doesn't contain the VM the test just built.
-- README.md's code map entry for provider/ names CloudBackend and RoutedProvider. docs/TEMPORAL-FEATURES.md's test table has a RoutedProviderTest row that describes what the test covers. Every class or test-method name this change adds to a doc exists under vm-intent/backend/src at this requirement's last commit. Line 3 of each doc this change edits is exactly 'Last updated <the build date>.'; no commit for this requirement changes the 'Last updated' line of a doc it doesn't otherwise edit.
-
-Risk: low. Attempts: 1. Built: 2026-11-20.
-
-03:58:04 attempt 1: developer: VsphereProvider now uses the new CloudBackend interface and RoutedProvider base class instead of picking a backend by hand, with no behaviour change. The full backend suite passes: `mvn test` ran 287 
-04:45:23 attempt 1: review: approved: AP-0053 does what the acceptance criteria ask, and all checks passed, including the replay tests.

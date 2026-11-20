@@ -1,6 +1,5 @@
 package com.example.vmintent.provider.vsphere;
 
-import com.example.vmintent.provider.CloudBackend;
 import com.example.vmintent.spec.VmIdentity;
 import com.example.vmintent.spec.VmSpec;
 import com.example.vmintent.workflow.Models.ProviderPlan;
@@ -29,7 +28,7 @@ import java.util.regex.Pattern;
  *
  * Also used directly by the catalog's blueprint.deploy step, for blueprints that build more than one VM.
  */
-public class VcfaBackend implements CloudBackend {
+public class VcfaBackend {
 
     public static final String PREFIX = "vcfa:";
     private static final Logger log = LoggerFactory.getLogger(VcfaBackend.class);
@@ -56,11 +55,6 @@ public class VcfaBackend implements CloudBackend {
 
     public static boolean owns(String vmId) {
         return vmId != null && vmId.startsWith(PREFIX);
-    }
-
-    @Override
-    public boolean handles(String vmId) {
-        return owns(vmId);
     }
 
     private static String deploymentId(String vmId) {
@@ -126,12 +120,6 @@ public class VcfaBackend implements CloudBackend {
         if (dc.blueprintVersion() != null && !dc.blueprintVersion().isBlank()) return dc.blueprintVersion();
         List<String> released = client.releasedVersions(blueprintId);
         return released.isEmpty() ? null : released.get(0);
-    }
-
-    /** CloudBackend's createVm. The plan isn't needed: the request reads the same settings plan(spec) did. */
-    @Override
-    public String createVm(VmSpec spec, ProviderPlan plan, String idempotencyKey) {
-        return createVm(spec, idempotencyKey);
     }
 
     public String createVm(VmSpec spec, String idempotencyKey) {

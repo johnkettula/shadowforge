@@ -1,6 +1,5 @@
 package com.example.vmintent.provider.vsphere;
 
-import com.example.vmintent.provider.CloudBackend;
 import com.example.vmintent.spec.VmIdentity;
 import com.example.vmintent.spec.VmSpec;
 import com.example.vmintent.workflow.Models.ProviderPlan;
@@ -28,7 +27,7 @@ import java.util.regex.Pattern;
  * tagged as ours and with the same spec hash in the key in its notes, is the one we built; one that
  * isn't tagged as ours, or was built for another spec, is never touched.
  */
-public class VcenterBackend implements CloudBackend {
+public class VcenterBackend {
 
     public static final String PREFIX = "vcenter:";
     private static final Logger log = LoggerFactory.getLogger(VcenterBackend.class);
@@ -51,11 +50,6 @@ public class VcenterBackend implements CloudBackend {
 
     public static boolean owns(String vmId) {
         return vmId != null && vmId.startsWith(PREFIX);
-    }
-
-    @Override
-    public boolean handles(String vmId) {
-        return owns(vmId);
     }
 
     record Ref(String dc, String name) {
@@ -124,12 +118,6 @@ public class VcenterBackend implements CloudBackend {
         if (dc.folder() == null || dc.folder().isBlank()) return null;
         String filter = datacenterFilter(dcKey, dc);
         return cached(dcKey + "/folder", () -> client.idOf("folder", dc.folder(), "type=VIRTUAL_MACHINE" + (filter == null ? "" : "&" + filter)));
-    }
-
-    /** CloudBackend's createVm. The plan isn't needed: the build reads the same settings plan(spec) did. */
-    @Override
-    public String createVm(VmSpec spec, ProviderPlan plan, String idempotencyKey) {
-        return createVm(spec, idempotencyKey);
     }
 
     public String createVm(VmSpec spec, String idempotencyKey) {
