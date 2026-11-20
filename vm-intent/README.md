@@ -111,6 +111,9 @@ backend/src/main/java/com/example/vmintent/
   workflow/   IntentWorkflow (interpret, clarify, confirm) and
               VmReconcileWorkflow (plan, create, verify, saga rollback)
   provider/   ProviderActivities interface + simulated AWS/Azure/GCP/vSphere adapters;
+              CloudBackend (a real cloud's plan/create/describe/delete/resize/power/snapshot/list)
+              and RoutedProvider (builds go to the spec's backend, later calls to the backend
+              that handles the VM ID, the rest to the simulator; VsphereProvider extends it);
               provider/vsphere: real vCenter 9 and VCF Automation 9 clients (docs/VSPHERE.md)
               provider/azure: the Azure Resource Manager client (ArmClient) and AzureArmBackend
               (create, describe, delete one VM); not connected to builds yet (docs/AZURE.md)
