@@ -1,6 +1,6 @@
 # Catalog definitions and runs
 
-Last updated 2026-11-19.
+Last updated 2026-11-20.
 
 Technical operators describe repeatable provisioning jobs in YAML. vm-intent checks each file when
 it's published and runs it as a Temporal workflow. There are two kinds of file:
@@ -152,7 +152,12 @@ spec's name (the generated `vm-` + 8 hex characters when none was asked for; a c
 signed-in user's named VM is called `<name>-<the first 8 hex characters of its spec hash>` in the cloud
 (for example `web-01-55214b87`), while the API and the web app show the name asked for and the VM
 record and the audit trail keep it. A generated `vm-<hash8>` name is already unique per user, so it
-gets no suffix and its cloud name is the spec's name. Names are at most 41 characters
+gets no suffix and its cloud name is the spec's name. A catalog run's generated
+`<definition>-<6 hex characters>` name is given before `VmIdentity.of` runs
+(`catalog/CatalogActivitiesImpl`), so it counts as a name: a signed-in run's VM with no `name` input
+gets the per-user suffix too, and its cloud name is
+`<definition>-<6 hex characters>-<the first 8 hex characters of its spec hash>`. With sign-in off
+its cloud name stays `<definition>-<6 hex characters>`. Names are at most 41 characters
 (`spec/VmNames`), so a cloud name is at most 50 and is never cut short. `VmIdentity.of(spec,
 owner)` gives the spec hash and the cloud name together, for every way in, and the request workflows
 pass it to the build in `ReconcileRequest.cloudName`; `POST /api/v2/interpret` shows it. So two

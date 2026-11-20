@@ -1,6 +1,6 @@
 # vm-intent: natural-language VM requests on Temporal
 
-Last updated 2026-11-19.
+Last updated 2026-11-20.
 
 You type a request for a VM in plain English. One canonical, cloud-neutral spec
 comes out, and a Temporal workflow builds it on vSphere, AWS, Azure or Google
@@ -100,7 +100,8 @@ backend/src/main/java/com/example/vmintent/
               VmIdentity: the one place that computes a VM's spec hash (a signed-in user's also covers
               their user ID, so duplicates are per user) and its vm-/life- workflow IDs;
               VmIdentity.of gives the spec hash together with the VM's cloud name (cloudName),
-              which today is the spec's name,
+              which is the spec's name, except that a signed-in user's named VM gets "-" plus
+              the first 8 hex characters of its spec hash after it,
               and builds a VM's build key, which the real clouds use to decide whether to reuse an
               existing VM with the same name (same spec hash only);
               VmNames: the one VM-name rule (lower-case letters, digits and hyphens, 2 to 41
