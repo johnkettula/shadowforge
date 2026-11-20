@@ -159,8 +159,9 @@ takes a little longer.
   lifecycle events (EXPIRY_WARNING, RENEWED, RESIZED, POWERED_ON, POWERED_OFF, SNAPSHOT, DELETED and others).
   Also: BATCH_STARTED and BATCH_COMPLETED for a batch; LINK_ORDER_SENT, LINK_REPLY and
   LINK_REPLY_UNMATCHED for the one-way link; LIFECYCLE_NOT_STARTED when a built VM's lifecycle
-  could not be started (for example, one already looks after that VM); INVENTORY_CHECK and MISSING
-  from the nightly inventory check; AUDIT_REPLAY for each audit replay; and catalog-run events such
+  could not be started (for example, one already looks after that VM); INVENTORY_CHECK, MISSING,
+  NOT_MARKED_MISSING (a listing left out too many VMs to trust) and LISTED_AGAIN (a MISSING VM is in
+  its cloud again) from the nightly inventory check; AUDIT_REPLAY for each audit replay; and catalog-run events such
   as RUN_STARTED, STEP_DONE, STEP_FAILED, RUN_STOPPED, RUN_RESUMED and RUN_COMPLETED.
 - API: `GET /api/v2/audit?requestId=...` or `?specHash=...`. The UI shows it under "Audit trail".
 - To use a real Postgres server, set these environment variables (`application.yml` reads them;

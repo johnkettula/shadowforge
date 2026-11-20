@@ -162,7 +162,7 @@ The same spec can be built again after it was removed; you get a new VM.
 
 Every night at 02:00 UTC the app compares each cloud with its inventory. The *Inventory check* card shows the last result:
 
-- **Missing:** a VM the inventory says is running, but the cloud no longer has (someone deleted it by hand). It's marked MISSING.
+- **Missing:** a VM the inventory says is running, but the cloud no longer has (someone deleted it by hand). It's marked MISSING. If a cloud's listing leaves out more than half (and more than 2) of its running VMs, the listing is more likely wrong than the VMs gone, so none of them is marked missing; the note says *Not marked missing: the listing left out N of M running VMs; check the provider's route settings*. A MISSING VM that is in the cloud's listing again is reported in the note (*listed again:* and its spec hash) and not changed; an administrator decides what to do with it.
 - **Unrecorded:** a VM in the cloud that the inventory never recorded. These are only listed, never deleted; deciding what to do is up to a person.
 
 Press **Run now** to check straight away (admins only when sign-in is on). Clouds reached over the one-way link to domain 3 are skipped. An administrator sets the time with `VMINTENT_INVENTORY_CHECK_CRON` (default 02:00) and `VMINTENT_INVENTORY_CHECK_TZ` (default UTC). The backend writes the schedule again from these settings every time it starts, so a change made in the Temporal UI lasts only until the next restart. `VMINTENT_INVENTORY_CHECK=false` turns the nightly check off.
