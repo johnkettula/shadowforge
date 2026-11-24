@@ -14,6 +14,8 @@ public final class TaskQueues {
     public static final String AWS = "aws-q";
     public static final String AZURE = "azure-q";
     public static final String GCP = "gcp-q";
+    public static final String PROXMOX = "proxmox-q";
+    public static final String PROXMOX_READ = "proxmox-read-q";
 
     public static final String VSPHERE_READ = "vsphere-read-q";
     public static final String AWS_READ = "aws-read-q";
