@@ -1,6 +1,6 @@
 # vm-intent User Guide
 
-Last updated 2026-11-18.
+Last updated 2026-11-25.
 
 ## What vm-intent does
 
@@ -300,3 +300,5 @@ For running on Linux or Azure, see `README.md` and `deploy/`.
 | The request FAILED saying the VM "was built by vm-intent for another request; choose another name" | This happens only when vSphere is connected to a real vCenter or VCF Automation: a different VM already has that name there. Pick another name and submit again. |
 | A 401 or 403 error | Sign-in is on. Get a token or certificate with the role the operation needs (see *Sign-in and roles*). |
 | The first backend start is slow | It downloads its dependencies and a database the first time. Later starts take seconds. |
+| The *Inventory check* card's note says *Not marked missing* | The cloud's listing left out more than half (and more than 2) of that provider's running VMs, so none of them was marked MISSING and their lifecycles go on. An administrator checks that provider's route settings (for vSphere, see `docs/VSPHERE.md`), then presses **Run now**. |
+| The *Inventory check* card's note says *listed again* | A VM that was marked MISSING is in its cloud's listing again; the note gives its spec hash. vm-intent changes nothing on its own; an administrator decides what to do with it. |

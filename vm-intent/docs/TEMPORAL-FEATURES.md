@@ -1,6 +1,6 @@
 # Temporal features in vm-intent
 
-Last updated 2026-11-20.
+Last updated 2026-11-25.
 
 This page explains which Temporal features vm-intent uses, what each one is for, where it is in the
 code, and how to see it working. It's written for someone learning Temporal.
@@ -305,7 +305,9 @@ One thing to know: it only skips ahead while a timer is waiting. To wait for a w
 | `CloudNameTest` | The build workflow takes the cloud-side name from `ReconcileRequest.cloudName` (null = the name asked for) and never works it out itself: the cloud's plan and create, and the link's CREATE order, get the cloud name, while the VM record and the audit trail keep the name asked for; a rollback (direct, or the undo by key over the link) removes the VM made under the cloud name; a batch shard passes its `BatchItem.cloudName` on to the cloud (the scenario behind `batchshard-v2-cloud-name`) |
 | `LinkFilesTest` | The real file-based link with the simulated domain 3 |
 | `IntentWorkflowTest` | Answer, confirm and cancel updates (with a replay round trip), several VMs at once, search attributes |
-| `InventoryCheckTest` | Missing VMs and orphans |
+| `InventoryCheckTest` | Missing VMs and orphans; when 3 of a provider's 4 VMs vanish from its listing, none is marked missing, the note says so ("Not marked missing", "3 of 4"), and their lifecycles are not ended MISSING (`doesNotMarkMostOfAProvidersVmsMissing`) |
+| `InventoryRulesTest` | The check holds back marking only when more than 2 and more than half of the running VMs are left out: up to 2, or up to half, are still marked (`marksUpToTwoOrUpToHalf`, `holdsBackMoreThanTwoAndMoreThanHalf`); the note says how many of how many were left out (`noteSaysHowManyWereLeftOut`) |
+| `InventoryActivitiesImplTest` | The real compare holds back when a listing leaves out most VMs (`holdsBackWhenTheListingLeavesOutMostVms`), marks a few missing VMs MISSING (`marksAFewMissingVms`), and reports a MISSING VM that is listed again in the note (`reportsAMissingVmThatIsListedAgain`) |
 | `ReplayTest` | Every saved history against new code, the workflow class picked by file-name prefix (a file with no known prefix fails), and the seven pinned histories (`intent-v1-*`, `reconcile-v1-*`, `catalog-v1-*`) and the four recorded ones (`intent-v2-multi-existing`, `lifecycle-v1-renewed`, `batchshard-v1-duplicate`, `catalog-v2-existing-vm`) and the two signed-in ones (`intent-v2-signed-in`, `catalog-v3-signed-in`) and the cloud-name one (`batchshard-v2-cloud-name`) still present |
 | `RecordedHistoriesTest` | The scenarios behind `intent-v2-multi-existing` (two VMs, one already there), `lifecycle-v1-renewed` (a renewal), `batchshard-v1-duplicate` (a shard with the same spec twice) and `intent-v2-signed-in` (a signed-in request); with `-Dhistories.record=true` they save missing histories |
 | `HistoryRecorderTest` | `HistoryRecorder` writes nothing without `-Dhistories.record=true`, writes a missing file that replays, and leaves an existing file byte-for-byte unchanged |
